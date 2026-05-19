@@ -7,6 +7,10 @@ from shapely.geometry import Point
 
 from niamoto.core.plugins.transformers.extraction.geospatial_extractor import (
     GeospatialExtractor,
+    GeospatialExtractorConfig,
+)
+from niamoto.core.plugins.transformers.extraction import (
+    geospatial_extractor as geospatial_extractor_module,
 )
 from niamoto.core.imports.registry import EntityMetadata, EntityKind
 
@@ -43,6 +47,24 @@ def geospatial_extractor_plugin():
 
 class TestGeospatialExtractorValidation:
     """Tests for GeospatialExtractor configuration validation."""
+
+    def test_constructor_wires_database_registry_and_config(self):
+        mock_db = MagicMock()
+        mock_registry = MagicMock()
+        mock_config = MagicMock()
+
+        with patch.object(
+            geospatial_extractor_module, "Config", return_value=mock_config
+        ):
+            plugin = geospatial_extractor_module.GeospatialExtractor(
+                mock_db,
+                registry=mock_registry,
+            )
+
+        assert plugin.db is mock_db
+        assert plugin.registry is mock_registry
+        assert plugin.config is mock_config
+        assert plugin.config_model is GeospatialExtractorConfig
 
     def test_validate_config_valid(self, geospatial_extractor_plugin):
         """Test valid configuration."""

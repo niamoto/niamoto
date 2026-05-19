@@ -48,6 +48,7 @@ class NiamotoTestCase(unittest.TestCase):
         """Set up test environment."""
         # Set test mode to prevent config file creation
         os.environ["NIAMOTO_TEST_MODE"] = "1"
+        self._active_patches = []
         super().setUp()
 
     def tearDown(self):

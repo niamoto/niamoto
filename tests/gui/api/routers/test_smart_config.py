@@ -559,9 +559,13 @@ class TestAnalyzeFile:
             "/api/smart/analyze-file", json={"filepath": "imports/empty.csv"}
         )
 
-        # Should handle gracefully (implementation dependent)
-        # Either 200 with empty analysis or 400 error
-        assert response.status_code in [200, 400]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["columns"] == []
+        assert data["column_count"] == 0
+        assert data["row_count"] == 0
+        assert data["sample_size"] == 0
+        assert data["hierarchy"]["detected"] is False
 
     def test_analyze_with_entity_name_hint(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]
@@ -579,6 +583,7 @@ class TestAnalyzeFile:
         # The entity_name might be used for better column detection
         data = response.json()
         assert "columns" in data
+        assert data["entity_name_hint"] == "occurrence"
 
     def test_analyze_file_rejects_path_outside_project(self, test_client: TestClient):
         """Test analysis rejects paths outside the project directory."""
@@ -1117,9 +1122,15 @@ class TestAutoConfigureEdgeCases:
             "/api/smart/auto-configure", json={"files": ["imports/empty.csv"]}
         )
 
-        # Should handle gracefully - either skip or return error
-        # Implementation dependent
-        assert response.status_code in [200, 400]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["entities"]["datasets"]["empty"]["connector"]["path"] == (
+            "imports/empty.csv"
+        )
+        assert data["detected_columns"]["empty"] == []
+        assert data["decision_summary"]["empty"]["row_count"] == 0
+        assert data["decision_summary"]["empty"]["review_required"] is True
 
     def test_auto_configure_mixed_valid_invalid_files(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]
@@ -1136,13 +1147,72 @@ class TestAutoConfigureEdgeCases:
             },
         )
 
-        # Should process valid files and handle invalid ones
-        # At minimum, should not crash
-        assert response.status_code in [200, 400]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert set(data["detected_columns"]) == {
+            "sample_taxonomy",
+            "empty",
+            "no_hierarchy",
+        }
+        assert data["detected_columns"]["empty"] == []
+        assert "sample_taxonomy" in data["entities"]["references"]
+        assert "empty" in data["entities"]["datasets"]
+        assert data["decision_summary"]["empty"]["row_count"] == 0
+        assert data["decision_summary"]["empty"]["review_required"] is True
 
 
 class TestAutoConfigureJobs:
     """Test job-based auto-config endpoints and event streaming."""
+
+    def test_auto_configure_job_store_prunes_expired_terminal_jobs(self):
+        store = smart_config._AutoConfigureJobStore(terminal_ttl_seconds=1)
+        now = 1000.0
+        store._now = lambda: now
+        old_job = store.create_job()
+        store.complete(old_job.job_id, {"success": True})
+
+        now = 1002.0
+        fresh_job = store.create_job()
+
+        assert store.get_job(old_job.job_id) is None
+        assert store.get_job(fresh_job.job_id) is fresh_job
+
+    def test_auto_configure_job_store_limits_retained_terminal_jobs(self):
+        store = smart_config._AutoConfigureJobStore(
+            terminal_ttl_seconds=1000, max_terminal_jobs=2
+        )
+        now = 1000.0
+        store._now = lambda: now
+
+        first = store.create_job()
+        store.complete(first.job_id, {"success": True})
+        now += 1
+        second = store.create_job()
+        store.complete(second.job_id, {"success": True})
+        now += 1
+        third = store.create_job()
+        store.complete(third.job_id, {"success": True})
+        now += 1
+
+        store.create_job()
+
+        assert store.get_job(first.job_id) is None
+        assert store.get_job(second.job_id) is second
+        assert store.get_job(third.job_id) is third
+
+    def test_auto_configure_job_store_limits_events_per_job(self):
+        store = smart_config._AutoConfigureJobStore(max_events_per_job=2)
+        job = store.create_job()
+
+        store.append_event(job.job_id, {"kind": "detail", "message": "one"})
+        store.append_event(job.job_id, {"kind": "detail", "message": "two"})
+        store.append_event(job.job_id, {"kind": "detail", "message": "three"})
+
+        assert [event["message"] for event in store.get_job(job.job_id).events] == [
+            "two",
+            "three",
+        ]
 
     def test_auto_configure_job_completes_with_result(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]

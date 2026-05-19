@@ -199,7 +199,7 @@ class ShapeProcessor(TransformerPlugin):
             return None
 
     def get_simplified_coordinates(self, geometry_location: str) -> Dict[str, Any]:
-        """Get simplified coordinates for a geometry and convert to TopoJSON."""
+        """Get simplified coordinates for a geometry and convert to configured format."""
         try:
             from shapely import wkt
 
@@ -217,12 +217,12 @@ class ShapeProcessor(TransformerPlugin):
 
             if simplify:
                 geometry = self._simplify_with_utm(geometry)
-            return self._convert_to_topojson(geometry)
+            return self._convert_geometry(geometry)
         except Exception as e:
             raise ValueError(f"Error simplifying coordinates: {str(e)}")
 
     def get_coordinates_from_gdf(self, gdf: gpd.GeoDataFrame) -> Dict[str, Any]:
-        """Get simplified coordinates from a GeoDataFrame and convert to TopoJSON."""
+        """Get simplified coordinates from a GeoDataFrame in configured format."""
         try:
             if gdf is None or gdf.empty:
                 return {}
@@ -243,10 +243,38 @@ class ShapeProcessor(TransformerPlugin):
 
             merged = self._simplify_with_utm(merged)
 
-            return self._convert_to_topojson(merged)
+            return self._convert_geometry(merged)
 
         except Exception as e:
             raise ValueError(f"Error converting GeoDataFrame to TopoJSON: {str(e)}")
+
+    def _convert_geometry(self, geometry: BaseGeometry) -> Dict[str, Any]:
+        output_format = (
+            self.config.params.format if hasattr(self.config, "params") else "topojson"
+        )
+        if output_format == "geojson":
+            return self._convert_to_geojson(geometry)
+        return self._convert_to_topojson(geometry)
+
+    def _convert_to_geojson(self, geometry: BaseGeometry) -> Dict[str, Any]:
+        """Convert a geometry to a GeoJSON FeatureCollection."""
+        if not geometry.is_valid:
+            geometry = make_valid(geometry)
+
+        features = []
+        geometries = (
+            geometry.geoms if isinstance(geometry, GeometryCollection) else [geometry]
+        )
+        for geom in geometries:
+            if geom is None or geom.is_empty:
+                continue
+            if not geom.is_valid:
+                geom = make_valid(geom)
+            features.append(
+                {"type": "Feature", "properties": {}, "geometry": mapping(geom)}
+            )
+
+        return {"type": "FeatureCollection", "features": features}
 
     def _convert_to_topojson(self, geometry: BaseGeometry) -> Dict[str, Any]:
         """Convert a geometry to optimized TopoJSON format."""

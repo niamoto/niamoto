@@ -173,6 +173,28 @@ class TestSetupLogging:
         assert log_dir.exists()
         assert (log_dir / "test.log").exists()
 
+    def test_setup_logging_closes_removed_file_handlers(self, tmp_path):
+        """Test that repeated setup releases removed file handlers."""
+        logger = setup_logging(
+            component_name="test_close",
+            log_directory=str(tmp_path),
+            enable_console=False,
+        )
+        old_file_handler = next(
+            handler
+            for handler in logger.handlers
+            if isinstance(handler, logging.FileHandler)
+        )
+        old_stream = old_file_handler.stream
+
+        setup_logging(
+            component_name="test_close",
+            log_directory=str(tmp_path),
+            enable_console=False,
+        )
+
+        assert old_stream.closed
+
     def test_setup_logging_file_error_raises_logging_error(self, tmp_path):
         """Test that file logging errors raise LoggingError."""
         # Create a file where the log directory should be

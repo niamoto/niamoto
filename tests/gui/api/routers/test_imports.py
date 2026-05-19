@@ -271,6 +271,176 @@ def test_execute_import_reference_prunes_old_terminal_jobs(monkeypatch, tmp_path
         imports.import_jobs.update(before_jobs)
 
 
+def test_list_entities_returns_configured_references_and_datasets(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path
+    (work_dir / "config").mkdir()
+
+    generic_config = SimpleNamespace(
+        entities=SimpleNamespace(
+            references={
+                "taxons": SimpleNamespace(
+                    kind="hierarchical",
+                    connector=SimpleNamespace(
+                        type=ConnectorType.FILE,
+                        path="imports/taxons.csv",
+                    ),
+                )
+            },
+            datasets={
+                "occurrences": SimpleNamespace(
+                    connector=SimpleNamespace(
+                        type=ConnectorType.FILE,
+                        path="imports/occurrences.csv",
+                    ),
+                    links=[{"source": "taxons"}],
+                )
+            },
+        )
+    )
+
+    class FakeConfig:
+        def __init__(self, *args, **kwargs):
+            self.database_path = str(work_dir / "db" / "missing.duckdb")
+
+        @property
+        def get_imports_config(self):
+            return generic_config
+
+    monkeypatch.setattr(imports, "Config", FakeConfig)
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+
+    response = TestClient(create_app()).get("/api/imports/entities")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "references": [
+            {
+                "name": "taxons",
+                "table_name": "reference_taxons",
+                "kind": "hierarchical",
+                "connector_type": "file",
+                "path": "imports/taxons.csv",
+            }
+        ],
+        "datasets": [
+            {
+                "name": "occurrences",
+                "table_name": "dataset_occurrences",
+                "connector_type": "file",
+                "path": "imports/occurrences.csv",
+                "links": 1,
+            }
+        ],
+    }
+
+
+def test_list_entities_returns_empty_lists_when_import_config_is_missing(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path
+    (work_dir / "config").mkdir()
+
+    class FakeConfig:
+        def __init__(self, *args, **kwargs):
+            raise imports.ConfigurationError(config_key="import", message="missing")
+
+    monkeypatch.setattr(imports, "Config", FakeConfig)
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+
+    response = TestClient(create_app()).get("/api/imports/entities")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"references": [], "datasets": []}
+
+
+def test_list_entities_uses_registry_table_names(monkeypatch, tmp_path):
+    work_dir = tmp_path
+    db_path = work_dir / "db" / "niamoto.duckdb"
+    db_path.parent.mkdir(parents=True)
+    db_path.write_text("", encoding="utf-8")
+    (work_dir / "config").mkdir()
+
+    generic_config = SimpleNamespace(
+        entities=SimpleNamespace(
+            references={
+                "taxons": SimpleNamespace(
+                    kind="hierarchical",
+                    connector=SimpleNamespace(
+                        type=ConnectorType.FILE,
+                        path="imports/taxons.csv",
+                    ),
+                )
+            },
+            datasets={
+                "occurrences": SimpleNamespace(
+                    connector=SimpleNamespace(
+                        type=ConnectorType.FILE,
+                        path="imports/occurrences.csv",
+                    ),
+                    links=[],
+                )
+            },
+        )
+    )
+
+    class FakeConfig:
+        def __init__(self, *args, **kwargs):
+            self.database_path = str(db_path)
+
+        @property
+        def get_imports_config(self):
+            return generic_config
+
+    class FakeDB:
+        def has_table(self, table_name):
+            assert table_name == "niamoto_entities"
+            return True
+
+    class FakeOpenDatabase:
+        def __init__(self, database_path):
+            assert database_path == str(db_path)
+
+        def __enter__(self):
+            return FakeDB()
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+    class FakeRegistry:
+        ENTITIES_TABLE = "niamoto_entities"
+
+        def __init__(self, db):
+            assert isinstance(db, FakeDB)
+
+        def list_entities(self):
+            return [
+                SimpleNamespace(name="taxons", table_name="entity_taxons"),
+                SimpleNamespace(
+                    name="occurrences", table_name="dataset_occurrences_custom"
+                ),
+            ]
+
+    monkeypatch.setattr(imports, "Config", FakeConfig)
+    monkeypatch.setattr(imports, "open_database", FakeOpenDatabase)
+    monkeypatch.setattr(imports, "EntityRegistry", FakeRegistry)
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+
+    response = TestClient(create_app()).get("/api/imports/entities")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["references"][0]["table_name"] == "entity_taxons"
+    assert payload["datasets"][0]["table_name"] == "dataset_occurrences_custom"
+
+
 def test_delete_entity_drops_registry_table_before_removing_config(
     monkeypatch, tmp_path
 ):
@@ -554,6 +724,45 @@ def test_list_import_jobs_redacts_internal_tracebacks():
     listed_job = next(job for job in payload["jobs"] if job["id"] == job_id)
     assert "traceback" not in listed_job["error_details"]
     assert "traceback" not in listed_job["events"][0]["details"]
+
+
+@pytest.mark.parametrize("query", ["limit=0", "limit=-1", "offset=-1"])
+def test_list_import_jobs_rejects_invalid_pagination(query):
+    client = TestClient(create_app())
+
+    response = client.get(f"/api/imports/jobs?{query}")
+
+    assert response.status_code == 422
+
+
+def test_list_import_jobs_accepts_valid_pagination():
+    before_jobs = dict(imports.import_jobs)
+    jobs = [
+        ("old-job", "2026-01-01T00:00:00+00:00"),
+        ("middle-job", "2026-01-02T00:00:00+00:00"),
+        ("new-job", "2026-01-03T00:00:00+00:00"),
+    ]
+    imports.import_jobs.clear()
+    for job_id, created_at in jobs:
+        imports.import_jobs[job_id] = {
+            **_base_job(job_id),
+            "created_at": created_at,
+        }
+
+    try:
+        client = TestClient(create_app())
+
+        response = client.get("/api/imports/jobs?limit=1&offset=1")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["total"] == 3
+        assert payload["limit"] == 1
+        assert payload["offset"] == 1
+        assert [job["id"] for job in payload["jobs"]] == ["middle-job"]
+    finally:
+        imports.import_jobs.clear()
+        imports.import_jobs.update(before_jobs)
 
 
 def test_impact_check_returns_skip_reason_for_vector_entity(monkeypatch, tmp_path):

@@ -288,6 +288,7 @@ class StackedAreaPlotWidget(WidgetPlugin):
 
         if missing_cols:
             missing_y_fields = set(params.y_fields) & missing_cols
+            y_fields_to_render = params.y_fields
             if missing_y_fields:
                 # If we're missing some y_fields, we'll continue with those we have
                 available_y_fields = [y for y in params.y_fields if y in df.columns]
@@ -298,12 +299,14 @@ class StackedAreaPlotWidget(WidgetPlugin):
                 logger.warning(
                     f"Some y_fields are missing: {missing_y_fields}. Continuing with: {available_y_fields}"
                 )
-                params.y_fields = available_y_fields
+                y_fields_to_render = available_y_fields
 
             # If x_field is missing, it's a critical error
             if params.x_field in missing_cols:
                 logger.error(f"Missing critical x_field: {params.x_field}")
                 return f"<p class='error'>Missing x-axis field: {html.escape(str(params.x_field))}</p>"
+        else:
+            y_fields_to_render = params.y_fields
 
         # --- Generate Plot --- #
         try:
@@ -311,7 +314,7 @@ class StackedAreaPlotWidget(WidgetPlugin):
 
             # Add traces for each series
             colors = params.colors or None
-            for i, y_field in enumerate(params.y_fields):
+            for i, y_field in enumerate(y_fields_to_render):
                 color = colors[i] if colors and i < len(colors) else None
 
                 # Create the trace

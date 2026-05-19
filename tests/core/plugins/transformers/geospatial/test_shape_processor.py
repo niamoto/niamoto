@@ -2,6 +2,7 @@
 Unit tests for the shape processor plugin.
 """
 
+import copy
 import os
 import unittest
 import yaml
@@ -329,6 +330,19 @@ class TestShapeProcessor(NiamotoTestCase):
             self.assertEqual(coords["type"], "Topology")
             self.assertIn("objects", coords)
             self.assertIn("arcs", coords)
+
+    def test_transform_respects_geojson_format(self):
+        """Test GeoJSON output format for shape and layer coordinates."""
+        data = pd.DataFrame({"id": [1]})
+        config = copy.deepcopy(self.test_config)
+        config["params"]["format"] = "geojson"
+
+        result = self.processor.transform(data, config)
+
+        for coords in result.values():
+            self.assertEqual(coords["type"], "FeatureCollection")
+            self.assertIn("features", coords)
+            self.assertGreater(len(coords["features"]), 0)
 
     def test_process_layer(self):
         """Test layer processing."""

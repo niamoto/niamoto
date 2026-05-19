@@ -213,12 +213,15 @@ class BinnedDistribution(TransformerPlugin):
             field_data = pd.to_numeric(field_data, errors="coerce").dropna()
 
             if field_data.empty:
+                counts = [0] * (len(params.bins) - 1)
                 result = {
                     "bins": params.bins,
-                    "counts": [0] * (len(params.bins) - 1),
+                    "counts": counts,
                 }
                 if params.labels:
                     result["labels"] = params.labels
+                if params.include_percentages:
+                    result["percentages"] = [0] * len(counts)
                 return result
 
             # Calculate bin counts

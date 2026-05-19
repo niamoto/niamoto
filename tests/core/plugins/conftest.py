@@ -87,7 +87,7 @@ def clear_registry():
     # Restaurer l'état original au lieu de laisser le registre vide
     for pt in PluginRegistry._plugins:
         PluginRegistry._plugins[pt] = saved_plugins.get(pt, {})
-    PluginRegistry._metadata.update(saved_metadata)
+    PluginRegistry._metadata = saved_metadata
 
 
 @pytest.fixture(autouse=True, scope="class")

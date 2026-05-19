@@ -1026,9 +1026,8 @@ class TestTransformerService:
                 transformer_service._filter_configs(search_term)
 
 
-@pytest.mark.integration
-class TestTransformerServiceIntegration:
-    """Integration tests for TransformerService.
+class TestTransformerServiceWorkflow:
+    """Unit workflow tests for TransformerService.
 
     NOTE: Despite the name, these are still unit tests with mocked dependencies.
     They test more complex workflows but still mock transformers and database.

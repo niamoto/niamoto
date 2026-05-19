@@ -184,12 +184,18 @@ class TestSunburstChartWidget(NiamotoTestCase):
             with self.subTest(opacity=opacity):
                 params = SunburstChartWidgetParams(opacity=opacity)
 
-                result = self.widget.render(data, params)
+                render_mock = Mock(return_value="<div>chart</div>")
+                with patch.dict(
+                    self.widget.render.__globals__,
+                    {"render_plotly_figure": render_mock},
+                ):
+                    result = self.widget.render(data, params)
 
                 # Verify successful rendering
                 self.assertIsInstance(result, str)
                 self.assertNotIn("<p class='error'>", result)
-                self.assertIn("plotly-graph-div", result)
+                fig = render_mock.call_args.args[0]
+                self.assertEqual(fig.data[0].opacity, opacity)
 
     def test_render_invalid_data_not_dict(self):
         """Test rendering with invalid data (not a dictionary)."""

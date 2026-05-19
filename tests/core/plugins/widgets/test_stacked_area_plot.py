@@ -292,6 +292,7 @@ class TestStackedAreaPlotWidget(NiamotoTestCase):
         self.assertIsInstance(result, str)
         self.assertNotIn("<p class='error'>", result)
         self.assertIn("plotly-graph-div", result)
+        self.assertEqual(params.y_fields, ["y1", "y2", "y3"])
 
     def test_render_missing_all_y_fields(self):
         """Test rendering with all missing y_fields."""

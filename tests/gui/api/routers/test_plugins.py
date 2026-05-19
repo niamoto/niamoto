@@ -1,6 +1,7 @@
 """Tests for plugin registry API routes."""
 
 from fastapi.testclient import TestClient
+from pydantic import BaseModel
 
 from niamoto.core.plugins.base import PluginType, WidgetPlugin
 from niamoto.core.plugins.registry import PluginRegistry
@@ -11,6 +12,34 @@ from niamoto.gui.api.routers import plugins as plugins_router
 class DummyWidget(WidgetPlugin):
     """Dummy widget used for plugin route tests."""
 
+    class Params(BaseModel):
+        title: str = "Demo"
+
+    param_schema = Params
+
+    def render(self, data, params):
+        return "<div></div>"
+
+
+class ConfigModelWidget(WidgetPlugin):
+    """Widget exposing only a config_model schema."""
+
+    class ConfigModel(BaseModel):
+        enabled: bool = True
+
+    param_schema = None
+    config_model = ConfigModel
+
+    def render(self, data, params):
+        return "<div></div>"
+
+
+class NoParamWidget(WidgetPlugin):
+    """Widget without configurable parameters."""
+
+    param_schema = None
+    config_model = None
+
     def render(self, data, params):
         return "<div></div>"
 
@@ -19,6 +48,15 @@ class MislabeledWidget(WidgetPlugin):
     """Widget whose class metadata disagrees with registry metadata."""
 
     type = PluginType.TRANSFORMER
+
+    def render(self, data, params):
+        return "<div></div>"
+
+
+class CategorizedWidget(WidgetPlugin):
+    """Widget whose module path maps to the visualization category."""
+
+    __module__ = "niamoto.core.plugins.widgets.categorized_widget"
 
     def render(self, data, params):
         return "<div></div>"
@@ -99,5 +137,103 @@ def test_list_plugins_uses_registry_type_when_class_type_disagrees(monkeypatch):
         plugin = next(item for item in payload if item["id"] == "mislabeled_widget")
         assert plugin["type"] == "widget"
         assert plugin["output_format"] == "html"
+    finally:
+        PluginRegistry.clear()
+
+
+def test_list_categories_returns_registered_plugin_categories(monkeypatch):
+    monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
+    PluginRegistry.clear()
+    try:
+        PluginRegistry.register_plugin(
+            "categorized_widget", CategorizedWidget, PluginType.WIDGET
+        )
+        response = TestClient(create_app()).get("/api/plugins/categories/list")
+
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["categories"] == ["visualization"]
+        assert payload["count"] == 1
+    finally:
+        PluginRegistry.clear()
+
+
+def test_list_categories_returns_empty_registry(monkeypatch):
+    monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
+    PluginRegistry.clear()
+    try:
+        response = TestClient(create_app()).get("/api/plugins/categories/list")
+
+        assert response.status_code == 200, response.text
+        assert response.json() == {"categories": [], "count": 0}
+    finally:
+        PluginRegistry.clear()
+
+
+def test_get_plugin_json_schema_returns_registered_plugin_schema(monkeypatch):
+    monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
+    PluginRegistry.clear()
+    try:
+        PluginRegistry.register_plugin("dummy_widget", DummyWidget, PluginType.WIDGET)
+        response = TestClient(create_app()).get("/api/plugins/dummy_widget/schema")
+
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["plugin_id"] == "dummy_widget"
+        assert payload["plugin_type"] == "widget"
+        assert payload["has_params"] is True
+        assert "schema" in payload
+    finally:
+        PluginRegistry.clear()
+
+
+def test_get_plugin_json_schema_uses_config_model_fallback(monkeypatch):
+    monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
+    PluginRegistry.clear()
+    try:
+        PluginRegistry.register_plugin(
+            "config_model_widget", ConfigModelWidget, PluginType.WIDGET
+        )
+        response = TestClient(create_app()).get(
+            "/api/plugins/config_model_widget/schema"
+        )
+
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["plugin_id"] == "config_model_widget"
+        assert payload["plugin_type"] == "widget"
+        assert payload["has_params"] is True
+        assert "enabled" in payload["schema"]["properties"]
+    finally:
+        PluginRegistry.clear()
+
+
+def test_get_plugin_json_schema_reports_plugin_without_params(monkeypatch):
+    monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
+    PluginRegistry.clear()
+    try:
+        PluginRegistry.register_plugin(
+            "no_param_widget", NoParamWidget, PluginType.WIDGET
+        )
+        response = TestClient(create_app()).get("/api/plugins/no_param_widget/schema")
+
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["plugin_id"] == "no_param_widget"
+        assert payload["plugin_type"] == "widget"
+        assert payload["has_params"] is False
+        assert payload["message"] == "This plugin does not have configurable parameters"
+    finally:
+        PluginRegistry.clear()
+
+
+def test_get_plugin_json_schema_rejects_unknown_plugin(monkeypatch):
+    monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
+    PluginRegistry.clear()
+    try:
+        response = TestClient(create_app()).get("/api/plugins/missing/schema")
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Plugin 'missing' not found"
     finally:
         PluginRegistry.clear()

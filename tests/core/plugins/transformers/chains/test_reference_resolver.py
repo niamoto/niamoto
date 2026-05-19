@@ -14,9 +14,11 @@ def sample_context():
             "simple_string": "hello world",
             "simple_number": 123.45,
             "simple_list": [10, 20, 30],
+            "mixed_list": [3, None, 1, 3, 2, None],
             "is_true": True,
             "is_null": None,
         },
+        "precision": {"digits": 1},
         "step2": {
             "nested": {
                 "key": "nested_value",
@@ -152,6 +154,32 @@ class TestReferenceResolver:
             self.context["step1"]["simple_number"]
         )
 
+    def test_resolve_function_with_literal_argument(self):
+        assert self.resolver.resolve("@step1.simple_number|round(1)") == 123.5
+
+    def test_resolve_function_with_reference_argument(self):
+        assert (
+            self.resolver.resolve("@step1.simple_number|round(@precision.digits)")
+            == 123.5
+        )
+
+    def test_resolve_function_unique(self):
+        assert set(self.resolver.resolve("@step1.mixed_list|unique")) == {
+            1,
+            2,
+            3,
+            None,
+        }
+
+    def test_resolve_function_sort(self):
+        assert self.resolver.resolve("@step1.simple_list|sort") == [10, 20, 30]
+
+    def test_resolve_function_reverse(self):
+        assert self.resolver.resolve("@step1.simple_list|reverse") == [30, 20, 10]
+
+    def test_resolve_function_filter_null(self):
+        assert self.resolver.resolve("@step1.mixed_list|filter_null") == [3, 1, 3, 2]
+
     # --- Error Handling Tests (Basic) --- #
 
     def test_error_invalid_format_missing_dot(self):
@@ -182,8 +210,14 @@ class TestReferenceResolver:
         with pytest.raises(ValueError, match="Function 'invalid_func' not found"):
             self.resolver.resolve("@step1.simple_string|invalid_func")
 
-    # --- TODO: Add more tests --- #
-    # - Test function arguments (literal and reference)
-    # - Test more complex path errors (e.g., indexing a non-list)
-    # - Test function argument errors (type, count)
-    # - Test more functions (unique, sort, etc.)
+    def test_error_indexing_non_list_value(self):
+        with pytest.raises(ValueError, match="Invalid index access '\\[0\\]'.*str"):
+            self.resolver.resolve("@step1.simple_string[0]")
+
+    def test_error_function_argument_count(self):
+        with pytest.raises(TypeError):
+            self.resolver.resolve("@step1.simple_number|int(10)")
+
+    def test_error_function_argument_type(self):
+        with pytest.raises(TypeError):
+            self.resolver.resolve("@step1.simple_string|round(1)")

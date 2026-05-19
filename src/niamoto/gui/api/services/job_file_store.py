@@ -183,6 +183,7 @@ class JobFileStore:
         self,
         limit: int = 20,
         include_active_terminal: bool = False,
+        job_type: str | None = None,
     ) -> list[dict]:
         """Retourne les N derniers jobs terminés (plus récent en premier).
 
@@ -197,7 +198,11 @@ class JobFileStore:
 
             if include_active_terminal:
                 active = self._read_active()
-                if active and active["status"] in TERMINAL_STATUSES:
+                if (
+                    active
+                    and active["status"] in TERMINAL_STATUSES
+                    and (job_type is None or active.get("type") == job_type)
+                ):
                     entries.append(active)
                     seen_ids.add(active.get("id"))
 
@@ -213,6 +218,8 @@ class JobFileStore:
 
                 entry_id = entry.get("id")
                 if entry_id in seen_ids:
+                    continue
+                if job_type is not None and entry.get("type") != job_type:
                     continue
 
                 entries.append(entry)

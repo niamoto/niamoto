@@ -86,7 +86,7 @@ class ScatterAnalysis(TransformerPlugin):
 
     output_structure = {
         "_type": "dataframe",
-        "columns": ["x_field", "y_field"],
+        "columns": ["x", "y"],
     }
 
     def __init__(self, db, registry=None):
@@ -126,6 +126,7 @@ class ScatterAnalysis(TransformerPlugin):
             df = data[[params.x_field, params.y_field]].copy()
             df[params.x_field] = pd.to_numeric(df[params.x_field], errors="coerce")
             df[params.y_field] = pd.to_numeric(df[params.y_field], errors="coerce")
+            df = df.rename(columns={params.x_field: "x", params.y_field: "y"})
             df = df.dropna()
 
             if df.empty:

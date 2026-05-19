@@ -5,9 +5,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 import pytest
 import yaml
 
+from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers import transform as transform_router
 
 
@@ -52,6 +54,17 @@ class _StatusJobStore:
         if group_by in (self.job.get("group_bys") or []):
             return self.job
         return None
+
+
+def test_execute_transform_rejects_null_config_path():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/transform/execute",
+        json={"config_path": None},
+    )
+
+    assert response.status_code == 422
 
 
 @pytest.mark.anyio

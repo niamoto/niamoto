@@ -83,6 +83,49 @@ def _escape_csv_spreadsheet_cell(value: Any) -> Any:
     return value
 
 
+def _render_csv_row(values: List[Any]) -> str:
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(values)
+    return output.getvalue()
+
+
+def _iter_outlier_csv_rows(
+    db_path: Path,
+    entity: str,
+    column: str,
+    safe_columns: List[str],
+    lower_bound: float,
+    upper_bound: float,
+):
+    """Yield outlier CSV rows without buffering the full export in memory."""
+    with open_database(db_path, read_only=True) as db:
+        preparer = db.engine.dialect.identifier_preparer
+        quoted_table = preparer.quote(entity)
+        quoted_col = preparer.quote(column)
+        cols_ordered = [column] + [c for c in safe_columns if c != column]
+        cols_ordered_sql = ", ".join(preparer.quote(c) for c in cols_ordered)
+
+        yield _render_csv_row(cols_ordered)
+
+        with db.engine.connect() as conn:
+            result = conn.execute(
+                text(
+                    f"""
+                    SELECT {cols_ordered_sql} FROM {quoted_table}
+                    WHERE {quoted_col} IS NOT NULL
+                    AND ({quoted_col} < :lower_bound OR {quoted_col} > :upper_bound)
+                    ORDER BY {quoted_col}
+                """
+                ),
+                {"lower_bound": lower_bound, "upper_bound": upper_bound},
+            )
+            for row in result:
+                yield _render_csv_row(
+                    [_escape_csv_spreadsheet_cell(cell) for cell in row]
+                )
+
+
 # =============================================================================
 # Response Models
 # =============================================================================
@@ -3271,18 +3314,25 @@ async def get_value_validation(
             columns_info = db.get_columns(entity)
 
             # Filter to numeric columns
-            numeric_types = ["INTEGER", "FLOAT", "DOUBLE", "DECIMAL", "NUMERIC", "REAL"]
             target_columns = []
 
             if columns:
-                requested = [c.strip() for c in columns.split(",")]
+                requested = [c.strip() for c in columns.split(",") if c.strip()]
+                requested_set = set(requested)
                 for col in columns_info:
-                    if col["name"] in requested:
+                    if col["name"] in requested_set:
+                        if not _is_numeric_column(columns_info, col["name"]):
+                            raise HTTPException(
+                                status_code=400,
+                                detail=(
+                                    f"Column '{col['name']}' is not numeric "
+                                    "and cannot be validated"
+                                ),
+                            )
                         target_columns.append(col)
             else:
                 for col in columns_info:
-                    col_type = str(col.get("type", "")).upper()
-                    if any(nt in col_type for nt in numeric_types):
+                    if _is_numeric_column(columns_info, col["name"]):
                         target_columns.append(col)
 
             validations = []
@@ -3845,39 +3895,16 @@ async def export_outliers_csv(
                         detail="Could not calculate outlier bounds for this column",
                     )
 
-                # Fetch all outliers
-                cols_ordered = [column] + [c for c in safe_columns if c != column]
-                cols_ordered_sql = ", ".join(preparer.quote(c) for c in cols_ordered)
-
-                result = conn.execute(
-                    text(
-                        f"""
-                    SELECT {cols_ordered_sql} FROM {quoted_table}
-                    WHERE {quoted_col} IS NOT NULL
-                    AND ({quoted_col} < {lower_bound} OR {quoted_col} > {upper_bound})
-                    ORDER BY {quoted_col}
-                """
-                    )
-                )
-
-                # Generate CSV
-                output = io.StringIO()
-                writer = csv.writer(output)
-
-                # Write header
-                writer.writerow(cols_ordered)
-
-                # Write data
-                for row in result:
-                    writer.writerow(
-                        [_escape_csv_spreadsheet_cell(cell) for cell in row]
-                    )
-
-                output.seek(0)
-
                 filename = f"{entity}_{column}_outliers_{method}.csv"
                 return StreamingResponse(
-                    iter([output.getvalue()]),
+                    _iter_outlier_csv_rows(
+                        db_path,
+                        entity,
+                        column,
+                        safe_columns,
+                        lower_bound,
+                        upper_bound,
+                    ),
                     media_type="text/csv",
                     headers={"Content-Disposition": f"attachment; filename={filename}"},
                 )

@@ -240,6 +240,10 @@ def _is_image_like_mapping(value: Any) -> bool:
         return False
     for key, nested in value.items():
         lower_key = str(key).lower()
+        if lower_key in {"href", "source_url", "src", "url"} and _looks_like_image_url(
+            nested
+        ):
+            return True
         if any(keyword in lower_key for keyword in _IMAGE_KEYWORDS) and _is_url(nested):
             return True
     return False

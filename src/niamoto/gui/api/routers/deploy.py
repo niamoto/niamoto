@@ -128,6 +128,10 @@ async def delete_credential(platform: str, key: str):
     """Delete a credential from the OS keyring."""
     _check_platform(platform)
     success = CredentialService.delete(platform, key)
+    if not success:
+        raise HTTPException(
+            status_code=500, detail="Failed to delete credential from keyring"
+        )
     return {"deleted": success}
 
 

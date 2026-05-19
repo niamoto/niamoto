@@ -58,6 +58,21 @@ def test_upload_rejects_existing_source_file(
     assert existing_file.read_text(encoding="utf-8") == "existing\n"
 
 
+def test_upload_rejects_empty_csv_and_removes_saved_file(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    response = gui_duckdb_client.post(
+        "/api/sources/taxons/upload",
+        params={"source_name": "empty_stats"},
+        files={"file": ("empty.csv", b"", "text/csv")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CSV file is empty"
+    assert not (gui_duckdb_context / "imports" / "raw_empty_stats.csv").exists()
+
+
 def test_save_source_uses_selected_entity_column_and_reference_key(
     gui_duckdb_context: Path,
 ):

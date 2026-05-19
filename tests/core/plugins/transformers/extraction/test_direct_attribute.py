@@ -296,6 +296,35 @@ class TestDirectAttribute:
         assert result["value"] == "42.5"
         assert result["units"] == ""
 
+    def test_transform_falls_back_to_registry_lookup_when_source_data_missing(
+        self, direct_attribute, mock_db
+    ):
+        """Test transform loads from registry/database when no source DataFrame is provided."""
+        from types import SimpleNamespace
+
+        direct_attribute.registry.get = Mock(
+            return_value=SimpleNamespace(
+                table_name="dataset_occurrences",
+                config={"schema": {"id_field": "occurrence_id"}},
+            )
+        )
+        mock_db.fetch_one.return_value = {"species": "Hibbertia pancheri"}
+
+        config = {
+            "plugin": "direct_attribute",
+            "group_id": 2,
+            "params": {"source": "occurrences", "field": "species"},
+        }
+
+        result = direct_attribute.transform({}, config)
+
+        assert result["value"] == "Hibbertia pancheri"
+        direct_attribute.registry.get.assert_called_once_with("occurrences")
+        query, params = mock_db.fetch_one.call_args.args
+        assert "FROM dataset_occurrences" in query
+        assert "WHERE occurrence_id = :id_value" in query
+        assert params == {"id_value": 2}
+
     def test_transform_without_group_id(self, direct_attribute, sample_dataframe):
         """Test transform without group_id."""
         config = {
@@ -546,9 +575,8 @@ class TestDirectAttribute:
         assert result["value"] == "123.456"
 
 
-@pytest.mark.integration
-class TestDirectAttributeIntegration:
-    """Integration tests for DirectAttribute plugin."""
+class TestDirectAttributeDataFrameWorkflow:
+    """DataFrame workflow tests for DirectAttribute plugin."""
 
     @pytest.fixture
     def temp_data_dir(self, tmp_path):
@@ -580,8 +608,8 @@ class TestDirectAttributeIntegration:
 
         return data_dir
 
-    def test_full_workflow_csv(self, mock_db, temp_data_dir):
-        """Test complete workflow with CSV import."""
+    def test_dataframe_workflow_csv_source(self, mock_db, temp_data_dir):
+        """Test DataFrame path for a source originally loaded from CSV."""
         # Create a DataFrame that simulates the CSV data
         data_df = pd.DataFrame(
             {
@@ -624,13 +652,12 @@ class TestDirectAttributeIntegration:
                 "params": {"source": "occurrences", "field": "species"},
             }
 
-            # Pass the filtered DataFrame
             result = direct_attribute.transform(filtered_df, config)
 
             assert result["value"] == "Hibbertia pancheri"
 
-    def test_full_workflow_vector(self, mock_db, temp_data_dir):
-        """Test complete workflow with vector import."""
+    def test_dataframe_workflow_vector_source(self, mock_db, temp_data_dir):
+        """Test DataFrame path for a source originally loaded from vector data."""
         # Create a DataFrame that simulates the vector data
         data_df = pd.DataFrame(
             {
@@ -673,7 +700,6 @@ class TestDirectAttributeIntegration:
                 "params": {"source": "plots", "field": "area", "units": "m²"},
             }
 
-            # Pass the filtered DataFrame
             result = direct_attribute.transform(filtered_df, config)
 
             assert result["value"] == "200"

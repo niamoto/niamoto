@@ -203,11 +203,11 @@ def test_error_missing_axis_column(mock_db, sample_data, valid_config):
 
     with pytest.raises(DataTransformError) as exc_info:
         plugin.transform(sample_data, config)
-        # Check for the error raised when numeric conversion fails due to KeyError
-        assert "Failed to convert axis values to numeric" in str(exc_info.value)
-        assert "non_existent_axis_col" not in str(
-            exc_info.value
-        )  # Original KeyError detail is lost
+    # Check for the error raised when numeric conversion fails due to KeyError
+    assert "Failed to convert axis values to numeric" in str(exc_info.value)
+    assert "non_existent_axis_col" not in str(
+        exc_info.value
+    )  # Original KeyError detail is lost
 
 
 def test_error_axis_numeric_conversion(mock_db, sample_data, valid_config):

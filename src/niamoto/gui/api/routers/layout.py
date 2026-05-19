@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from niamoto.common.i18n import LocalizedString
-from niamoto.gui.api.context import get_working_directory
+from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.gui.api.services.preview_utils import (
     error_html,
     wrap_html_response as _wrap_html_response,
@@ -538,30 +538,40 @@ async def update_layout(group_by: str, request: LayoutUpdateRequest):
         export_idx, group_idx, group_config = result
         widgets = group_config.get("widgets", [])
 
+        invalid_indices = [
+            update.index
+            for update in request.widgets
+            if update.index < 0 or update.index >= len(widgets)
+        ]
+        if invalid_indices:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid widget indices: {invalid_indices}",
+            )
+
         # Apply updates
         widgets_updated = 0
         for update in request.widgets:
-            if 0 <= update.index < len(widgets):
-                widget = widgets[update.index]
+            widget = widgets[update.index]
 
-                # Update title if provided
-                if update.title is not None:
-                    widget["title"] = update.title
+            # Update title if provided
+            if update.title is not None:
+                widget["title"] = update.title
 
-                # Update description if provided
-                if update.description is not None:
-                    widget["description"] = update.description
+            # Update description if provided
+            if update.description is not None:
+                widget["description"] = update.description
 
-                # Update or create layout section
-                if "layout" not in widget:
-                    widget["layout"] = {}
+            # Update or create layout section
+            if "layout" not in widget:
+                widget["layout"] = {}
 
-                widget["layout"]["order"] = update.order
+            widget["layout"]["order"] = update.order
 
-                if update.colspan is not None:
-                    widget["layout"]["colspan"] = update.colspan
+            if update.colspan is not None:
+                widget["layout"]["colspan"] = update.colspan
 
-                widgets_updated += 1
+            widgets_updated += 1
 
         # Save updated config
         export_config["exports"][export_idx]["groups"][group_idx]["widgets"] = widgets
@@ -609,8 +619,11 @@ async def preview_widget(
         )
         return result
 
-    except HTTPException:
-        raise
+    except HTTPException as exc:
+        return HTMLResponse(
+            content=_wrap_html_response(error_html(str(exc.detail))),
+            status_code=exc.status_code,
+        )
     except Exception as e:
         logger.exception("Error previewing widget: %s", e)
         return HTMLResponse(
@@ -757,14 +770,6 @@ async def get_representatives(
     hierarchy level (family, genus, species, etc.) to allow testing previews
     at different granularities.
     """
-    import pandas as pd
-    from niamoto.common.database import Database
-    from niamoto.common.table_resolver import (
-        quote_identifier,
-        resolve_reference_table,
-    )
-    from niamoto.gui.api.context import get_database_path
-
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not configured")
@@ -772,6 +777,29 @@ async def get_representatives(
     db_path = get_database_path()
     if not db_path:
         raise HTTPException(status_code=404, detail="Database not found")
+
+    return await run_in_threadpool(
+        _get_representatives_sync,
+        Path(work_dir),
+        db_path,
+        group_by,
+        limit,
+    )
+
+
+def _get_representatives_sync(
+    work_dir: Path,
+    db_path: Path,
+    group_by: str,
+    limit: int,
+) -> RepresentativesResponse:
+    """Load representative entities in a worker thread."""
+    import pandas as pd
+    from niamoto.common.database import Database
+    from niamoto.common.table_resolver import (
+        quote_identifier,
+        resolve_reference_table,
+    )
 
     db = Database(str(db_path), read_only=True)
 

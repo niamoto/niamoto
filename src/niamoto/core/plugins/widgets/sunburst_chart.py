@@ -246,6 +246,7 @@ class SunburstChartWidget(WidgetPlugin):
                 "textinfo": params.text_info,
                 "hoverinfo": "label+percent parent+value",
                 "insidetextorientation": "radial",
+                "opacity": params.opacity,
                 "sort": False,
             }
 

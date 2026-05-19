@@ -1,5 +1,6 @@
 """Regression tests for database introspection routes on DuckDB projects."""
 
+import duckdb
 from fastapi.testclient import TestClient
 import yaml
 
@@ -98,6 +99,69 @@ def test_table_preview_uses_read_only_duckdb_connection(
     assert payload["total_rows"] == 3
     assert [row["id"] for row in payload["rows"]] == [1, 2, 3]
     assert read_only_values == [True]
+
+
+def test_table_stats_reports_counts_for_duckdb_table(gui_duckdb_client: TestClient):
+    response = gui_duckdb_client.get("/api/database/tables/dataset_occurrences/stats")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["table_name"] == "dataset_occurrences"
+    assert payload["row_count"] == 3
+    assert payload["column_count"] == 4
+    assert payload["null_counts"] == {
+        "id": 0,
+        "taxon_id": 0,
+        "count": 0,
+        "locality": 0,
+    }
+    assert payload["unique_counts"]["taxon_id"] == 2
+    assert set(payload["data_types"]) == {"id", "taxon_id", "count", "locality"}
+
+
+def test_table_stats_reports_nulls_and_duplicates(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_project,
+):
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE stats_fixture (
+                id INTEGER,
+                name VARCHAR,
+                score INTEGER
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO stats_fixture VALUES
+                (1, 'A', 10),
+                (2, 'A', NULL),
+                (3, NULL, 10)
+            """
+        )
+    finally:
+        conn.close()
+
+    response = gui_duckdb_client.get("/api/database/tables/stats_fixture/stats")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["row_count"] == 3
+    assert payload["column_count"] == 3
+    assert payload["null_counts"] == {"id": 0, "name": 1, "score": 1}
+    assert payload["unique_counts"]["name"] == 1
+    assert payload["unique_counts"]["score"] == 1
+
+
+def test_table_stats_returns_404_for_missing_table(gui_duckdb_client: TestClient):
+    response = gui_duckdb_client.get("/api/database/tables/missing_table/stats")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Table 'missing_table' not found"
 
 
 def test_query_endpoint_enforces_limit_over_user_sql_limit(

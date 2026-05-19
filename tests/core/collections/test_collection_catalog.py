@@ -134,6 +134,67 @@ def test_transform_only_groups_are_exposed_as_technical_candidates():
     assert collections["plot_stats"].review_status == "pending"
 
 
+def test_list_sources_includes_references_datasets_and_transform_groups():
+    service = CollectionCatalogService(
+        import_config=_import_config(),
+        transform_config=[
+            {"group_by": "taxons"},
+            {"group_by": "plot_stats"},
+            {"group_by": "plot_stats"},
+        ],
+    )
+
+    sources = {(source.type, source.name) for source in service.list_sources()}
+
+    assert sources == {
+        ("reference", "taxons"),
+        ("reference", "plots"),
+        ("dataset", "occurrences"),
+        ("transform_group", "taxons"),
+        ("transform_group", "plot_stats"),
+    }
+
+
+def test_update_collection_validates_roles_and_review_status():
+    service = CollectionCatalogService(import_config=_import_config())
+
+    updated = service.update_collection(
+        "taxons",
+        roles=["api", "api", "standard"],
+        review_status="accepted",
+        label="Accepted taxons",
+    )
+
+    assert updated.roles == ["api", "standard"]
+    assert updated.review_status == "accepted"
+    assert updated.label == "Accepted taxons"
+
+    try:
+        service.update_collection("taxons", roles=["invalid"])
+    except ValueError as exc:
+        assert "Invalid collection roles" in str(exc)
+    else:
+        raise AssertionError("Expected invalid role to be rejected")
+
+    try:
+        service.update_collection("taxons", review_status="invalid")
+    except ValueError as exc:
+        assert "review_status must be one of" in str(exc)
+    else:
+        raise AssertionError("Expected invalid review_status to be rejected")
+
+
+def test_get_collection_rejects_missing_name():
+    service = CollectionCatalogService(import_config=_import_config())
+
+    try:
+        service.get_collection("missing")
+    except KeyError as exc:
+        assert "Collection 'missing' not found" in str(exc)
+    else:
+        raise AssertionError("Expected missing collection to be rejected")
+
+
 def test_unknown_manual_source_is_rejected_without_mutating_metadata():
     import_config = _import_config()
     service = CollectionCatalogService(import_config=import_config)

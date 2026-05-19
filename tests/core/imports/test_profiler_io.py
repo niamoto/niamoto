@@ -84,12 +84,33 @@ class TestProfileDataframe:
         engine.data_analyzer = DataAnalyzer()
         engine.transformer_suggester = TransformerSuggester()
 
-        with patch.object(DataProfiler, "profile") as mock_profile:
-            engine._analyze_for_transformers(
+        original_profile_dataframe = DataProfiler.profile_dataframe
+
+        def profile_dataframe_spy(profiler, *args, **kwargs):
+            return original_profile_dataframe(profiler, *args, **kwargs)
+
+        with (
+            patch.object(DataProfiler, "profile") as mock_profile,
+            patch.object(
+                DataProfiler,
+                "profile_dataframe",
+                autospec=True,
+                side_effect=profile_dataframe_spy,
+            ) as mock_profile_dataframe,
+        ):
+            semantic_profile = engine._analyze_for_transformers(
                 df=df, csv_path=csv_path, entity_name="test"
             )
             # profile() should NOT be called — we use profile_dataframe() instead
             mock_profile.assert_not_called()
+            mock_profile_dataframe.assert_called_once()
+            call_args = mock_profile_dataframe.call_args
+            assert call_args.args[1] is df
+            assert call_args.args[2] == csv_path
+            assert call_args.kwargs["total_count"] == len(df)
+
+        assert semantic_profile["profiling_status"] == "complete"
+        assert semantic_profile["transformer_suggestions"]
 
 
 # ── Phase 1.2: TSV/TXT support ────────────────────────────────────────────

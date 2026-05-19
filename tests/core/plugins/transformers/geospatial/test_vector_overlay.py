@@ -323,7 +323,8 @@ class TestLoadOverlayLayer:
         overlay = plugin._load_overlay_layer(params)
         assert isinstance(overlay, gpd.GeoDataFrame)
         # Should be filtered to only 'protected' zone
-        assert len(overlay) <= 2
+        assert len(overlay) == 1
+        assert overlay.iloc[0]["zone"] == "protected"
 
 
 class TestWhereFilter:

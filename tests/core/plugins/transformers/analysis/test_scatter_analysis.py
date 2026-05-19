@@ -63,6 +63,20 @@ class TestScatterAnalysisTransform:
         assert isinstance(result, pd.DataFrame)
         assert list(result.columns) == ["x", "y"]
         assert len(result) == 5
+        assert ScatterAnalysis.output_structure["columns"] == ["x", "y"]
+
+    def test_transform_normalizes_configured_columns_to_output_contract(
+        self, scatter_plugin
+    ):
+        """Configured fields are returned with the advertised x/y columns."""
+        data = pd.DataFrame({"height": [1, 2, 3], "diameter": [10, 20, 30]})
+        result = scatter_plugin.transform(
+            data, _make_config(x_field="height", y_field="diameter")
+        )
+
+        assert list(result.columns) == ScatterAnalysis.output_structure["columns"]
+        assert result["x"].tolist() == [1, 2, 3]
+        assert result["y"].tolist() == [10, 20, 30]
 
     def test_transform_drops_nan(self, scatter_plugin):
         """Les lignes avec NaN sont supprimées."""

@@ -5,6 +5,7 @@ Vérifie que layout.preview_widget délègue correctement au moteur
 de preview unifié (PreviewEngine).
 """
 
+import asyncio
 import inspect
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from niamoto.gui.api import context
 from niamoto.gui.api.app import create_app
+from niamoto.gui.api.routers import layout as layout_router
 
 
 INSTANCE_DIR = Path(__file__).parents[4] / "test-instance" / "niamoto-nc"
@@ -177,6 +179,54 @@ def test_layout_update_preserves_widget_index_identity(
     assert [widget["layout"]["order"] for widget in widgets] == [1, 0]
 
 
+def test_layout_update_rejects_invalid_widget_indices_without_saving(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "web_pages",
+                        "exporter": "html_page_exporter",
+                        "groups": [
+                            {
+                                "group_by": "taxons",
+                                "widgets": [
+                                    {
+                                        "plugin": "bar_plot",
+                                        "data_source": "richness",
+                                        "title": "Original",
+                                        "layout": {"order": 0, "colspan": 1},
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    original_export = export_path.read_text(encoding="utf-8")
+
+    response = gui_duckdb_client.put(
+        "/api/layout/taxons",
+        json={
+            "widgets": [
+                {"index": 0, "order": 1, "title": "Changed"},
+                {"index": 4, "order": 0},
+            ]
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid widget indices: [4]"
+    assert export_path.read_text(encoding="utf-8") == original_export
+
+
 class TestLayoutPreviewDelegation:
     """Vérifie que layout.preview_widget utilise le moteur de preview unifié."""
 
@@ -269,13 +319,28 @@ class TestLayoutPreviewDelegation:
         assert request.entity_id is None
         assert request.mode == "full"
 
+    def test_layout_preview_missing_export_config_returns_html_error(self, tmp_path):
+        work_dir = tmp_path / "layout-project"
+        (work_dir / "config").mkdir(parents=True)
+
+        with patch(
+            "niamoto.gui.api.routers.layout.get_working_directory",
+            return_value=work_dir,
+        ):
+            response = TestClient(create_app()).get("/api/layout/taxons/preview/0")
+
+        assert response.status_code == 404
+        assert response.headers["content-type"].startswith("text/html")
+        assert "export.yml not found" in response.text
+        assert "detail" not in response.text
+
 
 @pytest.mark.skipif(
     not INSTANCE_DIR.exists(),
     reason="test-instance/niamoto-nc not available",
 )
-def test_plots_representatives_falls_back_when_label_column_is_invalid():
-    context.set_working_directory(INSTANCE_DIR)
+def test_plots_representatives_falls_back_when_label_column_is_invalid(monkeypatch):
+    monkeypatch.setattr(context, "_working_directory", INSTANCE_DIR)
     client = TestClient(create_app())
 
     response = client.get("/api/layout/plots/representatives")
@@ -431,3 +496,31 @@ def test_hierarchical_representatives_uses_configured_source_levels(tmp_path: Pa
         entity for entity in payload["entities"] if entity["id"] == "country-nc"
     )
     assert country_nc["count"] == 3
+
+
+def test_representatives_route_uses_worker_thread(monkeypatch, tmp_path: Path):
+    captured = {}
+    db_path = tmp_path / "db.duckdb"
+    db_path.write_text("", encoding="utf-8")
+
+    async def fake_run_in_threadpool(func, *args):
+        captured["func"] = func
+        captured["args"] = args
+        return layout_router.RepresentativesResponse(
+            group_by=args[2],
+            entities=[],
+            total=0,
+        )
+
+    monkeypatch.setattr(layout_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(layout_router, "get_database_path", lambda: db_path)
+    monkeypatch.setattr(layout_router, "run_in_threadpool", fake_run_in_threadpool)
+
+    response = asyncio.run(layout_router.get_representatives("taxons", limit=7))
+
+    assert response.group_by == "taxons"
+    assert response.total == 0
+    assert captured == {
+        "func": layout_router._get_representatives_sync,
+        "args": (tmp_path, db_path, "taxons", 7),
+    }

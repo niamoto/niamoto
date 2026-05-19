@@ -257,23 +257,18 @@ class TestEdgeCasesAndErrorHandling(unittest.TestCase):
         result = convert_to_dataframe(mixed_data, "x", "y")
         self.assertIsNone(result)
 
-        # Test exception handling in the list of dicts code path
         valid_data = [{"x": 1, "y": 2}, {"x": 3, "y": 4}]
 
-        # Create a function that mimics the convert_to_dataframe logic but forces exception
-        def test_exception_path():
-            # This simulates the code path in convert_to_dataframe
-            if isinstance(valid_data, list) and all(
-                isinstance(item, dict) for item in valid_data
-            ):
-                try:
-                    # Force an exception here
-                    raise ValueError("Simulated pandas exception")
-                except Exception:
-                    return None
-            return "should_not_reach_here"
+        class RaisingDataFrame(pd.DataFrame):
+            def __init__(self, *args, **kwargs):
+                raise ValueError("Simulated pandas exception")
 
-        result = test_exception_path()
+        with unittest.mock.patch(
+            "niamoto.common.utils.data_access.pd.DataFrame",
+            RaisingDataFrame,
+        ):
+            result = convert_to_dataframe(valid_data, "x", "y")
+
         self.assertIsNone(result)
 
 

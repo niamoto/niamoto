@@ -101,6 +101,28 @@ class TestExportHistory:
             assert jobs[1]["job_id"] == first_export["id"]
             assert jobs[1]["result"]["metrics"]["generated_pages"] == 84
 
+    def test_export_jobs_filter_history_before_applying_limit(self):
+        with TemporaryDirectory() as temp_dir:
+            work_dir = Path(temp_dir)
+            store = JobFileStore(work_dir)
+
+            export_job = store.create_job("export")
+            store.complete_job(export_job["id"])
+            for _ in range(12):
+                transform_job = store.create_job("transform")
+                store.complete_job(transform_job["id"])
+
+            with patch(
+                "niamoto.gui.api.services.job_store_runtime.get_working_directory",
+                return_value=work_dir,
+            ):
+                response = TestClient(create_app()).get("/api/export/jobs")
+
+            assert response.status_code == 200, response.text
+            assert [job["job_id"] for job in response.json()["jobs"]] == [
+                export_job["id"]
+            ]
+
     def test_clear_export_history_removes_only_export_entries(self):
         with TemporaryDirectory() as temp_dir:
             work_dir = Path(temp_dir)

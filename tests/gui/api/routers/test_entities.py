@@ -35,6 +35,84 @@ def test_entities_available_use_read_only_duckdb_connections(
     assert open_database_mock.call_args.kwargs.get("read_only") is True
 
 
+def test_entities_available_rejects_invalid_kind(gui_duckdb_client: TestClient):
+    response = gui_duckdb_client.get("/api/entities/available?kind=invalid")
+
+    assert response.status_code == 422
+
+
+def test_entities_available_filters_by_dataset_kind(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_project: Path,
+):
+    class FakeRegistry:
+        def __init__(self, _db):
+            pass
+
+        def list_entities(self):
+            return [
+                SimpleNamespace(
+                    table_name="dataset_occurrences",
+                    kind=SimpleNamespace(value="dataset"),
+                ),
+                SimpleNamespace(
+                    table_name="entity_taxons",
+                    kind=SimpleNamespace(value="reference"),
+                ),
+            ]
+
+    with (
+        patch("niamoto.gui.api.routers.entities.Config") as config_mock,
+        patch("niamoto.gui.api.routers.entities.EntityRegistry", FakeRegistry),
+    ):
+        config_mock.return_value.database_path = (
+            gui_duckdb_project / "db" / "niamoto.duckdb"
+        )
+        response = gui_duckdb_client.get("/api/entities/available?kind=dataset")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["datasets"] == ["dataset_occurrences"]
+    assert payload["references"] == []
+    assert {entity["kind"] for entity in payload["all"]} == {"dataset", "reference"}
+
+
+def test_entities_available_filters_by_reference_kind(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_project: Path,
+):
+    class FakeRegistry:
+        def __init__(self, _db):
+            pass
+
+        def list_entities(self):
+            return [
+                SimpleNamespace(
+                    table_name="dataset_occurrences",
+                    kind=SimpleNamespace(value="dataset"),
+                ),
+                SimpleNamespace(
+                    table_name="entity_taxons",
+                    kind=SimpleNamespace(value="reference"),
+                ),
+            ]
+
+    with (
+        patch("niamoto.gui.api.routers.entities.Config") as config_mock,
+        patch("niamoto.gui.api.routers.entities.EntityRegistry", FakeRegistry),
+    ):
+        config_mock.return_value.database_path = (
+            gui_duckdb_project / "db" / "niamoto.duckdb"
+        )
+        response = gui_duckdb_client.get("/api/entities/available?kind=reference")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["datasets"] == []
+    assert payload["references"] == ["entity_taxons"]
+    assert {entity["kind"] for entity in payload["all"]} == {"dataset", "reference"}
+
+
 def test_list_entities_uses_read_only_duckdb_connections(
     gui_duckdb_client: TestClient,
     gui_duckdb_project: Path,

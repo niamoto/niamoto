@@ -162,15 +162,18 @@ async def get_diagnostic():
     # Check database tables if database exists
     db_tables = []
     if db_path and db_path.exists():
+        engine = None
         try:
             from sqlalchemy import create_engine, inspect
 
             engine = create_engine(f"sqlite:///{db_path}")
             inspector = inspect(engine)
             db_tables = inspector.get_table_names()
-            engine.dispose()
         except Exception as e:
             db_tables = [f"Error reading tables: {str(e)}"]
+        finally:
+            if engine is not None:
+                engine.dispose()
 
     return {
         "working_directory": str(work_dir),

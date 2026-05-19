@@ -123,18 +123,56 @@ class _AutoConfigureJob:
 class _AutoConfigureJobStore:
     """Tiny in-memory job store for long-running auto-config analysis."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        terminal_ttl_seconds: float = 15 * 60,
+        max_terminal_jobs: int = 100,
+        max_events_per_job: int = 500,
+    ) -> None:
         self._jobs: Dict[str, _AutoConfigureJob] = {}
         self._lock = threading.Lock()
+        self.terminal_ttl_seconds = terminal_ttl_seconds
+        self.max_terminal_jobs = max_terminal_jobs
+        self.max_events_per_job = max_events_per_job
+
+    def _now(self) -> float:
+        return time.time()
+
+    def _prune_locked(self) -> None:
+        now = self._now()
+        terminal_jobs = [
+            job
+            for job in self._jobs.values()
+            if job.status in {"completed", "failed"} and job.completed_at is not None
+        ]
+
+        for job in terminal_jobs:
+            if now - job.completed_at > self.terminal_ttl_seconds:
+                self._jobs.pop(job.job_id, None)
+
+        terminal_jobs = [
+            job
+            for job in self._jobs.values()
+            if job.status in {"completed", "failed"} and job.completed_at is not None
+        ]
+        excess = len(terminal_jobs) - self.max_terminal_jobs
+        if excess > 0:
+            for job in sorted(terminal_jobs, key=lambda item: item.completed_at or 0)[
+                :excess
+            ]:
+                self._jobs.pop(job.job_id, None)
 
     def create_job(self) -> _AutoConfigureJob:
         job = _AutoConfigureJob(job_id=str(uuid.uuid4()))
         with self._lock:
+            self._prune_locked()
             self._jobs[job.job_id] = job
         return job
 
     def get_job(self, job_id: str) -> Optional[_AutoConfigureJob]:
         with self._lock:
+            self._prune_locked()
             return self._jobs.get(job_id)
 
     def append_event(self, job_id: str, event: Dict[str, Any]) -> None:
@@ -143,13 +181,15 @@ class _AutoConfigureJobStore:
             if not job:
                 return
             job.events.append(event)
+            if len(job.events) > self.max_events_per_job:
+                del job.events[: len(job.events) - self.max_events_per_job]
 
     def set_running(self, job_id: str) -> None:
         with self._lock:
             job = self._jobs.get(job_id)
             if job:
                 job.status = "running"
-                job.started_at = time.time()
+                job.started_at = self._now()
 
     def complete(self, job_id: str, result: Dict[str, Any]) -> None:
         with self._lock:
@@ -158,7 +198,7 @@ class _AutoConfigureJobStore:
                 return
             job.status = "completed"
             job.result = result
-            job.completed_at = time.time()
+            job.completed_at = self._now()
 
     def complete_with_event(
         self, job_id: str, result: Dict[str, Any], event: Dict[str, Any]
@@ -170,7 +210,7 @@ class _AutoConfigureJobStore:
             job.events.append(event)
             job.result = result
             job.status = "completed"
-            job.completed_at = time.time()
+            job.completed_at = self._now()
 
     def fail(self, job_id: str, error: str) -> None:
         with self._lock:
@@ -179,7 +219,7 @@ class _AutoConfigureJobStore:
                 return
             job.status = "failed"
             job.error = error
-            job.completed_at = time.time()
+            job.completed_at = self._now()
 
     def fail_with_event(self, job_id: str, error: str, event: Dict[str, Any]) -> None:
         with self._lock:
@@ -189,7 +229,7 @@ class _AutoConfigureJobStore:
             job.events.append(event)
             job.error = error
             job.status = "failed"
-            job.completed_at = time.time()
+            job.completed_at = self._now()
 
 
 _AUTO_CONFIG_JOB_STORE = _AutoConfigureJobStore()
@@ -520,7 +560,7 @@ async def analyze_file_smart(request: FileInfo) -> Dict[str, Any]:
             raise HTTPException(status_code=400, detail="Working directory not set")
 
         service = AutoConfigService(Path(work_dir))
-        return service.analyze_file(request.filepath)
+        return service.analyze_file(request.filepath, entity_name=request.entity_name)
 
     except HTTPException:
         raise

@@ -8,7 +8,7 @@ import yaml
 import copy
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from niamoto.core.services.transformer import TransformerService
 from niamoto.common.config import Config
@@ -28,7 +28,7 @@ router = APIRouter()
 class TransformRequest(BaseModel):
     """Request model for executing transformations."""
 
-    config_path: Optional[str] = "config/transform.yml"
+    config_path: str = Field(default="config/transform.yml", min_length=1)
     transformations: Optional[List[str]] = None  # Specific transformations to run
     group_by: Optional[str] = (
         None  # Filter by aggregation group (taxons, plots, shapes)
