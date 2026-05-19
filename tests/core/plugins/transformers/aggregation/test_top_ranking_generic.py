@@ -134,7 +134,6 @@ class TestTopRankingGeneric:
             "params": {
                 "source": "occurrences",
                 "field": "taxon_ref_id",
-                "mode": "hierarchical",
                 "hierarchy_table": "taxon_ref",
                 "target_ranks": ["family"],
                 "count": 2,
@@ -163,8 +162,9 @@ class TestTopRankingGeneric:
         result = self.plugin.transform(data, config)
 
         # Should auto-detect hierarchical mode and use taxon_ref table
-        assert "tops" in result
-        assert "counts" in result
+        assert result["tops"] == ["Family 1", "Family 2"]
+        assert result["counts"] == [4, 1]
+        assert self.mock_db.execute_select.call_count == 2
 
     def test_empty_data_returns_empty_result(self):
         """Test that empty data returns empty results."""
