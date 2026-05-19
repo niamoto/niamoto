@@ -136,30 +136,38 @@ class TestPatternMatching:
     @pytest.fixture
     def mock_registry(self):
         """Create a mock registry with test widgets."""
-        # Clear existing registry and reinitialize structure
-        PluginRegistry._plugins = {plugin_type: {} for plugin_type in PluginType}
-        PluginRegistry._metadata = {}
+        previous_plugins = {
+            plugin_type: plugins.copy()
+            for plugin_type, plugins in PluginRegistry._plugins.items()
+        }
+        previous_metadata = PluginRegistry._metadata.copy()
 
-        # Register mock widgets
-        PluginRegistry.register_plugin(
-            "exact_match", MockWidgetExactMatch, PluginType.WIDGET
-        )
-        PluginRegistry.register_plugin("minimal", MockWidgetMinimal, PluginType.WIDGET)
-        PluginRegistry.register_plugin(
-            "multiple_patterns", MockWidgetMultiplePatterns, PluginType.WIDGET
-        )
-        PluginRegistry.register_plugin(
-            "no_structure", MockWidgetNoStructure, PluginType.WIDGET
-        )
-        PluginRegistry.register_plugin(
-            "partial_match", MockWidgetPartialMatch, PluginType.WIDGET
-        )
+        try:
+            # Use isolated registry contents for deterministic matcher assertions.
+            PluginRegistry._plugins = {plugin_type: {} for plugin_type in PluginType}
+            PluginRegistry._metadata = {}
 
-        yield PluginRegistry
+            # Register mock widgets
+            PluginRegistry.register_plugin(
+                "exact_match", MockWidgetExactMatch, PluginType.WIDGET
+            )
+            PluginRegistry.register_plugin(
+                "minimal", MockWidgetMinimal, PluginType.WIDGET
+            )
+            PluginRegistry.register_plugin(
+                "multiple_patterns", MockWidgetMultiplePatterns, PluginType.WIDGET
+            )
+            PluginRegistry.register_plugin(
+                "no_structure", MockWidgetNoStructure, PluginType.WIDGET
+            )
+            PluginRegistry.register_plugin(
+                "partial_match", MockWidgetPartialMatch, PluginType.WIDGET
+            )
 
-        # Cleanup and reinitialize
-        PluginRegistry._plugins = {plugin_type: {} for plugin_type in PluginType}
-        PluginRegistry._metadata = {}
+            yield PluginRegistry
+        finally:
+            PluginRegistry._plugins = previous_plugins
+            PluginRegistry._metadata = previous_metadata
 
     @pytest.fixture
     def matcher(self, mock_registry):
