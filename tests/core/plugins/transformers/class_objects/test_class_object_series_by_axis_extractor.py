@@ -2,6 +2,8 @@
 Tests for the ClassObjectSeriesByAxisExtractor plugin.
 """
 
+import copy
+
 import pytest
 import pandas as pd
 import numpy as np
@@ -111,7 +113,7 @@ def test_basic_extraction_sorted_numeric(mock_db, sample_data, valid_config):
 def test_extraction_unsorted_numeric(mock_db, sample_data, valid_config):
     """Test extraction with numeric axis but without sorting."""
     plugin = ClassObjectSeriesByAxisExtractor(mock_db)
-    config = valid_config.copy()
+    config = copy.deepcopy(valid_config)
     config["params"]["axis"]["sort"] = False
 
     # Get axis order from the first type ('class_obj_A') before transform
@@ -163,7 +165,7 @@ def test_series_are_aligned_to_first_type_axis_when_buckets_differ(
 def test_extraction_sorted_non_numeric(mock_db, sample_data, valid_config):
     """Test extraction with non-numeric, sorted axis."""
     plugin = ClassObjectSeriesByAxisExtractor(mock_db)
-    config = valid_config.copy()
+    config = copy.deepcopy(valid_config)
     config["params"]["axis"]["field"] = "text_axis"
     config["params"]["axis"]["output_field"] = "level"
     config["params"]["axis"]["numeric"] = False
@@ -185,7 +187,7 @@ def test_extraction_sorted_non_numeric(mock_db, sample_data, valid_config):
 def test_error_missing_type_data(mock_db, sample_data, valid_config):
     """Test error if data for a specified type (class_object) is missing."""
     plugin = ClassObjectSeriesByAxisExtractor(mock_db)
-    config = valid_config.copy()
+    config = copy.deepcopy(valid_config)
     config["params"]["types"]["type_c"] = "class_obj_C"  # class_obj_C has no data
 
     with pytest.raises(DataTransformError) as exc_info:
@@ -196,7 +198,7 @@ def test_error_missing_type_data(mock_db, sample_data, valid_config):
 def test_error_missing_axis_column(mock_db, sample_data, valid_config):
     """Test error if the specified axis field column is missing."""
     plugin = ClassObjectSeriesByAxisExtractor(mock_db)
-    config = valid_config.copy()
+    config = copy.deepcopy(valid_config)
     config["params"]["axis"]["field"] = "non_existent_axis_col"
 
     with pytest.raises(DataTransformError) as exc_info:
@@ -211,7 +213,7 @@ def test_error_missing_axis_column(mock_db, sample_data, valid_config):
 def test_error_axis_numeric_conversion(mock_db, sample_data, valid_config):
     """Test error if axis values cannot be converted to numeric when requested."""
     plugin = ClassObjectSeriesByAxisExtractor(mock_db)
-    config = valid_config.copy()
+    config = copy.deepcopy(valid_config)
     config["params"]["axis"]["field"] = "text_axis"  # Use text field
     config["params"]["axis"]["numeric"] = True  # But request numeric conversion
 
