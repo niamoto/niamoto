@@ -177,6 +177,31 @@ def test_preview_reference_route_forwards_source_override(
     }
 
 
+def test_preview_reference_route_translates_service_validation_errors(
+    monkeypatch, gui_duckdb_client
+):
+    """Reference preview validation errors should use the enrichment HTTP contract."""
+
+    async def fake_preview_reference(*args, **kwargs):
+        raise ValueError("No enrichment source 'gbif' found for reference 'taxons'")
+
+    monkeypatch.setattr(
+        enrichment_router,
+        "preview_reference_enrichment",
+        fake_preview_reference,
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/enrichment/preview/taxons",
+        json={"query": "Araucaria", "source_id": "gbif"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == (
+        "No enrichment source 'gbif' found for reference 'taxons'"
+    )
+
+
 def test_restart_reference_route_forwards_selected_source(
     monkeypatch, gui_duckdb_client
 ):
