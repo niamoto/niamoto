@@ -2151,6 +2151,43 @@ def _source_requires_row_preview(source: EnrichmentSourceConfig) -> bool:
     return source.plugin in {"api_elevation_enricher", "api_spatial_enricher"}
 
 
+def _resolve_spatial_preview_payload(
+    reference_name: str,
+    source: EnrichmentSourceConfig,
+    row: Dict[str, Any],
+    query: str,
+    entity_name: str,
+) -> Dict[str, Any]:
+    """Build a spatial preview payload with the configured geometry value."""
+
+    payload = dict(row)
+    geometry_candidates = [
+        candidate
+        for candidate in [
+            source.geometry_field,
+            *_reference_geometry_fields(reference_name),
+        ]
+        if candidate
+    ]
+    geometry_value = next(
+        (
+            payload[candidate]
+            for candidate in geometry_candidates
+            if candidate in payload and payload[candidate] not in (None, "")
+        ),
+        None,
+    )
+
+    if source.query_field and source.query_field not in payload:
+        payload[source.query_field] = (
+            geometry_value
+            if source.query_field == "geometry" and geometry_value is not None
+            else query
+        )
+    payload.setdefault("name", entity_name or query)
+    return payload
+
+
 def _get_current_job(reference_name: Optional[str] = None) -> Optional[EnrichmentJob]:
     """Return the current job, optionally scoped to a reference."""
 
@@ -2908,10 +2945,13 @@ async def preview_reference_enrichment(
         try:
             enricher = _build_enricher(source.plugin)
             if _source_requires_row_preview(source):
-                payload = dict(spatial_row) if spatial_row is not None else {}
-                if source.query_field and source.query_field not in payload:
-                    payload[source.query_field] = query
-                payload.setdefault("name", entity_name or query)
+                payload = _resolve_spatial_preview_payload(
+                    reference_name,
+                    source,
+                    spatial_row or {},
+                    query,
+                    entity_name or query,
+                )
             else:
                 payload = {source.query_field: query}
             result = await asyncio.wait_for(
