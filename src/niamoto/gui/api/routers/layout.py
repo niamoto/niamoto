@@ -330,12 +330,61 @@ def _query_hierarchical_representatives(
     quoted_source_table = quote_identifier(db, source_table)
     safe_limit = max(1, int(limit))
     per_level_limit = max(1, safe_limit // max(len(levels), 1))
+    source_columns = pd.read_sql(
+        text(f"SELECT * FROM {quoted_source_table} LIMIT 0"), db.engine
+    ).columns.tolist()
     entity_columns = pd.read_sql(
         text(f"SELECT * FROM {quoted_entity_table} LIMIT 0"), db.engine
     ).columns.tolist()
 
     if "rank_name" not in entity_columns or "full_path" not in entity_columns:
         return []
+
+    relation = ref_config.get("relation", {}) or {}
+    occurrence_join = ""
+    count_expression = "COUNT(*)"
+    occurrence_dataset = relation.get("dataset")
+    occurrence_foreign_key = relation.get("foreign_key")
+    configured_reference_key = relation.get("reference_key")
+    source_reference_key = None
+
+    if occurrence_dataset and occurrence_foreign_key:
+        occurrence_table = resolve_dataset_table(db, occurrence_dataset)
+        if occurrence_table:
+            quoted_occurrence_table = quote_identifier(db, occurrence_table)
+            occurrence_columns = pd.read_sql(
+                text(f"SELECT * FROM {quoted_occurrence_table} LIMIT 0"), db.engine
+            ).columns.tolist()
+            occurrence_columns_by_lower = {
+                column.lower(): column for column in occurrence_columns
+            }
+            source_columns_by_lower = {
+                column.lower(): column for column in source_columns
+            }
+            occurrence_key = occurrence_columns_by_lower.get(
+                str(occurrence_foreign_key).lower()
+            )
+            for candidate in (
+                configured_reference_key,
+                extraction.get("id_column"),
+                ref_config.get("schema", {}).get("id_field"),
+                "id",
+            ):
+                if not candidate:
+                    continue
+                source_reference_key = source_columns_by_lower.get(
+                    str(candidate).lower()
+                )
+                if source_reference_key:
+                    break
+
+            if occurrence_key and source_reference_key:
+                occurrence_join = (
+                    f"JOIN {quoted_occurrence_table} o "
+                    f"ON CAST(o.{quote_identifier(db, occurrence_key)} AS VARCHAR) = "
+                    f"CAST(s.{quote_identifier(db, source_reference_key)} AS VARCHAR)"
+                )
+                count_expression = "COUNT(o.*)"
 
     display_expr = "CAST(e.id AS VARCHAR)"
     if "full_name" in entity_columns:
@@ -349,11 +398,11 @@ def _query_hierarchical_representatives(
     for idx, level in enumerate(levels):
         prefix_columns = levels[: idx + 1]
         path_expr = " || '|' || ".join(
-            quote_identifier(db, item["column"]) for item in prefix_columns
+            f"s.{quote_identifier(db, item['column'])}" for item in prefix_columns
         )
         null_checks = " AND ".join(
-            f"{quote_identifier(db, item['column'])} IS NOT NULL "
-            f"AND TRIM(CAST({quote_identifier(db, item['column'])} AS VARCHAR)) != ''"
+            f"s.{quote_identifier(db, item['column'])} IS NOT NULL "
+            f"AND TRIM(CAST(s.{quote_identifier(db, item['column'])} AS VARCHAR)) != ''"
             for item in prefix_columns
         )
 
@@ -361,8 +410,9 @@ def _query_hierarchical_representatives(
             WITH ranked_values AS (
                 SELECT
                     {path_expr} AS full_path,
-                    COUNT(*) AS count
-                FROM {quoted_source_table}
+                    {count_expression} AS count
+                FROM {quoted_source_table} s
+                {occurrence_join}
                 WHERE {null_checks}
                 GROUP BY full_path
                 ORDER BY count DESC, full_path
