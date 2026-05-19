@@ -208,7 +208,6 @@ def test_save_import_v2_rejects_missing_entities_without_writing(
 
     assert response.status_code == 400
     assert response.json()["detail"]["errors"]["_global"] == [
-        "Missing 'version' field",
         "Missing 'entities' section",
     ]
     assert import_path.read_text(encoding="utf-8") == "version: '2'\nentities: {}\n"
@@ -319,3 +318,76 @@ def test_import_v2_schema_matches_accepted_entities_shape():
         schema["$defs"]["ReferenceEntityConfig"]["properties"]["enrichment"]["type"]
         == "array"
     )
+
+
+def test_validate_import_v2_accepts_entities_only_config():
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/config/import/v2/validate",
+        json={
+            "config": """
+entities:
+  datasets:
+    occurrences:
+      connector:
+        type: file
+        format: csv
+        path: imports/occurrences.csv
+      schema:
+        id_field: id
+        fields: []
+""".lstrip()
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "errors": {}, "warnings": {}}
+
+
+def test_validate_import_v2_accepts_reference_without_kind():
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/config/import/v2/validate",
+        json={
+            "config": """
+entities:
+  references:
+    taxons:
+      connector:
+        type: file
+        format: csv
+        path: imports/taxons.csv
+      schema:
+        id_field: id
+        fields: []
+""".lstrip()
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "errors": {}, "warnings": {}}
+
+
+def test_validate_import_v2_accepts_categorical_reference_kind():
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/config/import/v2/validate",
+        json={
+            "config": """
+entities:
+  references:
+    habitats:
+      kind: categorical
+      connector:
+        type: file
+        format: csv
+        path: imports/habitats.csv
+      schema:
+        id_field: id
+        fields: []
+""".lstrip()
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "errors": {}, "warnings": {}}
