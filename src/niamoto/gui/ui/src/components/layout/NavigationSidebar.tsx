@@ -13,12 +13,18 @@ import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import { useFeedback, useBrowserOnline } from '@/features/feedback'
 import { ProjectSwitcher } from '@/components/common'
 import { useReferences } from '@/hooks/useReferences'
+import { usePipelineStatus } from '@/hooks/usePipelineStatus'
 import { useCollectionsCatalog } from '@/features/collections/hooks/useCollectionsCatalog'
+import {
+  getTransformActivityByGroup,
+  type TransformGroupActivity,
+} from '@/features/collections/hooks/useCollectionTransforms'
 import {
   buildCollectionDisplayItems,
   defaultCollectionTab,
 } from '@/features/collections/utils/collectionDisplay'
 import { buildCollectionsPath } from '@/features/collections/routing'
+import { useNotificationStore } from '@/stores/notificationStore'
 import niamotoLogo from '@/assets/niamoto_logo.png'
 
 interface NavigationSidebarProps {
@@ -43,10 +49,19 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
   const { data: catalogData } = useCollectionsCatalog({
     enabled: collectionsRouteActive,
   })
+  const { data: pipelineStatus } = usePipelineStatus(collectionsRouteActive)
+  const trackedJobs = useNotificationStore((state) => state.trackedJobs)
   const collections = buildCollectionDisplayItems(
     references,
     catalogData?.collections ?? [],
   )
+  const runningTransformJob = pipelineStatus?.running_job?.type === 'transform'
+    ? pipelineStatus.running_job
+    : null
+  const transformActivityByGroup = getTransformActivityByGroup({
+    runningJob: runningTransformJob,
+    trackedJobs,
+  })
   const activeCollectionName = collectionsRouteActive
     ? decodeURIComponent(location.pathname.replace(/^\/groups\/?/, '').split('/')[0] ?? '')
     : ''
@@ -154,6 +169,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                   <ul className="mt-1 ml-4 border-l border-border/60 pl-2 space-y-0.5">
                     {collections.map((ref) => {
                       const isCurrent = ref.name === activeCollectionName
+                      const activity = transformActivityByGroup.get(ref.name)
                       return (
                         <li key={ref.name}>
                           <NavLink
@@ -162,8 +178,9 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                               defaultCollectionTab(ref),
                             )}
                             className={cn(
-                              'flex items-center gap-2 rounded-theme-sm px-2 py-1.5 text-[11px] transition-theme-fast',
+                              'relative flex min-w-0 items-center gap-2 overflow-hidden rounded-theme-sm px-2 py-1.5 text-[11px] transition-theme-fast',
                               'hover:bg-background/80 hover:text-foreground',
+                              activity?.state === 'running' && 'bg-primary/5 text-foreground',
                               isCurrent
                                 ? 'bg-background/90 text-foreground font-medium'
                                 : 'text-muted-foreground'
@@ -173,10 +190,27 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                             <span
                               className={cn(
                                 'h-1.5 w-1.5 rounded-full shrink-0',
-                                isCurrent ? 'bg-primary' : 'bg-muted-foreground/40'
+                                activity?.state === 'running'
+                                  ? 'animate-pulse bg-primary ring-2 ring-primary/15'
+                                  : activity?.state === 'completed'
+                                    ? 'bg-primary/70'
+                                    : isCurrent
+                                      ? 'bg-primary'
+                                      : 'bg-muted-foreground/40'
                               )}
                             />
                             <span className="truncate">{ref.displayName}</span>
+                            {activity && (
+                              <span
+                                aria-hidden="true"
+                                className="pointer-events-none absolute inset-x-1 bottom-0.5 h-px overflow-hidden rounded-full bg-primary/10"
+                              >
+                                <span
+                                  className="block h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+                                  style={{ width: `${getSidebarActivityProgress(activity)}%` }}
+                                />
+                              </span>
+                            )}
                           </NavLink>
                         </li>
                       )
@@ -288,4 +322,9 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
       </div>
     </div>
   )
+}
+
+function getSidebarActivityProgress(activity: TransformGroupActivity): number {
+  if (activity.state === 'completed') return 100
+  return Math.min(100, Math.max(8, activity.progress || 0))
 }
