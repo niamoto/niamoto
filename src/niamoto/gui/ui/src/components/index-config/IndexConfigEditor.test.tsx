@@ -229,6 +229,47 @@ describe('IndexConfigEditor', () => {
     await harness.unmount()
   })
 
+  it('runs auto-detection when an enabled index page has no display fields', async () => {
+    const fetchSuggestions = vi.fn().mockResolvedValue({
+      display_fields: [
+        {
+          name: 'name',
+          source: 'general_info.name.value',
+          type: 'text',
+          label: 'Name',
+          searchable: true,
+          suggested_as_filter: false,
+          dynamic_options: false,
+          priority: 'high',
+        },
+      ],
+      filters: [],
+      total_entities: 12,
+    })
+    const applySuggestions = vi.fn()
+    hookRef.value = buildHook({
+      config: {
+        ...buildHook().config,
+        enabled: true,
+        display_fields: [],
+      },
+      fetchSuggestions,
+      applySuggestions,
+    })
+    const harness = createHarness()
+
+    await harness.render(<IndexConfigEditor groupBy="plots" />)
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(fetchSuggestions).toHaveBeenCalledOnce()
+    expect(applySuggestions).toHaveBeenCalledOnce()
+
+    await harness.unmount()
+  })
+
   it('finishes loading available fields under React StrictMode', async () => {
     hookRef.value = buildHook({
       fetchSuggestions: vi.fn().mockResolvedValue({

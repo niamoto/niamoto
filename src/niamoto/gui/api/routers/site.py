@@ -1,5 +1,6 @@
 """Site configuration API endpoints for managing export.yml site settings."""
 
+import logging
 import os
 import re
 import tempfile
@@ -12,10 +13,14 @@ import yaml
 import shutil
 from datetime import datetime
 
-from ..context import get_working_directory
+from ..context import get_database_path, get_working_directory
+from ..utils.database import open_database
 from niamoto.common.i18n import I18nResolver
+from niamoto.core.plugins.exporters.index_generator import IndexGeneratorPlugin
+from niamoto.core.plugins.models import IndexGeneratorConfig
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 _LANGUAGE_PREFIX_RE = re.compile(r"^[a-z]{2}(?:-[a-z]{2})?$", re.IGNORECASE)
 _ROOT_INDEX_TEMPLATE = "index.html"
@@ -786,9 +791,12 @@ async def get_groups():
         )
         index_output_pattern = g.get("index_output_pattern")
 
-        # Parse index_generator if present
+        # Parse index_generator if present. An index page exists only when the
+        # generator is explicitly enabled; index_output_pattern alone is just
+        # a target path and does not generate a page.
         index_gen_data = g.get("index_generator")
         index_generator = None
+        index_generator_enabled = False
         if index_gen_data:
             index_generator = GroupIndexConfig(
                 **{
@@ -801,8 +809,11 @@ async def get_groups():
                     **index_gen_data,
                 }
             )
-            if not index_output_pattern and group_name:
+            index_generator_enabled = index_generator.enabled
+            if index_generator_enabled and not index_output_pattern and group_name:
                 index_output_pattern = f"{group_name}/index.html"
+        if not index_generator_enabled:
+            index_output_pattern = None
 
         groups.append(
             GroupInfo(
@@ -1664,6 +1675,32 @@ def _generate_mock_items(
     return mock_items
 
 
+def _load_preview_index_items(
+    group_name: str,
+    index_config: Dict[str, Any],
+) -> Optional[List[Dict[str, Any]]]:
+    """Load real transformed items for the group index preview when available."""
+    db_path = get_database_path()
+    if not db_path or not db_path.exists():
+        return None
+
+    try:
+        generator_config = IndexGeneratorConfig.model_validate(index_config)
+        with open_database(db_path, read_only=True) as db:
+            if not db.has_table(group_name):
+                return None
+            return IndexGeneratorPlugin(db)._get_group_data(
+                group_name, generator_config
+            )
+    except Exception as exc:
+        logger.debug(
+            "Falling back to mock group index preview data for '%s': %s",
+            group_name,
+            exc,
+        )
+        return None
+
+
 @router.post(
     "/preview-group-index/{group_name}", response_model=TemplatePreviewResponse
 )
@@ -1673,10 +1710,10 @@ async def preview_group_index(
     request: GroupIndexPreviewRequest = None,
 ):
     """
-    Generate a preview of a group index page with mock data.
+    Generate a preview of a group index page.
 
-    This allows previewing the group index layout and styling
-    without requiring actual transformed data.
+    The preview uses transformed data when available and falls back to mock
+    placeholders when the local database cannot provide the group rows.
     """
     try:
         # Get the group configuration
@@ -1802,13 +1839,21 @@ async def preview_group_index(
             "views": index_gen.get("views", [{"type": "grid", "default": True}]),
         }
 
-        # Generate mock items
-        mock_items = _generate_mock_items(
-            display_fields,
-            count=12,
-            id_column=index_config["id_column"],
-            group_name=group_name,
+        items_data = _load_preview_index_items(
+            group_name,
+            {
+                **index_config,
+                "enabled": True,
+                "template": template_name,
+            },
         )
+        if items_data is None:
+            items_data = _generate_mock_items(
+                display_fields,
+                count=12,
+                id_column=index_config["id_column"],
+                group_name=group_name,
+            )
 
         # Render the template
         rendered_html = template.render(
@@ -1820,7 +1865,7 @@ async def preview_group_index(
             language_switcher=site_config.get("language_switcher", False),
             preview_exported_base_url=f"{base_url}/preview-exported",
             index_config=index_config,
-            items_data=mock_items,
+            items_data=items_data,
             page_config=index_config["page_config"],
             group_by=group_name,
             depth=0,

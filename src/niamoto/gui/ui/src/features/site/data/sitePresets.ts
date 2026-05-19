@@ -10,6 +10,7 @@ import type { StaticPage, GroupInfo, SiteSettings } from '@/shared/hooks/useSite
 import { DEFAULT_STATIC_PAGE } from '@/shared/hooks/useSiteConfig'
 import type { UnifiedTreeItem } from '../hooks/useUnifiedSiteTree'
 import { generateFooterFromTree } from '../utils/generateFooter'
+import { getGroupIndexUrl, hasEnabledGroupIndex } from '../utils/groupIndex'
 import type { FooterSection } from '@/shared/hooks/useSiteConfig'
 
 // =============================================================================
@@ -111,10 +112,10 @@ export function applySitePreset(
     id: `preset-collection-${idCounter++}`,
     type: 'collection' as const,
     label: group.name,
-    visible: !!group.index_output_pattern,
+    visible: hasEnabledGroupIndex(group),
     collectionRef: group.name,
-    url: group.index_output_pattern ? `/${group.index_output_pattern}` : undefined,
-    hasIndex: !!group.index_output_pattern,
+    url: getGroupIndexUrl(group),
+    hasIndex: hasEnabledGroupIndex(group),
     children: [],
   }))
 

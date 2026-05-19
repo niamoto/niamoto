@@ -66,6 +66,7 @@ import { buildUnifiedTree, resetIdCounter } from '../hooks/useUnifiedSiteTree'
 import { type SiteWorkbenchLayout } from '../lib/siteWorkbenchPreferences'
 import { requiresSiteSetup } from '../lib/siteReadiness'
 import { generateFooterFromTree } from '../utils/generateFooter'
+import { getGroupIndexOutputPattern } from '../utils/groupIndex'
 import { SiteSetupWizard } from './SiteSetupWizard'
 
 // =============================================================================
@@ -207,7 +208,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
     const filename = normalizedHref.split('/').pop() || href
 
     const groupByIndex = state.groups.find(g => {
-      const indexPattern = g.index_output_pattern || `${g.name}/index.html`
+      const indexPattern = getGroupIndexOutputPattern(g)
       return normalizedHref === indexPattern
     })
     if (groupByIndex) {

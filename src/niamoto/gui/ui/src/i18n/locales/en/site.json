@@ -213,6 +213,8 @@
     "activating": "Enabling...",
     "indexPageActivated": "Index page enabled",
     "indexPageActivatedDesc": "The collection index page is now available in the Site Builder.",
+    "indexPageActivatedAutoDetectDesc": "The collection index page is now available with auto-detected fields.",
+    "indexPageActivatedAutoDetectFailedDesc": "The page was enabled, but auto-detection could not complete. You can run it again from the List tab.",
     "editWidgets": "Edit widgets",
     "editWidgetsDesc": "Configure widgets in Transform/Export tab",
     "open": "Open"

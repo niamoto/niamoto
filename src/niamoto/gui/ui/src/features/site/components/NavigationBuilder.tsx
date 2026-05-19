@@ -83,6 +83,7 @@ import type {
   TemplateInfo,
 } from '@/shared/hooks/useSiteConfig'
 import { useLanguages } from '@/shared/contexts/useLanguages'
+import { getGroupIndexUrl, hasEnabledGroupIndex } from '../utils/groupIndex'
 
 // =============================================================================
 // Template Configuration (shared with TemplateList)
@@ -647,10 +648,10 @@ export function NavigationBuilder({
     })),
     // Group index pages
     ...groups
-      .filter((g) => g.index_output_pattern)
+      .filter(hasEnabledGroupIndex)
       .map((group) => ({
         name: `${group.name} (index)`,
-        url: `/${group.index_output_pattern}`,
+        url: getGroupIndexUrl(group) ?? '',
         type: 'group' as const,
       })),
   ]

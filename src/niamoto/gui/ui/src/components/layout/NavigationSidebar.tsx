@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
@@ -16,6 +17,8 @@ import { useReferences } from '@/hooks/useReferences'
 import { usePipelineStatus } from '@/hooks/usePipelineStatus'
 import { useCollectionsCatalog } from '@/features/collections/hooks/useCollectionsCatalog'
 import {
+  applyCompletedTransformGroups,
+  getCurrentTransformBatchGroup,
   getTransformActivityByGroup,
   type TransformGroupActivity,
 } from '@/features/collections/hooks/useCollectionTransforms'
@@ -51,6 +54,11 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
   })
   const { data: pipelineStatus } = usePipelineStatus(collectionsRouteActive)
   const trackedJobs = useNotificationStore((state) => state.trackedJobs)
+  const [transformProgressMemory, setTransformProgressMemory] = useState<{
+    jobId: string | null
+    currentGroup: string | null
+    completedGroups: string[]
+  }>({ jobId: null, currentGroup: null, completedGroups: [] })
   const collections = buildCollectionDisplayItems(
     references,
     catalogData?.collections ?? [],
@@ -58,10 +66,106 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
   const runningTransformJob = pipelineStatus?.running_job?.type === 'transform'
     ? pipelineStatus.running_job
     : null
-  const transformActivityByGroup = getTransformActivityByGroup({
-    runningJob: runningTransformJob,
-    trackedJobs,
-  })
+  const trackedTransformJob = trackedJobs.find((job) => job.jobType === 'transform') ?? null
+  const activeTransformJobId = runningTransformJob?.id ?? trackedTransformJob?.jobId ?? null
+  const currentRunningTransformGroup = getCurrentTransformBatchGroup(runningTransformJob?.message)
+  const hasObservedCurrentGroup =
+    activeTransformJobId !== null
+    && transformProgressMemory.jobId === activeTransformJobId
+    && (
+      transformProgressMemory.currentGroup !== null
+      || transformProgressMemory.completedGroups.length > 0
+    )
+
+  /* eslint-disable react-hooks/set-state-in-effect --
+     The sidebar keeps short-lived progress memory from the external transform job stream. */
+  useEffect(() => {
+    setTransformProgressMemory((previous) => {
+      if (!activeTransformJobId) {
+        if (
+          previous.jobId === null
+          && previous.currentGroup === null
+          && previous.completedGroups.length === 0
+        ) {
+          return previous
+        }
+        return { jobId: null, currentGroup: null, completedGroups: [] }
+      }
+
+      if (previous.jobId !== activeTransformJobId) {
+        return {
+          jobId: activeTransformJobId,
+          currentGroup: currentRunningTransformGroup,
+          completedGroups: [],
+        }
+      }
+
+      if (currentRunningTransformGroup) {
+        const completedGroups =
+          previous.currentGroup
+          && previous.currentGroup !== currentRunningTransformGroup
+          && !previous.completedGroups.includes(previous.currentGroup)
+            ? [...previous.completedGroups, previous.currentGroup]
+            : previous.completedGroups
+
+        if (
+          previous.currentGroup === currentRunningTransformGroup
+          && completedGroups === previous.completedGroups
+        ) {
+          return previous
+        }
+
+        return {
+          jobId: activeTransformJobId,
+          currentGroup: currentRunningTransformGroup,
+          completedGroups,
+        }
+      }
+
+      if (!runningTransformJob && previous.currentGroup) {
+        const completedGroups = previous.completedGroups.includes(previous.currentGroup)
+          ? previous.completedGroups
+          : [...previous.completedGroups, previous.currentGroup]
+        return {
+          jobId: activeTransformJobId,
+          currentGroup: null,
+          completedGroups,
+        }
+      }
+
+      return previous
+    })
+  }, [activeTransformJobId, currentRunningTransformGroup, runningTransformJob])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const baseTransformActivityByGroup = useMemo(
+    () => getTransformActivityByGroup({
+      runningJob: runningTransformJob,
+      trackedJobs: runningTransformJob || !hasObservedCurrentGroup ? trackedJobs : [],
+    }),
+    [hasObservedCurrentGroup, runningTransformJob, trackedJobs]
+  )
+  const transformActivityByGroup = useMemo(
+    () => applyCompletedTransformGroups(
+      baseTransformActivityByGroup,
+      transformProgressMemory.jobId === activeTransformJobId
+        ? transformProgressMemory.completedGroups
+        : []
+    ),
+    [
+      activeTransformJobId,
+      baseTransformActivityByGroup,
+      transformProgressMemory.completedGroups,
+      transformProgressMemory.jobId,
+    ]
+  )
+  const collectionStatusByName = useMemo(() => {
+    const statuses = new Map<string, string>()
+    for (const item of pipelineStatus?.groups?.items ?? []) {
+      statuses.set(item.name, item.status)
+    }
+    return statuses
+  }, [pipelineStatus?.groups?.items])
   const activeCollectionName = collectionsRouteActive
     ? decodeURIComponent(location.pathname.replace(/^\/groups\/?/, '').split('/')[0] ?? '')
     : ''
@@ -170,6 +274,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                     {collections.map((ref) => {
                       const isCurrent = ref.name === activeCollectionName
                       const activity = transformActivityByGroup.get(ref.name)
+                      const status = collectionStatusByName.get(ref.name)
                       return (
                         <li key={ref.name}>
                           <NavLink
@@ -180,10 +285,12 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                             className={cn(
                               'relative flex min-w-0 items-center gap-2 overflow-hidden rounded-theme-sm px-2 py-1.5 text-[11px] transition-theme-fast',
                               'hover:bg-background/80 hover:text-foreground',
-                              activity?.state === 'running' && 'bg-primary/5 text-foreground',
+                              activity?.state === 'running' && 'bg-primary/5',
                               isCurrent
                                 ? 'bg-background/90 text-foreground font-medium'
-                                : 'text-muted-foreground'
+                                : activity
+                                  ? 'text-foreground'
+                                  : 'text-muted-foreground'
                             )}
                             title={ref.name}
                           >
@@ -193,10 +300,14 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                                 activity?.state === 'running'
                                   ? 'animate-pulse bg-primary ring-2 ring-primary/15'
                                   : activity?.state === 'completed'
-                                    ? 'bg-primary/70'
-                                    : isCurrent
-                                      ? 'bg-primary'
-                                      : 'bg-muted-foreground/40'
+                                    ? 'bg-green-500'
+                                    : status === 'fresh'
+                                      ? 'bg-green-500'
+                                      : status === 'stale' || status === 'pending'
+                                        ? 'bg-amber-500'
+                                        : isCurrent
+                                          ? 'bg-primary'
+                                          : 'bg-muted-foreground/40'
                               )}
                             />
                             <span className="truncate">{ref.displayName}</span>
@@ -206,7 +317,10 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                                 className="pointer-events-none absolute inset-x-1 bottom-0.5 h-px overflow-hidden rounded-full bg-primary/10"
                               >
                                 <span
-                                  className="block h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+                                  className={cn(
+                                    'block h-full rounded-full transition-[width] duration-500 ease-out',
+                                    activity.state === 'completed' ? 'bg-green-500' : 'bg-primary'
+                                  )}
                                   style={{ width: `${getSidebarActivityProgress(activity)}%` }}
                                 />
                               </span>

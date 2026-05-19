@@ -398,6 +398,7 @@
     "overview": "Overview",
     "overviewFresh": "Up to date",
     "overviewStale": "Needs recomputing",
+    "overviewPending": "Pending",
     "overviewRunning": "Running",
     "overviewCompleted": "Completed",
     "overviewError": "Error",
