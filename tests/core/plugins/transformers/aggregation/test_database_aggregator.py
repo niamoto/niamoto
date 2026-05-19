@@ -309,6 +309,25 @@ class TestDatabaseAggregatorPlugin:
         with pytest.raises(DataValidationError):
             plugin._calculate_computed_field(field_config, results)
 
+    def test_calculate_computed_field_rejects_unsafe_syntax(self):
+        """Computed fields must not allow Python object graph access."""
+        plugin = DatabaseAggregatorPlugin()
+
+        unsafe_expressions = [
+            "__import__('os').system('echo unsafe')",
+            "().__class__.__mro__",
+            "[x for x in values]",
+            "values[0]",
+        ]
+
+        for expression in unsafe_expressions:
+            field_config = ComputedFieldConfig(
+                expression=expression,
+                dependencies=["values"],
+            )
+            with pytest.raises(DataValidationError):
+                plugin._calculate_computed_field(field_config, {"values": [1, 2, 3]})
+
     def test_transform_complete_workflow(self):
         """Test complete transformation workflow."""
         plugin = self.plugin

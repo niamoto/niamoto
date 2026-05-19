@@ -102,6 +102,53 @@ def test_save_credential_accepts_desktop_auth_token(monkeypatch):
     assert saved_calls == [("cloudflare", "api_token", "secret")]
 
 
+def test_check_credentials_requires_desktop_auth_when_configured(monkeypatch):
+    monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.deploy._check_platform", lambda _: None
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.deploy.CredentialService.has_credentials",
+        lambda platform: True,
+    )
+
+    client = TestClient(create_app())
+    response = client.get("/api/deploy/credentials/cloudflare/check")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid desktop auth token."
+
+
+def test_execute_requires_desktop_auth_when_configured(monkeypatch, tmp_path):
+    monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.deploy.get_working_directory",
+        lambda: tmp_path,
+    )
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/deploy/execute",
+        json={"platform": "netlify", "project_name": "niamoto-site"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid desktop auth token."
+
+
+def test_unpublish_requires_desktop_auth_when_configured(monkeypatch):
+    monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/deploy/unpublish",
+        json={"platform": "render", "project_name": "niamoto-site"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid desktop auth token."
+
+
 def test_validate_exports_returns_errors_without_starting_deploy(monkeypatch, tmp_path):
     exports_dir = tmp_path / "exports" / "web"
     exports_dir.mkdir(parents=True)

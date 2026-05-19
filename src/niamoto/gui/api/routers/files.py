@@ -7,6 +7,7 @@ import json
 import os
 import socket
 import stat
+import threading
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
@@ -20,8 +21,10 @@ import geopandas as gpd
 from starlette.concurrency import run_in_threadpool
 
 from ..context import get_working_directory
+from ..url_security import validate_public_http_url
 
 router = APIRouter()
+_PINNED_DNS_REQUEST_LOCK = threading.Lock()
 
 SERVE_FILE_IMAGE_EXTENSIONS = {
     ".bmp",
@@ -144,27 +147,32 @@ def _is_disallowed_api_address(address: str) -> bool:
     except ValueError:
         return True
 
-    return (
-        ip.is_loopback
-        or ip.is_private
-        or ip.is_link_local
-        or ip.is_multicast
-        or ip.is_reserved
-        or ip.is_unspecified
-    )
+    return not ip.is_global
 
 
-def _validate_api_test_url(url: str) -> Optional[str]:
-    """Validate user-provided API test URLs before server-side requests."""
+def _resolve_api_test_url_addresses(url: str) -> tuple[Optional[str], list[str]]:
+    """Validate a URL and return public addresses to pin during the request."""
+    try:
+        validate_public_http_url(url, detail="API URL host is not allowed")
+    except HTTPException as exc:
+        detail = str(exc.detail)
+        if detail == "Invalid URL.":
+            parsed = urlparse(url)
+            if parsed.scheme not in {"http", "https"}:
+                return "Only http and https API URLs are allowed", []
+            if not parsed.hostname:
+                return "API URL must include a hostname", []
+        return detail, []
+
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"}:
-        return "Only http and https API URLs are allowed"
+        return "Only http and https API URLs are allowed", []
     if not parsed.hostname:
-        return "API URL must include a hostname"
+        return "API URL must include a hostname", []
 
     hostname = parsed.hostname.rstrip(".").lower()
     if hostname == "localhost" or hostname.endswith(".localhost"):
-        return "API URL host is not allowed"
+        return "API URL host is not allowed", []
 
     try:
         ip = ipaddress.ip_address(hostname)
@@ -176,15 +184,99 @@ def _validate_api_test_url(url: str) -> Optional[str]:
                 type=socket.SOCK_STREAM,
             )
         except socket.gaierror:
-            return "API URL host could not be resolved"
+            return "API URL host could not be resolved", []
 
         addresses = {info[4][0] for info in resolved}
     else:
         addresses = {str(ip)}
 
     if any(_is_disallowed_api_address(address) for address in addresses):
-        return "API URL host is not allowed"
+        return "API URL host is not allowed", []
 
+    return None, sorted(addresses)
+
+
+def _validate_api_test_url(url: str) -> Optional[str]:
+    """Validate user-provided API test URLs before server-side requests."""
+    error, _addresses = _resolve_api_test_url_addresses(url)
+    return error
+
+
+def _get_with_pinned_public_dns(
+    url: str,
+    *,
+    headers: Dict[str, str],
+    params: Dict[str, str],
+    timeout: float,
+) -> requests.Response:
+    """Perform a request while pinning DNS to the public addresses we validated."""
+    validation_error, addresses = _resolve_api_test_url_addresses(url)
+    if validation_error:
+        raise ValueError(validation_error)
+
+    parsed = urlparse(url)
+    hostname = parsed.hostname.rstrip(".").lower() if parsed.hostname else ""
+    original_getaddrinfo = socket.getaddrinfo
+
+    def pinned_getaddrinfo(host, port, *args, **kwargs):
+        requested_host = str(host).rstrip(".").lower()
+        if requested_host == hostname:
+            return [
+                (
+                    socket.AF_INET6 if ":" in address else socket.AF_INET,
+                    socket.SOCK_STREAM,
+                    0,
+                    "",
+                    (address, port, 0, 0) if ":" in address else (address, port),
+                )
+                for address in addresses
+            ]
+        return original_getaddrinfo(host, port, *args, **kwargs)
+
+    with _PINNED_DNS_REQUEST_LOCK:
+        socket.getaddrinfo = pinned_getaddrinfo
+        try:
+            return requests.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=timeout,
+                allow_redirects=False,
+                stream=True,
+            )
+        finally:
+            socket.getaddrinfo = original_getaddrinfo
+
+
+def _iter_response_peer_addresses(response: requests.Response) -> list[str]:
+    """Best-effort extraction of the actual connected peer IP from urllib3."""
+    candidates = [
+        ("raw", "_connection", "sock"),
+        ("raw", "connection", "sock"),
+        ("raw", "_fp", "fp", "raw", "_sock"),
+    ]
+    addresses: list[str] = []
+    for chain in candidates:
+        current: Any = response
+        for attr in chain:
+            current = getattr(current, attr, None)
+            if current is None:
+                break
+        if current is None:
+            continue
+        try:
+            peer = current.getpeername()
+        except OSError:
+            continue
+        if isinstance(peer, tuple) and peer and isinstance(peer[0], str) and peer[0]:
+            addresses.append(peer[0])
+    return addresses
+
+
+def _validate_api_response_peer(response: requests.Response) -> str | None:
+    for address in _iter_response_peer_addresses(response):
+        if _is_disallowed_api_address(address):
+            return "API URL host is not allowed"
     return None
 
 
@@ -350,13 +442,16 @@ async def test_api_connection(request: ApiTestRequest) -> ApiTestResponse:
             return ApiTestResponse(success=False, error=validation_error)
 
         response = await run_in_threadpool(
-            requests.get,
+            _get_with_pinned_public_dns,
             request.url,
             headers=request.headers,
             params=request.params,
             timeout=10.0,
-            allow_redirects=False,
         )
+        peer_error = _validate_api_response_peer(response)
+        if peer_error:
+            response.close()
+            return ApiTestResponse(success=False, error=peer_error)
 
         if 300 <= response.status_code < 400:
             redirect_target = response.headers.get("Location")
@@ -384,6 +479,8 @@ async def test_api_connection(request: ApiTestRequest) -> ApiTestResponse:
         return ApiTestResponse(success=False, error="Request timeout")
     except requests.exceptions.RequestException as e:
         return ApiTestResponse(success=False, error=f"Connection error: {str(e)}")
+    except ValueError as e:
+        return ApiTestResponse(success=False, error=str(e))
     except Exception as e:
         return ApiTestResponse(success=False, error=f"Unexpected error: {str(e)}")
 

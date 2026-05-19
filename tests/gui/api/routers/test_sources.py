@@ -261,6 +261,62 @@ def test_save_source_persists_canonical_imports_relative_path(
     assert source["data"] == "imports/raw_taxa_stats.csv"
 
 
+def test_save_source_rejects_non_csv_source_name_collision(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    work_dir = gui_duckdb_context
+    imports_dir = work_dir / "imports"
+    imports_dir.mkdir(exist_ok=True)
+    (imports_dir / "raw_occurrences.csv").write_text(
+        "taxon_id;class_object;class_name;class_value\n"
+        "101;nbe_source_dataset;network;12\n",
+        encoding="utf-8",
+    )
+
+    transform_path = work_dir / "config" / "transform.yml"
+    transform_path.write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "group_by": "taxons",
+                    "sources": [
+                        {
+                            "name": "occurrences",
+                            "data": "occurrences",
+                            "grouping": "taxons",
+                            "relation": {
+                                "plugin": "stats_loader",
+                                "key": "id",
+                                "ref_field": "id",
+                                "match_field": "taxon_id",
+                            },
+                        }
+                    ],
+                }
+            ],
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/sources/taxons/save",
+        json={
+            "source_name": "occurrences",
+            "file_path": "imports/raw_occurrences.csv",
+            "entity_id_column": "taxon_id",
+        },
+    )
+
+    assert response.status_code == 409
+    assert "non-CSV source" in response.json()["detail"]
+    transform_config = yaml.safe_load(transform_path.read_text(encoding="utf-8"))
+    source = transform_config[0]["sources"][0]
+    assert source["data"] == "occurrences"
+    assert source["relation"]["plugin"] == "stats_loader"
+
+
 def test_source_save_shares_transform_write_lock_with_widget_updates(
     monkeypatch, tmp_path
 ):

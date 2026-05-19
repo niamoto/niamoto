@@ -7,7 +7,10 @@ from pathlib import Path
 from typing import List
 from unittest.mock import Mock, MagicMock, patch
 
-from niamoto.core.plugins.exporters.html_page_exporter import HtmlPageExporter
+from niamoto.core.plugins.exporters.html_page_exporter import (
+    HtmlPageExporter,
+    _ensure_safe_html_output_dir_for_clear,
+)
 from niamoto.core.plugins.models import (
     TargetConfig,
     HtmlExporterParams,
@@ -208,6 +211,53 @@ class TestHtmlPageExporter(NiamotoTestCase):
         # Test accessing non-dict
         result = exporter._get_nested_data(data, "level1.level2.value.extra")
         self.assertIsNone(result)
+
+    def test_refuses_to_clear_unowned_absolute_output_dir(self):
+        """Existing arbitrary directories require an export ownership marker."""
+        unsafe_dir = Path(self.test_dir) / "arbitrary"
+        unsafe_dir.mkdir()
+        (unsafe_dir / "important.txt").write_text("keep", encoding="utf-8")
+
+        with self.assertRaises(ProcessError):
+            _ensure_safe_html_output_dir_for_clear(unsafe_dir)
+
+        self.assertTrue((unsafe_dir / "important.txt").exists())
+
+    def test_refuses_to_clear_project_exports_root(self):
+        """HTML exports must not clear sibling export targets under exports/."""
+        exports_root = Path(self.test_dir) / "exports"
+        exports_root.mkdir()
+        (exports_root / ".niamoto-html-export").touch()
+
+        with patch(
+            "niamoto.core.plugins.exporters.html_page_exporter.Config.get_niamoto_home",
+            return_value=self.test_dir,
+        ):
+            with self.assertRaises(ProcessError):
+                _ensure_safe_html_output_dir_for_clear(exports_root)
+
+    def test_refuses_to_clear_unmarked_sibling_export_dir(self):
+        """Sibling export targets such as exports/api need their own marker."""
+        api_dir = Path(self.test_dir) / "exports" / "api"
+        api_dir.mkdir(parents=True)
+        (api_dir / "data.json").write_text("{}", encoding="utf-8")
+
+        with patch(
+            "niamoto.core.plugins.exporters.html_page_exporter.Config.get_niamoto_home",
+            return_value=self.test_dir,
+        ):
+            with self.assertRaises(ProcessError):
+                _ensure_safe_html_output_dir_for_clear(api_dir)
+
+    def test_allows_clearing_marked_html_output_dir(self):
+        """Previously generated output directories carry an ownership marker."""
+        owned_dir = Path(self.test_dir) / "owned-output"
+        owned_dir.mkdir()
+        (owned_dir / ".niamoto-html-export").touch()
+
+        resolved = _ensure_safe_html_output_dir_for_clear(owned_dir)
+
+        self.assertEqual(resolved, owned_dir.resolve())
 
     def test_navigation_data_orders_by_lft_for_nested_sets(self):
         """

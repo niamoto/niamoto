@@ -173,6 +173,17 @@ def _resolve_imports_source_path(work_dir: Path, source_path: str) -> Path:
     return resolved_path
 
 
+def _is_csv_stats_source(source: dict[str, Any]) -> bool:
+    """Return whether a transform source is one managed by the CSV sources API."""
+    data_path = source.get("data")
+    if not isinstance(data_path, str) or not data_path.lower().endswith(".csv"):
+        return False
+    relation = source.get("relation", {})
+    if relation and not isinstance(relation, dict):
+        return False
+    return not relation or relation.get("plugin", "stats_loader") == "stats_loader"
+
+
 def _save_transform_config(work_dir: Path, config: dict[str, Any]) -> None:
     """Save transform.yml configuration.
 
@@ -569,6 +580,14 @@ async def save_source_config(
             existing_idx = None
             for idx, source in enumerate(group_config["sources"]):
                 if source.get("name") == request.source_name:
+                    if not _is_csv_stats_source(source):
+                        raise HTTPException(
+                            status_code=409,
+                            detail=(
+                                f"Source name '{request.source_name}' is already used "
+                                "by a non-CSV source"
+                            ),
+                        )
                     existing_idx = idx
                     break
 

@@ -111,7 +111,10 @@ async def save_credential(platform: str, request: CredentialSaveRequest):
     return {"saved": True}
 
 
-@router.get("/credentials/{platform}/check")
+@router.get(
+    "/credentials/{platform}/check",
+    dependencies=[Depends(_require_deploy_mutation_auth)],
+)
 async def check_credentials(platform: str):
     """Check if a platform has credentials configured."""
     _check_platform(platform)
@@ -135,7 +138,10 @@ async def delete_credential(platform: str, key: str):
     return {"deleted": success}
 
 
-@router.post("/credentials/{platform}/validate")
+@router.post(
+    "/credentials/{platform}/validate",
+    dependencies=[Depends(_require_deploy_mutation_auth)],
+)
 async def validate_credentials(platform: str):
     """Validate credentials by making a test API call."""
     _check_platform(platform)
@@ -146,7 +152,7 @@ async def validate_credentials(platform: str):
 # --- Deploy Endpoints ---
 
 
-@router.post("/execute")
+@router.post("/execute", dependencies=[Depends(_require_deploy_mutation_auth)])
 async def deploy(request: DeployRequest):
     """Deploy to any platform with SSE streaming logs."""
     working_dir = get_working_directory()
@@ -301,7 +307,7 @@ class UnpublishRequest(BaseModel):
     extra: dict[str, Any] = {}
 
 
-@router.post("/unpublish")
+@router.post("/unpublish", dependencies=[Depends(_require_deploy_mutation_auth)])
 async def unpublish(request: UnpublishRequest):
     """Unpublish a site from a platform with SSE streaming logs."""
     deployer = _get_deployer(request.platform)

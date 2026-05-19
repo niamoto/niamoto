@@ -292,6 +292,12 @@ async def list_plugins(
         )
 
 
+@router.get("/{plugin_id}/schema", include_in_schema=False)
+async def get_plugin_json_schema_priority_route(plugin_id: str):
+    """Keep plugin schema lookup ahead of the generic plugin detail route."""
+    return await get_plugin_json_schema(plugin_id)
+
+
 @router.get("/{plugin_id}", response_model=PluginInfo)
 async def get_plugin(plugin_id: str):
     """
