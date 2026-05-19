@@ -15,6 +15,7 @@ Testing anti-patterns compliance:
 - ✗ Does NOT mock ColumnDetector for integration tests
 """
 
+import asyncio
 import io
 import shutil
 import time
@@ -780,6 +781,45 @@ class TestDetectRelationships:
 
 class TestAutoConfigureMain:
     """Test POST /api/smart/auto-configure endpoint - main scenarios."""
+
+    def test_auto_configure_dispatches_service_to_worker_thread(
+        self, monkeypatch, working_directory: Path
+    ):
+        """The async route should not run synchronous file analysis on the event loop."""
+
+        captured = {}
+
+        class FakeAutoConfigService:
+            def __init__(self, work_dir: Path):
+                captured["work_dir"] = work_dir
+
+            def auto_configure(self, files):
+                captured["service_files"] = files
+                return {"success": True, "entities": {}, "confidence": 1.0}
+
+        async def fake_to_thread(func, *args, **kwargs):
+            captured["thread_func"] = func
+            captured["thread_args"] = args
+            captured["thread_kwargs"] = kwargs
+            return func(*args, **kwargs)
+
+        monkeypatch.setattr(smart_config, "AutoConfigService", FakeAutoConfigService)
+        monkeypatch.setattr(smart_config.asyncio, "to_thread", fake_to_thread)
+
+        response = asyncio.run(
+            smart_config.auto_configure(
+                smart_config.AutoConfigureRequest(
+                    files=["imports/sample_occurrences.csv"]
+                )
+            )
+        )
+
+        assert response.success is True
+        assert response.entities == {}
+        assert captured["work_dir"] == working_directory
+        assert captured["service_files"] == ["imports/sample_occurrences.csv"]
+        assert captured["thread_args"] == (["imports/sample_occurrences.csv"],)
+        assert captured["thread_kwargs"] == {}
 
     def test_auto_configure_single_csv_dataset(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]
