@@ -164,16 +164,31 @@ async def execute_transform_background(
             return group_copy
 
         if isinstance(config, list):
-            for group in config:
-                normalized = normalize_group(group)
-                if normalized is not None:
-                    prepared_config.append(normalized)
+            raw_groups = config
         elif isinstance(config, dict):
-            normalized = normalize_group(config)
-            if normalized is not None:
-                prepared_config.append(normalized)
+            raw_groups = [config]
         else:
             raise ValueError("Unsupported transform configuration format")
+
+        available_groups = {
+            group.get("group_by", "default")
+            for group in raw_groups
+            if isinstance(group, dict)
+        }
+        if requested_groups:
+            missing_groups = sorted(requested_groups - available_groups)
+            if missing_groups:
+                available = ", ".join(sorted(available_groups)) or "none"
+                missing = ", ".join(missing_groups)
+                raise ValueError(
+                    f"Transform group(s) not found: {missing}. "
+                    f"Available groups: {available}"
+                )
+
+        for group in raw_groups:
+            normalized = normalize_group(group)
+            if normalized is not None:
+                prepared_config.append(normalized)
 
         # Collect metadata about expected transformations
         expected_transformations: List[Dict[str, str]] = []

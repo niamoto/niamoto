@@ -98,6 +98,53 @@ async def test_execute_transform_background_filters_requested_group_bys(
     }
 
 
+@pytest.mark.anyio
+async def test_execute_transform_background_fails_for_unknown_requested_group(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class DummyTransformerService:
+        def __init__(self, db_path: str, config, enable_cli_integration: bool = False):
+            self.transforms_config = []
+            self.config = type("DummyConfig", (), {"transforms": []})()
+
+        def transform_data(self, group_by, csv_file, recreate_table, progress_callback):
+            raise AssertionError("transform_data should not run for missing groups")
+
+    transform_config = [
+        {"group_by": "taxons", "widgets_data": {"widget_a": {"plugin": "foo"}}},
+        {"group_by": "shapes", "widgets_data": {"widget_c": {"plugin": "baz"}}},
+    ]
+
+    monkeypatch.setattr(
+        transform_router, "get_transform_config", lambda path: transform_config
+    )
+    monkeypatch.setattr(
+        transform_router, "get_database_path", lambda: tmp_path / "db.duckdb"
+    )
+    monkeypatch.setattr(transform_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        transform_router, "Config", lambda config_dir, create_default=False: object()
+    )
+    monkeypatch.setattr(transform_router, "TransformerService", DummyTransformerService)
+
+    job_store = _DummyJobStore()
+
+    await transform_router.execute_transform_background(
+        "job-1",
+        job_store,
+        "config/transform.yml",
+        None,
+        "plots",
+        None,
+    )
+
+    assert job_store.completed_result is None
+    assert job_store.failed_error == (
+        "Transform group(s) not found: plots. Available groups: shapes, taxons"
+    )
+
+
 def test_transform_status_keeps_group_metadata() -> None:
     status = transform_router.TransformStatus(
         **transform_router._job_to_status(
