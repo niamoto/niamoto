@@ -293,13 +293,16 @@ async def preview_enrichment_for_reference(
 ):
     """Preview one query against one or many configured sources."""
 
-    return await preview_reference_enrichment(
-        reference_name,
-        request.query,
-        source_id=request.source_id,
-        source_override=request.source_config,
-        entity_id=request.entity_id,
-    )
+    try:
+        return await preview_reference_enrichment(
+            reference_name,
+            request.query,
+            source_id=request.source_id,
+            source_override=request.source_config,
+            entity_id=request.entity_id,
+        )
+    except ValueError as exc:
+        _raise_http_error(str(exc))
 
 
 @router.post("/preview", response_model=PreviewResponse)
