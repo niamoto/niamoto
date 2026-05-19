@@ -1848,6 +1848,10 @@ def test_index_suggestions_fallback_to_reference_fields_without_transformed_tabl
         if call.args[1] == "entity_taxons"
     ]
     assert entity_taxons_calls
+    assert all(
+        call.kwargs["limit"] == config_router.INDEX_SUGGESTION_RECORD_LIMIT
+        for call in entity_taxons_calls
+    )
 
     loaded_column_sets = [set(call.kwargs["columns"]) for call in entity_taxons_calls]
     assert {"rank_name", "taxons_id", "id"} in loaded_column_sets
