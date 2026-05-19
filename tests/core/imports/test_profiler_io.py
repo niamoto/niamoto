@@ -5,6 +5,7 @@ Tests for: profile_dataframe, TSV/TXT support, encoding fallback, sampling.
 """
 
 import pandas as pd
+from unittest.mock import patch
 
 from niamoto.core.imports.profiler import DataProfiler
 
@@ -161,7 +162,7 @@ class TestProfilingSampling:
     """Verify profiling uses sampling for large files."""
 
     def test_profile_samples_large_csv(self, tmp_path):
-        """Profiling a CSV > PROFILING_SAMPLE_SIZE should sample."""
+        """Profiling samples column analysis but preserves total CSV row count."""
         csv_path = tmp_path / "large.csv"
         n_rows = 60_000
         df = pd.DataFrame(
@@ -173,12 +174,15 @@ class TestProfilingSampling:
         df.to_csv(csv_path, index=False)
 
         profiler = DataProfiler()
-        profile = profiler.profile(csv_path)
+        with patch.object(
+            profiler, "profile_dataframe", wraps=profiler.profile_dataframe
+        ) as profile_dataframe:
+            profile = profiler.profile(csv_path)
 
-        # record_count should be the sample size, not the full file
-        # (since profile() loads via _load_data which samples)
-        assert profile.record_count <= profiler.PROFILING_SAMPLE_SIZE
-        assert profile.record_count > 0
+        assert profile.record_count == n_rows
+        sampled_df = profile_dataframe.call_args.args[0]
+        assert len(sampled_df) == profiler.PROFILING_SAMPLE_SIZE
+        assert profile_dataframe.call_args.kwargs["total_count"] == n_rows
 
     def test_profile_dataframe_preserves_total_count(self, tmp_path):
         """profile_dataframe with total_count preserves the real count."""
