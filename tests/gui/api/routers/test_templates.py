@@ -534,6 +534,126 @@ class TestTemplatesEndpoints:
         )
         assert "/private/path secret" not in response.text
 
+    def test_combined_suggestions_uses_reference_specific_default_source(
+        self, client, test_work_dir
+    ):
+        """Omitted source_name should resolve from the requested reference scope."""
+
+        import_path = Path(test_work_dir) / "config" / "import.yml"
+        import_config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+        import_config["entities"]["datasets"]["plot_measurements"] = {
+            "connector": {
+                "type": "file",
+                "format": "csv",
+                "path": "imports/plot_measurements.csv",
+            }
+        }
+        import_config["entities"]["references"]["plots"]["relation"] = {
+            "dataset": "plot_measurements",
+            "foreign_key": "plot_name",
+            "reference_key": "plot",
+        }
+        import_path.write_text(yaml.safe_dump(import_config), encoding="utf-8")
+
+        class EntityMeta:
+            config = {
+                "semantic_profile": {
+                    "columns": [
+                        {
+                            "name": "dbh",
+                            "dtype": "float64",
+                            "data_category": "numeric_continuous",
+                            "field_purpose": "measurement",
+                        },
+                        {
+                            "name": "height",
+                            "dtype": "float64",
+                            "data_category": "numeric_continuous",
+                            "field_purpose": "measurement",
+                        },
+                    ]
+                }
+            }
+
+        captured = {}
+
+        def fake_suggest_combined_widgets(
+            selected_field_names, all_profiles, source_name
+        ):
+            captured["selected_field_names"] = selected_field_names
+            captured["source_name"] = source_name
+            captured["profile_names"] = [profile.name for profile in all_profiles]
+            return []
+
+        with (
+            patch(
+                "niamoto.gui.api.routers.templates.get_database_path",
+                return_value=Path("/tmp/niamoto.duckdb"),
+            ),
+            patch("niamoto.gui.api.routers.templates.Database") as database_cls,
+            patch("niamoto.core.imports.registry.EntityRegistry") as registry_cls,
+            patch(
+                "niamoto.gui.api.routers.templates.suggest_combined_widgets",
+                side_effect=fake_suggest_combined_widgets,
+            ),
+            patch(
+                "niamoto.gui.api.routers.templates.detect_all_groups", return_value=[]
+            ),
+        ):
+            registry_cls.return_value.get.return_value = EntityMeta()
+
+            response = client.post(
+                "/api/templates/plots/combined-suggestions",
+                json={"selected_fields": ["dbh", "height"]},
+            )
+
+        assert response.status_code == 200
+        registry_cls.return_value.get.assert_called_once_with("plot_measurements")
+        assert captured == {
+            "selected_field_names": ["dbh", "height"],
+            "source_name": "plot_measurements",
+            "profile_names": ["dbh", "height"],
+        }
+        database_cls.return_value.close_db_session.assert_called_once()
+
+    def test_combined_suggestions_rejects_cross_reference_source(
+        self, client, test_work_dir
+    ):
+        """Explicit source_name must belong to the requested reference."""
+
+        import_path = Path(test_work_dir) / "config" / "import.yml"
+        import_config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+        import_config["entities"]["datasets"]["plot_measurements"] = {
+            "connector": {
+                "type": "file",
+                "format": "csv",
+                "path": "imports/plot_measurements.csv",
+            }
+        }
+        import_config["entities"]["references"]["plots"]["relation"] = {
+            "dataset": "plot_measurements",
+            "foreign_key": "plot_name",
+            "reference_key": "plot",
+        }
+        import_path.write_text(yaml.safe_dump(import_config), encoding="utf-8")
+
+        with patch(
+            "niamoto.gui.api.routers.templates.get_database_path",
+            return_value=Path("/tmp/niamoto.duckdb"),
+        ):
+            response = client.post(
+                "/api/templates/plots/combined-suggestions",
+                json={
+                    "selected_fields": ["dbh", "height"],
+                    "source_name": "occurrences",
+                },
+            )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == (
+            "Source 'occurrences' is not configured for reference 'plots'"
+        )
+
     def test_semantic_groups_endpoint(self, client):
         """Test GET /api/templates/{reference}/semantic-groups."""
         db_path = Path("/tmp/test-niamoto.duckdb")

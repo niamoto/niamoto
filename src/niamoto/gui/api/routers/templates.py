@@ -73,6 +73,94 @@ def _is_export_only_widget_config(widget_config: Dict[str, Any]) -> bool:
     return widget_config.get("plugin") == "hierarchical_nav_widget"
 
 
+def _load_import_entities_config() -> Dict[str, Any]:
+    """Load EntityRegistry v2 entities from import.yml."""
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not configured")
+
+    import_path = Path(work_dir) / "config" / "import.yml"
+    if not import_path.exists():
+        return {}
+
+    with import_path.open("r", encoding="utf-8") as file:
+        config = yaml.safe_load(file) or {}
+
+    entities = config.get("entities")
+    return entities if isinstance(entities, dict) else {}
+
+
+def _reference_source_candidates(reference_name: str) -> set[str]:
+    """Return source entities compatible with a reference from import.yml."""
+
+    entities = _load_import_entities_config()
+    references = entities.get("references") or {}
+    reference_config = references.get(reference_name)
+    if not isinstance(reference_config, dict):
+        raise HTTPException(
+            status_code=404, detail=f"Reference '{reference_name}' not found"
+        )
+
+    candidates = {reference_name}
+    connector = reference_config.get("connector") or {}
+    if isinstance(connector, dict):
+        connector_source = connector.get("source")
+        if isinstance(connector_source, str) and connector_source:
+            candidates.add(connector_source)
+
+        connector_sources = connector.get("sources") or []
+        if isinstance(connector_sources, list):
+            for source in connector_sources:
+                if isinstance(source, dict) and isinstance(source.get("name"), str):
+                    candidates.add(source["name"])
+
+    relation = reference_config.get("relation") or {}
+    if isinstance(relation, dict):
+        relation_dataset = relation.get("dataset")
+        if isinstance(relation_dataset, str) and relation_dataset:
+            candidates.add(relation_dataset)
+
+    for link in reference_config.get("links") or []:
+        if isinstance(link, dict) and isinstance(link.get("entity"), str):
+            candidates.add(link["entity"])
+
+    return candidates
+
+
+def _resolve_reference_source_name(
+    reference_name: str, requested_source_name: Optional[str]
+) -> str:
+    """Resolve and validate the source entity for a reference-scoped request."""
+
+    candidates = _reference_source_candidates(reference_name)
+    if requested_source_name:
+        if requested_source_name not in candidates:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Source '{requested_source_name}' is not configured for "
+                    f"reference '{reference_name}'"
+                ),
+            )
+        return requested_source_name
+
+    entities = _load_import_entities_config()
+    reference_config = (entities.get("references") or {}).get(reference_name) or {}
+    connector = reference_config.get("connector") or {}
+    relation = reference_config.get("relation") or {}
+
+    for candidate in (
+        connector.get("source") if isinstance(connector, dict) else None,
+        relation.get("dataset") if isinstance(relation, dict) else None,
+        reference_name,
+    ):
+        if isinstance(candidate, str) and candidate in candidates:
+            return candidate
+
+    return sorted(candidates)[0]
+
+
 # Static category definitions (widget categories are predefined, not data-driven)
 WIDGET_CATEGORIES = {
     "navigation": {
@@ -1258,12 +1346,15 @@ async def get_combined_widget_suggestions(
         db = Database(str(db_path), read_only=True)
         try:
             registry = EntityRegistry(db)
+            source_name = _resolve_reference_source_name(
+                reference_name, request.source_name
+            )
 
             # Get the source entity
             try:
-                entity_meta = registry.get(request.source_name)
+                entity_meta = registry.get(source_name)
             except (DatabaseQueryError, KeyError):
-                logger.warning(f"Entity '{request.source_name}' not found in registry")
+                logger.warning(f"Entity '{source_name}' not found in registry")
                 return CombinedWidgetResponse(suggestions=[], semantic_groups=[])
             semantic_profile = entity_meta.config.get("semantic_profile", {})
             columns = semantic_profile.get("columns", [])
@@ -1317,7 +1408,7 @@ async def get_combined_widget_suggestions(
             patterns = suggest_combined_widgets(
                 selected_field_names=request.selected_fields,
                 all_profiles=all_profiles,
-                source_name=request.source_name,
+                source_name=source_name,
             )
 
             # Get semantic groups for proactive suggestions
