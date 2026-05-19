@@ -1,5 +1,5 @@
 import asyncio
-import time
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -763,9 +763,8 @@ exports:
     groups: []
 """.strip()
     )
-    time.sleep(0.01)
-    config_mtime = time.time()
-    export_config_path.touch()
+    config_mtime = 1_609_459_200.0  # 2021-01-01T00:00:00, after the export job.
+    os.utime(export_config_path, (config_mtime, config_mtime))
 
     monkeypatch.setattr(pipeline_router, "get_working_directory", lambda: work_dir)
     monkeypatch.setattr(
@@ -804,7 +803,7 @@ exports:
 
     response = asyncio.run(pipeline_router.get_pipeline_status(request))
 
-    assert export_config_path.stat().st_mtime >= config_mtime
+    assert export_config_path.stat().st_mtime == config_mtime
     assert response.site.status == "fresh"
     assert response.publication.status == "stale"
 
