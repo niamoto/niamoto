@@ -1,7 +1,6 @@
 """Database introspection API endpoints."""
 
 import logging
-import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
@@ -438,12 +437,10 @@ async def execute_query(
     try:
         with open_database(db_path) as db:
             with db.engine.connect() as conn:
-                params: Dict[str, Any] = {}
-                if not re.search(r"\blimit\b", query_lower):
-                    query_to_run = f"{query_clean} LIMIT :_limit"
-                    params["_limit"] = max(1, int(limit))
-                else:
-                    query_to_run = query_clean
+                params: Dict[str, Any] = {"_limit": max(1, int(limit))}
+                query_to_run = (
+                    f"SELECT * FROM ({query_clean}) AS limited_query LIMIT :_limit"
+                )
 
                 result = conn.execute(text(query_to_run), params)
                 columns = list(result.keys())

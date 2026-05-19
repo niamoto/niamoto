@@ -98,3 +98,20 @@ def test_table_preview_uses_read_only_duckdb_connection(
     assert payload["total_rows"] == 3
     assert [row["id"] for row in payload["rows"]] == [1, 2, 3]
     assert read_only_values == [True]
+
+
+def test_query_endpoint_enforces_limit_over_user_sql_limit(
+    gui_duckdb_client: TestClient,
+):
+    response = gui_duckdb_client.get(
+        "/api/database/query",
+        params={
+            "query": "SELECT * FROM dataset_occurrences ORDER BY id LIMIT 5000",
+            "limit": 2,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["row_count"] == 2
+    assert [row["id"] for row in payload["rows"]] == [1, 2]
