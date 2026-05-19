@@ -342,3 +342,7 @@ def test_hierarchical_representatives_uses_configured_source_levels(tmp_path: Pa
     assert payload["entities"][0]["name"].startswith("[")
     assert any(entity["name"].startswith("[Country]") for entity in payload["entities"])
     assert any(entity["name"].startswith("[Plot]") for entity in payload["entities"])
+    country_nc = next(
+        entity for entity in payload["entities"] if entity["id"] == "country-nc"
+    )
+    assert country_nc["count"] == 3
