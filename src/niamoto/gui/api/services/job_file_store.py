@@ -21,6 +21,18 @@ from uuid import uuid4
 logger = logging.getLogger(__name__)
 
 TERMINAL_STATUSES = ("completed", "failed", "cancelled", "interrupted")
+_STORE_LOCKS_GUARD = threading.Lock()
+_STORE_LOCKS: dict[Path, threading.Lock] = {}
+
+
+def _get_store_lock(store_dir: Path) -> threading.Lock:
+    resolved_dir = store_dir.resolve()
+    with _STORE_LOCKS_GUARD:
+        lock = _STORE_LOCKS.get(resolved_dir)
+        if lock is None:
+            lock = threading.Lock()
+            _STORE_LOCKS[resolved_dir] = lock
+        return lock
 
 
 class JobFileStore:
@@ -31,7 +43,7 @@ class JobFileStore:
         self._dir.mkdir(parents=True, exist_ok=True)
         self._active_path = self._dir / "active_job.json"
         self._history_path = self._dir / "job_history.jsonl"
-        self._lock = threading.Lock()
+        self._lock = _get_store_lock(self._dir)
 
     # --- Cycle de vie ---
 
@@ -261,7 +273,7 @@ class JobFileStore:
                     entry = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                if entry["type"] == job_type:
+                if entry.get("type") == job_type:
                     entry_groups = entry.get("group_bys") or []
                     if (
                         group_by is None

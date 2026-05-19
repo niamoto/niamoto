@@ -31,7 +31,9 @@ class PluginRegistry:
     }
 
     # Store plugin metadata
-    _metadata: Dict[str, Dict[str, Any]] = {}
+    _metadata: Dict[PluginType, Dict[str, Dict[str, Any]]] = {
+        plugin_type: {} for plugin_type in PluginType
+    }
 
     @classmethod
     def register_plugin(
@@ -91,7 +93,7 @@ class PluginRegistry:
 
             # Store metadata if provided
             if metadata:
-                cls._metadata[name] = metadata
+                cls._metadata[actual_type][name] = metadata
 
         except Exception as e:
             if isinstance(e, PluginRegistrationError):
@@ -141,15 +143,24 @@ class PluginRegistry:
         return cls._plugins[plugin_type].copy()
 
     @classmethod
-    def get_plugin_metadata(cls, name: str) -> Dict[str, Any]:
+    def get_plugin_metadata(
+        cls, name: str, plugin_type: Optional[PluginType] = None
+    ) -> Dict[str, Any]:
         """
         Get metadata for a plugin.
         Args:
             name: Plugin identifier
+            plugin_type: Optional plugin type. When omitted, returns the first
+                matching metadata entry for backward compatibility.
         Returns:
             Plugin metadata or empty dict if none registered
         """
-        return cls._metadata.get(name, {})
+        if plugin_type is not None:
+            return cls._metadata[plugin_type].get(name, {})
+        for typed_metadata in cls._metadata.values():
+            if name in typed_metadata:
+                return typed_metadata[name]
+        return {}
 
     @classmethod
     def list_plugins(cls) -> Dict[PluginType, list[str]]:
@@ -171,7 +182,7 @@ class PluginRegistry:
         """
         for plugin_type in PluginType:
             cls._plugins[plugin_type].clear()
-        cls._metadata.clear()
+            cls._metadata[plugin_type].clear()
 
     @classmethod
     def has_plugin(cls, name: str, plugin_type: PluginType) -> bool:
@@ -197,7 +208,7 @@ class PluginRegistry:
         """
         try:
             del cls._plugins[plugin_type][name]
-            cls._metadata.pop(name, None)
+            cls._metadata[plugin_type].pop(name, None)
         except KeyError:
             raise PluginNotFoundError(
                 f"Cannot remove plugin {name}: not found",

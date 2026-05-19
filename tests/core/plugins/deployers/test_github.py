@@ -222,3 +222,90 @@ def test_github_deployer_api_fallback_preserves_nojekyll(monkeypatch):
         assert nojekyll_entry["mode"] == "100644"
         assert nojekyll_entry["type"] == "blob"
         assert any("SUCCESS: Deployed to GitHub Pages" in line for line in lines)
+
+
+def test_github_deployer_api_fallback_reports_network_errors(monkeypatch, tmp_path):
+    class FailingAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def get(self, url):
+            request = httpx.Request("GET", f"https://api.github.com{url}")
+            raise httpx.ConnectError("network down", request=request)
+
+    exports_dir = tmp_path / "exports"
+    exports_dir.mkdir()
+    (exports_dir / "index.html").write_text("ok", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.github.httpx.AsyncClient",
+        FailingAsyncClient,
+    )
+
+    deployer = GitHubDeployer()
+    config = DeployConfig(
+        platform="github",
+        exports_dir=exports_dir,
+        project_name="niamoto-test",
+        extra={"repo": "arsis-dev/niamoto-test", "branch": "gh-pages"},
+    )
+
+    lines = asyncio.run(
+        _collect_lines(
+            deployer._deploy_with_api(
+                config=config,
+                owner="arsis-dev",
+                repo="niamoto-test",
+                branch="gh-pages",
+                token="github_pat_test",
+                file_paths=[("index.html", str(exports_dir / "index.html"))],
+            )
+        )
+    )
+
+    assert any("ERROR: GitHub API request failed" in line for line in lines)
+    assert lines[-1].strip() == "data: DONE"
+
+
+def test_github_deployer_unpublish_reports_network_errors(monkeypatch, tmp_path):
+    class FailingAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def delete(self, url):
+            request = httpx.Request("DELETE", f"https://api.github.com{url}")
+            raise httpx.ReadTimeout("timed out", request=request)
+
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.github.CredentialService.get",
+        lambda platform, key: "github_pat_test",
+    )
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.github.httpx.AsyncClient",
+        FailingAsyncClient,
+    )
+
+    deployer = GitHubDeployer()
+    config = DeployConfig(
+        platform="github",
+        exports_dir=tmp_path,
+        project_name="niamoto-test",
+        extra={"repo": "arsis-dev/niamoto-test", "branch": "gh-pages"},
+    )
+
+    lines = asyncio.run(_collect_lines(deployer.unpublish(config)))
+
+    assert any("ERROR: GitHub API request failed" in line for line in lines)
+    assert lines[-1].strip() == "data: DONE"

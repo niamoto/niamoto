@@ -177,6 +177,27 @@ class TestImportDataset:
                 reset_table=False,
             )
 
+    def test_import_dataset_not_found(self, runner):
+        """Test dataset import with non-existent dataset."""
+        with (
+            mock.patch("niamoto.cli.commands.imports.Config") as mock_config,
+            mock.patch("niamoto.cli.commands.imports.set_progress_mode"),
+        ):
+            config = mock_config.return_value
+            config.database_path = "/path/to/db.duckdb"
+
+            mock_entities = mock.MagicMock()
+            mock_entities.datasets = {}
+
+            mock_imports_config = mock.MagicMock()
+            mock_imports_config.entities = mock_entities
+            config.get_imports_config = mock_imports_config
+
+            result = runner.invoke(import_dataset, ["nonexistent"])
+
+            assert result.exit_code == 1
+            assert "Failed to import dataset 'nonexistent'" in result.output
+
 
 class TestImportList:
     """Tests for the import_list command."""

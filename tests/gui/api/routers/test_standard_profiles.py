@@ -155,6 +155,50 @@ def test_list_standard_profiles_returns_current_validation_status(
     assert saved["standard_profiles"][0]["validation_status"] == "draft"
 
 
+def test_get_standard_profile_returns_current_validation_status(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [],
+                "standard_profiles": [
+                    {
+                        "name": "dwc_occurrences",
+                        "standard": "darwin_core_occurrence",
+                        "target_grain": "occurrence",
+                        "source": {"type": "dataset", "name": "occurrences"},
+                        "mappings": {"occurrenceID": {"source": "id"}},
+                        "validation_status": "draft",
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.get("/api/standard-profiles/dwc_occurrences")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["profile"]["validation_status"] == "conformant"
+
+
+def test_standard_profile_config_lock_requires_process_safe_lock(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        standard_profiles_router, "get_working_directory", lambda: tmp_path
+    )
+    monkeypatch.setattr(standard_profiles_router, "_fcntl_module", lambda: None)
+
+    try:
+        with standard_profiles_router._standard_profile_config_lock():
+            raise AssertionError("lock should not be acquired")
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 503
+        assert "Process-safe export configuration locking" in exc.detail
+
+
 def test_auto_config_standard_profile_returns_reviewable_dwc_proposal(
     gui_duckdb_client, gui_duckdb_context
 ):
@@ -550,6 +594,18 @@ def test_standard_profile_validation_report_serializes_summary_and_details(
     assert payload["summary"]["critical"] == 1
     assert payload["checklist"][0]["code"] == "dwc_occurrence_id"
     assert payload["issues"][0]["severity"] == "critical"
+
+
+def test_standard_profile_validation_returns_404_for_unknown_profile(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text("exports: []\nstandard_profiles: []\n", encoding="utf-8")
+
+    response = gui_duckdb_client.get("/api/standard-profiles/missing/validation")
+
+    assert response.status_code == 404
+    assert "missing" in response.json()["detail"]
 
 
 def test_execute_standard_profile_api_json_output(

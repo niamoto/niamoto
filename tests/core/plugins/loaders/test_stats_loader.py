@@ -144,6 +144,30 @@ class TestStatsLoader(NiamotoTestCase):
         self.assertIsInstance(cm.exception.__cause__, Exception)
         self.assertEqual("Database connection failed", cm.exception.__cause__.args[0])
 
+    @patch("pandas.read_sql")
+    def test_load_data_db_uses_resolved_source_table_and_params(self, mock_read_sql):
+        """Database sources should use import metadata and validated relation params."""
+        group_id = 123
+        config = {
+            "plugin": "stats_loader",
+            "data": "stats_source",
+            "grouping": "ref_table",
+            "params": {"key": "plot_fk"},
+        }
+        self.loader.imports_config = {
+            "stats_source": {"type": "database", "table": "resolved_stats_table"}
+        }
+        expected_df = pd.DataFrame({"value": [1]})
+        mock_read_sql.return_value = expected_df
+
+        result_df = self.loader.load_data(group_id, config)
+
+        pd.testing.assert_frame_equal(result_df, expected_df)
+        query_string = str(mock_read_sql.call_args.args[0])
+        self.assertIn('FROM "resolved_stats_table" m', query_string)
+        self.assertIn('m."plot_fk" = ref.id', query_string)
+        self.assertNotIn('"stats_source"', query_string)
+
     @patch("os.path.exists", return_value=True)
     @patch("pandas.read_csv")
     def test_load_data_csv_success_comma(self, mock_read_csv, mock_exists):
@@ -247,7 +271,8 @@ class TestStatsLoader(NiamotoTestCase):
         )  # Second call
         pd.testing.assert_frame_equal(result_df, expected_df)
 
-    def test_load_data_source_not_found(self):
+    @patch("pandas.read_sql")
+    def test_load_data_source_not_found(self, mock_read_sql):
         """Test DataLoadError when the source key is not in imports_config."""
         # --- Arrange ---
         group_id = 1
@@ -267,6 +292,8 @@ class TestStatsLoader(NiamotoTestCase):
 
         # Check the final exception message
         self.assertIn("Failed to load statistics data", str(cm.exception))
+        self.assertIn("Source configuration not found", str(cm.exception.__cause__))
+        mock_read_sql.assert_not_called()
 
     @patch("os.path.exists", return_value=False)  # Mock os.path.exists to return False
     def test_load_data_csv_file_not_found(self, mock_exists):

@@ -1,7 +1,6 @@
 """Generic import API endpoints using entity registry and typed configurations."""
 
 import logging
-import os
 import traceback
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Form, Query, Request
@@ -22,6 +21,7 @@ from niamoto.core.imports.registry import EntityRegistry
 from niamoto.core.imports.config_models import ConnectorType
 from niamoto.common.table_resolver import quote_identifier
 from ..utils.database import open_database
+from ..desktop_auth import require_desktop_mutation_auth
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -32,17 +32,10 @@ MAX_IMPORT_EVENTS = 40
 MAX_RETAINED_IMPORT_JOBS = 100
 ACTIVE_IMPORT_STATUSES = {"pending", "running"}
 TERMINAL_IMPORT_STATUSES = {"completed", "failed"}
-DESKTOP_TOKEN_HEADER = "x-niamoto-desktop-token"
 
 
 def _require_import_mutation_auth(request: Request) -> None:
-    expected_token = os.environ.get("NIAMOTO_DESKTOP_AUTH_TOKEN")
-    if not expected_token:
-        return
-
-    provided_token = request.headers.get(DESKTOP_TOKEN_HEADER)
-    if provided_token != expected_token:
-        raise HTTPException(status_code=401, detail="Invalid desktop auth token.")
+    require_desktop_mutation_auth(request)
 
 
 def _now_iso() -> str:
@@ -470,7 +463,10 @@ class DeleteEntityRequest(BaseModel):
 
 @router.delete("/entities/{entity_type}/{entity_name}")
 async def delete_entity(
-    entity_type: str, entity_name: str, delete_table: bool = False
+    request: Request,
+    entity_type: str,
+    entity_name: str,
+    delete_table: bool = False,
 ) -> Dict[str, Any]:
     """
     Delete an entity from import.yml configuration.
@@ -485,6 +481,8 @@ async def delete_entity(
     """
     import yaml
     from ..context import get_working_directory
+
+    _require_import_mutation_auth(request)
 
     if entity_type not in ["dataset", "reference"]:
         raise HTTPException(

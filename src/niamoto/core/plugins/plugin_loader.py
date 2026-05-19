@@ -387,7 +387,7 @@ class PluginLoader:
         """
         try:
             spec = importlib.util.spec_from_file_location(module_name, file)
-            if spec is None:
+            if spec is None or spec.loader is None:
                 raise PluginLoadError(
                     f"Failed to create spec for {module_name}",
                     details={"file": str(file)},
@@ -396,12 +396,11 @@ class PluginLoader:
             module = importlib.util.module_from_spec(spec)
             sys.modules[module_name] = module
 
-            if spec.loader is None:
-                raise PluginLoadError(
-                    f"No loader found for {module_name}", details={"file": str(file)}
-                )
-
-            spec.loader.exec_module(module)
+            try:
+                spec.loader.exec_module(module)
+            except Exception:
+                sys.modules.pop(module_name, None)
+                raise
 
         except Exception as e:
             raise PluginLoadError(

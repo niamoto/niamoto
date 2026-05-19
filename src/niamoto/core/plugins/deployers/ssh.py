@@ -86,24 +86,18 @@ class SSHDeployer(DeployerPlugin):
             yield self.sse_done()
             return
 
-        # 4. Stream stdout lines
-        assert process.stdout is not None
-        while True:
-            line = await process.stdout.readline()
-            if not line:
-                break
-            decoded = line.decode("utf-8", errors="replace").strip()
+        # Read stdout and stderr together so rsync cannot block on a full stderr pipe.
+        stdout_data, stderr_data = await process.communicate()
+        stdout_text = stdout_data.decode("utf-8", errors="replace").strip()
+        stderr_text = stderr_data.decode("utf-8", errors="replace").strip()
+
+        for decoded in stdout_text.splitlines():
+            decoded = decoded.strip()
             if decoded:
                 yield self.sse_log(decoded)
 
-        # Wait for process to finish
-        await process.wait()
-
         # Check for stderr on failure
         if process.returncode != 0:
-            assert process.stderr is not None
-            stderr_data = await process.stderr.read()
-            stderr_text = stderr_data.decode("utf-8", errors="replace").strip()
             if stderr_text:
                 # Yield last few lines of stderr
                 for err_line in stderr_text.splitlines()[-5:]:

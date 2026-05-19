@@ -213,3 +213,42 @@ def test_unknown_manual_source_is_rejected_without_mutating_metadata():
         raise AssertionError("Expected missing source to be rejected")
 
     assert import_config.get("metadata") is None
+
+
+def test_metadata_manual_collection_rejects_unknown_source():
+    import_config = _import_config()
+    import_config["metadata"] = {
+        "collections": {
+            "missing_source_collection": {
+                "source": {"type": "dataset", "name": "missing"},
+                "roles": ["api"],
+            }
+        }
+    }
+    service = CollectionCatalogService(import_config=import_config)
+
+    try:
+        service.list_collections()
+    except ValueError as exc:
+        assert "Unknown dataset source 'missing'" in str(exc)
+    else:
+        raise AssertionError("Expected missing metadata source to be rejected")
+
+
+def test_metadata_overlay_rejects_unknown_source_override():
+    import_config = _import_config()
+    import_config["metadata"] = {
+        "collections": {
+            "taxons": {
+                "source": {"type": "reference", "name": "missing"},
+            }
+        }
+    }
+    service = CollectionCatalogService(import_config=import_config)
+
+    try:
+        service.get_collection("taxons")
+    except ValueError as exc:
+        assert "Unknown reference source 'missing'" in str(exc)
+    else:
+        raise AssertionError("Expected invalid overlay source to be rejected")

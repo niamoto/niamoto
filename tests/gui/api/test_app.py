@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from fastapi import FastAPI
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app, UI_BUILD_DIR
@@ -75,6 +76,52 @@ class TestCreateApp:
 
         assert response.status_code == 200
         assert response.headers["access-control-allow-origin"] == "null"
+
+    def test_configured_cors_origins_ignore_wildcards_and_untrusted_hosts(
+        self, monkeypatch
+    ):
+        """Configured CORS origins should stay limited to local desktop contexts."""
+        monkeypatch.setenv(
+            "NIAMOTO_CORS_ORIGINS",
+            "*,https://evil.example,http://localhost:5173,tauri://localhost",
+        )
+        app = create_app()
+        client = TestClient(app)
+
+        rejected = client.options(
+            "/api/health",
+            headers={
+                "Origin": "https://evil.example",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        allowed = client.options(
+            "/api/health",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+        assert rejected.status_code == 400
+        assert allowed.status_code == 200
+        assert allowed.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+    def test_desktop_token_protects_api_mutations_globally(self, monkeypatch):
+        """Mutating API routes should require the desktop token when it is set."""
+        monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+        app = create_app()
+        client = TestClient(app)
+
+        unauthorized = client.post("/api/transform/execute", json={})
+        authorized = client.post(
+            "/api/transform/execute",
+            headers={"x-niamoto-desktop-token": "desktop-secret"},
+            json={},
+        )
+
+        assert unauthorized.status_code == 401
+        assert authorized.status_code != 401
 
     def test_api_routers_included(self):
         """Test that all API routers are included."""
@@ -216,6 +263,27 @@ class TestSPAStaticFiles:
         # Should get index.html content
         assert response.status_code == 200
         assert "Niamoto" in response.text
+
+    def test_spa_does_not_swallow_non_404_static_errors(self, tmp_path, monkeypatch):
+        """Only missing SPA routes should fall back to index.html."""
+        ui_build = tmp_path / "ui" / "dist"
+        ui_build.mkdir(parents=True)
+        (ui_build / "index.html").write_text("<html><body>Niamoto</body></html>")
+        monkeypatch.setattr("niamoto.gui.api.app.UI_BUILD_DIR", ui_build)
+
+        async def fail_with_forbidden(self, path, scope):
+            raise StarletteHTTPException(status_code=403, detail="Forbidden")
+
+        monkeypatch.setattr(
+            "starlette.staticfiles.StaticFiles.get_response",
+            fail_with_forbidden,
+        )
+
+        app = create_app()
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.get("/forbidden.js")
+
+        assert response.status_code == 403
 
 
 class TestAppInstance:

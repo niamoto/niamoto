@@ -186,13 +186,16 @@ def _standard_profile_config_lock() -> Iterator[None]:
         lock_path = _standard_profile_lock_path(get_working_directory())
         with lock_path.open("w", encoding="utf-8") as lock_file:
             fcntl_module = _fcntl_module()
-            if fcntl_module is not None:
-                fcntl_module.flock(lock_file.fileno(), fcntl_module.LOCK_EX)
+            if fcntl_module is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Process-safe export configuration locking is unavailable.",
+                )
+            fcntl_module.flock(lock_file.fileno(), fcntl_module.LOCK_EX)
             try:
                 yield
             finally:
-                if fcntl_module is not None:
-                    fcntl_module.flock(lock_file.fileno(), fcntl_module.LOCK_UN)
+                fcntl_module.flock(lock_file.fileno(), fcntl_module.LOCK_UN)
 
 
 def _standard_profile_lock_path(work_dir: Path) -> Path:
@@ -303,7 +306,8 @@ async def get_standard_profile(profile_name: str) -> dict[str, Any]:
     """Return a single standard profile."""
     store = _profile_store()
     try:
-        return {"profile": store.get_profile(profile_name)}
+        profile = store.get_profile(profile_name)
+        return {"profile": _profile_with_current_validation_status(profile)}
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

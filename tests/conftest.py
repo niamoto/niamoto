@@ -9,10 +9,14 @@ from pathlib import Path
 @pytest.fixture(scope="function")
 def niamoto_home(request):
     temp_dir = tempfile.mkdtemp(prefix="niamoto_test_")
+    previous_home = os.environ.get("NIAMOTO_HOME")
     os.environ["NIAMOTO_HOME"] = temp_dir
 
     def cleanup():
-        os.environ.pop("NIAMOTO_HOME", None)
+        if previous_home is None:
+            os.environ.pop("NIAMOTO_HOME", None)
+        else:
+            os.environ["NIAMOTO_HOME"] = previous_home
         shutil.rmtree(temp_dir)
 
     request.addfinalizer(cleanup)

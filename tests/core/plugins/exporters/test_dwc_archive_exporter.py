@@ -507,6 +507,21 @@ class TestFetchGroupData:
         assert result[0]["name"] == "Simple Text"
         assert result[0]["count"] == 42
 
+    def test_fetch_group_data_preserves_falsy_non_null_values(self, exporter):
+        mock_db = MagicMock()
+
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = [(0, False, 0.0, "", None)]
+        mock_result.keys.return_value = ["id", "endemic", "ratio", "notes", "missing"]
+
+        mock_connection = MagicMock()
+        mock_connection.execute.return_value = mock_result
+        mock_db.engine.connect.return_value.__enter__.return_value = mock_connection
+
+        result = exporter._fetch_group_data(mock_db, "test_table")
+
+        assert result == [{"id": 0, "endemic": False, "ratio": 0.0, "notes": ""}]
+
     def test_fetch_group_data_error_handling(self, exporter):
         """Test error handling during data fetch."""
         mock_db = MagicMock()

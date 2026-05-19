@@ -218,7 +218,7 @@ class TestStatsCommand:
 
             result = runner.invoke(stats_command)
 
-            assert result.exit_code == 0
+            assert result.exit_code != 0
             assert "Database not found" in result.output
 
     def test_stats_command_general_statistics(
@@ -466,8 +466,7 @@ class TestStatsCommand:
 
             result = runner.invoke(stats_command)
 
-            # The command catches the error and prints it, but doesn't exit with error code
-            assert result.exit_code == 0
+            assert result.exit_code != 0
             assert "Unexpected error: Database connection failed" in result.output
 
 
@@ -485,7 +484,7 @@ class TestStatsCommandEdgeCases:
 
             result = runner.invoke(stats_command)
 
-            assert result.exit_code == 0
+            assert result.exit_code != 0
             assert "Database error: Connection lost" in result.output
 
 

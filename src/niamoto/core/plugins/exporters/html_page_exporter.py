@@ -34,6 +34,7 @@ from niamoto.common.i18n import I18nResolver
 from niamoto.common.table_resolver import resolve_entity_table, resolve_reference_table
 from niamoto.core.plugins.base import ExporterPlugin, PluginType, WidgetPlugin, register
 from niamoto.core.plugins.exporters.path_utils import safe_output_path
+from niamoto.core.plugins.loaders._sql_identifier import quote_identifier
 from niamoto.core.plugins.models import (
     TargetConfig,
     HtmlExporterParams,
@@ -1134,7 +1135,16 @@ class HtmlPageExporter(ExporterPlugin):
             )
             try:
                 template_name = page_config.template or "page.html"
-                template = jinja_env.get_template(template_name)
+                try:
+                    template = jinja_env.get_template(template_name)
+                except Exception as e:
+                    logger.error(
+                        f"Failed to load static page template '{template_name}' for '{page_config.name}': {e}",
+                        exc_info=True,
+                    )
+                    raise ProcessError(
+                        f"Template '{template_name}' not found for static page '{page_config.name}'"
+                    ) from e
 
                 # Build site context with resolved localized strings
                 site_context = self._get_site_context(html_params, lang)
@@ -1276,7 +1286,9 @@ class HtmlPageExporter(ExporterPlugin):
                         f"Failed to process static page '{page_config.name}' ({page_config.template} -> {page_config.output_file}): {e}",
                         exc_info=True,
                     )
-                    # Decide whether to raise or continue
+                    raise ProcessError(
+                        f"Template '{template_name}' not found for static page '{page_config.name}'"
+                    ) from e
 
                 rendered_html = template.render(context)
                 output_file_path = safe_output_path(output_dir, page_config.output_file)
@@ -1300,12 +1312,16 @@ class HtmlPageExporter(ExporterPlugin):
 
             except ValueError:
                 raise
+            except ProcessError:
+                raise
             except Exception as e:
                 logger.error(
                     f"Failed to process static page '{page_config.name}' ({page_config.template} -> {page_config.output_file}): {e}",
                     exc_info=True,
                 )
-                # Decide whether to raise or continue
+                raise ProcessError(
+                    f"Failed to process static page '{page_config.name}'"
+                ) from e
 
         logger.info("Static pages processed.")
 
@@ -2038,8 +2054,10 @@ class HtmlPageExporter(ExporterPlugin):
 
             # Build query with specific fields or all fields
             if required_fields:
-                # Escape field names to prevent SQL injection
-                escaped_fields = [f'"{field}"' for field in required_fields]
+                escaped_fields = [
+                    quote_identifier(field, "navigation field")
+                    for field in required_fields
+                ]
                 fields_str = ", ".join(escaped_fields)
                 # Determine deterministic ORDER BY clause prioritising nested-set structure
                 order_candidates: List[str] = []
@@ -2052,13 +2070,22 @@ class HtmlPageExporter(ExporterPlugin):
                         order_candidates.append(required_fields[0])
                     else:
                         order_candidates.append("id")
-                order_clause = ", ".join(f'"{field}"' for field in order_candidates)
+                order_clause = ", ".join(
+                    quote_identifier(field, "navigation order field")
+                    for field in order_candidates
+                )
+                quoted_source = quote_identifier(
+                    referential_data_source, "navigation source table"
+                )
                 query = (
-                    f'SELECT {fields_str} FROM "{referential_data_source}" '
-                    f"ORDER BY {order_clause}"
+                    f"SELECT {fields_str} FROM {quoted_source} ORDER BY {order_clause}"
                 )
             else:
-                query = f'SELECT * FROM "{referential_data_source}" ORDER BY "id"'
+                quoted_source = quote_identifier(
+                    referential_data_source, "navigation source table"
+                )
+                quoted_id = quote_identifier("id", "navigation id field")
+                query = f"SELECT * FROM {quoted_source} ORDER BY {quoted_id}"
             results = self.db.fetch_all(query)
 
             if results:
@@ -2324,11 +2351,16 @@ class HtmlPageExporter(ExporterPlugin):
                 order_by_col = id_column  # Fallback to ordering by ID if no name column
 
             select_cols_str = ", ".join(
-                f'"{col}"' for col in columns_to_select
-            )  # Quote column names
+                quote_identifier(col, "index column") for col in columns_to_select
+            )
 
             # Construct and execute the query
-            query = f'SELECT {select_cols_str} FROM "{table_name}" ORDER BY "{order_by_col}"'  # Quote table/col names
+            quoted_table_name = quote_identifier(table_name, "index table name")
+            quoted_order_by_col = quote_identifier(order_by_col, "index order column")
+            query = (
+                f"SELECT {select_cols_str} FROM {quoted_table_name} "
+                f"ORDER BY {quoted_order_by_col}"
+            )
             logger.debug(f"Executing index query: {query}")
 
             results = repository.fetch_all(query)
@@ -2345,7 +2377,9 @@ class HtmlPageExporter(ExporterPlugin):
         self, repository: Database, table_name: str, id_column: str, item_id: Any
     ) -> Optional[Dict[str, Any]]:
         """Fetches the full data row for a single item detail page. Returns None on DB error or not found."""
-        query = f'SELECT * FROM "{table_name}" WHERE "{id_column}" = :item_id'
+        quoted_table_name = quote_identifier(table_name, "detail table name")
+        quoted_id_column = quote_identifier(id_column, "detail id column")
+        query = f"SELECT * FROM {quoted_table_name} WHERE {quoted_id_column} = :item_id"
         params = {"item_id": item_id}
         logger.debug(f"Executing detail query: {query} with params {params}")
         try:
@@ -2421,7 +2455,11 @@ class HtmlPageExporter(ExporterPlugin):
 
             # Fetch all columns so display_fields can access nested JSON fields
             try:
-                query = f'SELECT * FROM "{index_table}" ORDER BY "{index_id_col}"'
+                quoted_index_table = quote_identifier(index_table, "index table name")
+                quoted_index_id_col = quote_identifier(index_id_col, "index id column")
+                query = (
+                    f"SELECT * FROM {quoted_index_table} ORDER BY {quoted_index_id_col}"
+                )
                 results = repository.fetch_all(query)
                 index_data: Optional[List[Dict[str, Any]]] = (
                     [dict(row) for row in results] if results else None

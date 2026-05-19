@@ -12,6 +12,7 @@ import yaml
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from niamoto.common.exceptions import DatabaseQueryError
 from niamoto.core.imports.registry import EntityRegistry
 from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.gui.api.utils.database import open_database
@@ -340,7 +341,14 @@ async def get_transformer_suggestions(entity_name: str):
             registry = EntityRegistry(db)
 
             # Get entity metadata
-            metadata = registry.get(entity_name)
+            try:
+                metadata = registry.get(entity_name)
+            except DatabaseQueryError as exc:
+                if getattr(exc, "details", {}).get("name") == entity_name:
+                    raise HTTPException(
+                        status_code=404, detail=f"Entity '{entity_name}' not found"
+                    ) from exc
+                raise
             if not metadata or not metadata.config:
                 raise HTTPException(
                     status_code=404, detail=f"Entity '{entity_name}' not found"

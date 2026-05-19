@@ -94,8 +94,7 @@ def export_command(
         db_path_obj = Path(db_path) if db_path else None
 
         if not db_path_obj or not db_path_obj.exists():
-            print_error(f"Database not found at: {db_path_obj}")
-            return
+            raise click.ClickException(f"Database not found at: {db_path_obj}")
 
         # Initialize the ExporterService
         service = ExporterService(db_path=str(db_path_obj), config=config)
@@ -107,9 +106,10 @@ def export_command(
 
         # Validate options
         if group and not target:
-            print_error("The --group option requires --target to be specified.")
-            print_info("Use 'niamoto export --list' to see available targets.")
-            return
+            raise click.ClickException(
+                "The --group option requires --target to be specified. "
+                "Use 'niamoto export --list' to see available targets."
+            )
 
         # Handle dry run
         if dry_run:
@@ -137,6 +137,8 @@ def export_command(
         # Display links to generated sites
         _display_output_links(results)
 
+    except click.ClickException:
+        raise
     except ConfigurationError as e:
         if not getattr(e, "_handled", False):
             print_error(f"Configuration error: {e}")
@@ -182,7 +184,7 @@ def _list_export_targets(service: ExporterService) -> None:
             print()  # Empty line between targets
 
     except Exception as e:
-        print_error(f"Failed to list targets: {e}")
+        raise click.ClickException(f"Failed to list targets: {e}") from e
 
 
 def _display_output_links(results: Dict[str, Dict[str, Any]]) -> None:
@@ -219,8 +221,9 @@ def _show_dry_run(
         # Filter targets based on command options
         if target:
             if target not in targets:
-                print_error(f"Target '{target}' not found in configuration.")
-                return
+                raise click.ClickException(
+                    f"Target '{target}' not found in configuration."
+                )
             targets = {target: targets[target]}
 
         # Show only enabled targets
@@ -238,8 +241,9 @@ def _show_dry_run(
                 # Filter to specific group
                 groups = [g for g in groups if g.get("group_by") == group]
                 if not groups:
-                    print_warning(f"   Group '{group}' not found in this target")
-                    continue
+                    raise click.ClickException(
+                        f"Group '{group}' not found in this target"
+                    )
 
             if groups:
                 print_info("   Groups to export:")
@@ -250,4 +254,8 @@ def _show_dry_run(
             print()
 
     except Exception as e:
-        print_error(f"Failed to analyze export configuration: {e}")
+        if isinstance(e, click.ClickException):
+            raise
+        raise click.ClickException(
+            f"Failed to analyze export configuration: {e}"
+        ) from e

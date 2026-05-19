@@ -211,12 +211,23 @@ class StatsLoader(LoaderPlugin):
         return filtered_data
 
     def _load_from_database(
-        self, config: Dict[str, Any], group_id: int
+        self, config: Dict[str, Any], source_config: Dict[str, Any], group_id: int
     ) -> pd.DataFrame:
         """Load data from the database."""
-        quoted_data = quote_identifier(config["data"], "data table name")
+        validated_config = self.validate_config(config)
+        params = validated_config.params
+        table_name = source_config.get("table") or source_config.get("name")
+        if not table_name and isinstance(config.get("data"), str):
+            table_name = config["data"]
+        if not table_name:
+            raise DataLoadError(
+                "Missing database table name",
+                details={"source": config.get("data")},
+            )
+
+        quoted_data = quote_identifier(str(table_name), "data table name")
         quoted_grouping = quote_identifier(config["grouping"], "grouping table name")
-        quoted_key = quote_identifier(config.get("key", "id"), "foreign key field")
+        quoted_key = quote_identifier(params.key, "foreign key field")
 
         query = f"""
             SELECT m.*
@@ -269,6 +280,14 @@ class StatsLoader(LoaderPlugin):
                     imports_config = self.imports_config.get(source)
                     if imports_config:
                         source_config = imports_config
+                    elif self.imports_config:
+                        raise DataLoadError(
+                            "Source configuration not found",
+                            details={
+                                "source": source,
+                                "available_sources": sorted(self.imports_config),
+                            },
+                        )
                     else:
                         # Assume it's a database table name
                         source_config = {"type": "database", "table": source}
@@ -282,7 +301,7 @@ class StatsLoader(LoaderPlugin):
             if source_config.get("type") == "csv":
                 return self._load_from_csv(source_config, group_id, config)
             else:
-                return self._load_from_database(config, group_id)
+                return self._load_from_database(config, source_config, group_id)
 
         except Exception as e:
             self.logger.exception(

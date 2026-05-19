@@ -8,11 +8,13 @@ Provides endpoints for:
 """
 
 import logging
+import os
 from pathlib import Path
+import tempfile
 from typing import Any, Dict, List, Optional
 
 import yaml
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from niamoto.common.exceptions import DatabaseQueryError
 from niamoto.common.transform_config_models import validate_transform_config
@@ -63,6 +65,7 @@ from niamoto.core.imports.multi_field_detector import (  # noqa: E402
     detect_all_groups,
 )
 from niamoto.gui.api.context import get_database_path, get_working_directory  # noqa: E402
+from niamoto.gui.api.desktop_auth import require_desktop_mutation_auth  # noqa: E402
 from niamoto.common.database import Database  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -161,6 +164,22 @@ def _resolve_reference_source_name(
     return sorted(candidates)[0]
 
 
+def _resolve_project_relative_path(work_dir: Path, raw_path: str) -> Path:
+    """Resolve a configured data path and reject paths outside the project."""
+    candidate = Path(raw_path)
+    if candidate.is_absolute():
+        raise HTTPException(status_code=400, detail="Source path must be relative")
+
+    resolved_work_dir = work_dir.resolve()
+    resolved_candidate = (resolved_work_dir / candidate).resolve()
+    if not resolved_candidate.is_relative_to(resolved_work_dir):
+        raise HTTPException(
+            status_code=400,
+            detail="Source path must stay inside the project directory",
+        )
+    return resolved_candidate
+
+
 # Static category definitions (widget categories are predefined, not data-driven)
 WIDGET_CATEGORIES = {
     "navigation": {
@@ -241,6 +260,7 @@ async def get_reference_suggestions(
     column_suggestions: List[TemplateSuggestion] = []
     enriched_profiles: List = []
     columns_analyzed = 0
+    source_name = _resolve_reference_source_name(reference_name, entity)
 
     # Generate navigation widget suggestion (always included)
     navigation_suggestion = generate_navigation_suggestion(reference_name)
@@ -249,23 +269,19 @@ async def get_reference_suggestions(
     try:
         db_path = get_database_path()
         if db_path:
-            from niamoto.core.imports.registry import EntityRegistry, EntityKind
+            from niamoto.core.imports.registry import EntityRegistry
             from niamoto.core.imports.data_analyzer import EnrichedColumnProfile
 
             db = Database(str(db_path), read_only=True)
             try:
                 registry = EntityRegistry(db)
 
-                # Auto-detect entity if not provided
-                if entity is None:
-                    datasets = registry.list_entities(kind=EntityKind.DATASET)
-                    if datasets:
-                        entity = datasets[0].name
-
-                if entity:
+                # Validate the source against the reference configuration before
+                # touching registry metadata.
+                if source_name:
                     # Get entity from registry
                     try:
-                        entity_meta = registry.get(entity)
+                        entity_meta = registry.get(source_name)
                         # Get stored semantic profiles
                         semantic_profile = entity_meta.config.get(
                             "semantic_profile", {}
@@ -293,7 +309,7 @@ async def get_reference_suggestions(
                             column_suggestions = suggester.suggest_for_entity(
                                 column_profiles=enriched_profiles,
                                 reference_name=reference_name,
-                                source_name=entity,
+                                source_name=source_name,
                                 max_suggestions=max_suggestions,
                             )
                     except Exception as e:
@@ -565,10 +581,25 @@ def _generate_export_config(
     sources: List[Dict[str, Any]],
     mode: str = "replace",
 ) -> None:
+    """Generate and write export.yml configuration for widgets."""
+    export_path, export_config = _build_export_config(
+        work_dir, group_name, widgets_data, sources, mode=mode
+    )
+    _write_yaml_atomic(export_path, export_config)
+    logger.info(f"Generated export config for group '{group_name}' to {export_path}")
+
+
+def _build_export_config(
+    work_dir: Path,
+    group_name: str,
+    widgets_data: Dict[str, Any],
+    sources: List[Dict[str, Any]],
+    mode: str = "replace",
+) -> tuple[Path, Dict[str, Any]]:
     """
     Generate export.yml configuration for widgets.
 
-    Creates or updates the export.yml file with widget configurations.
+    Creates or updates the in-memory export.yml structure with widget configurations.
 
     Args:
         mode: 'merge' adds new widgets to existing, 'replace' overwrites all widgets
@@ -693,18 +724,31 @@ def _generate_export_config(
 
     # Update group widgets based on mode
     if mode == "merge":
-        # Merge: add new widgets to existing ones
+        # Merge: update existing widgets by data_source, append only new ones.
         existing_widgets = group_config.get("widgets", [])
-        existing_data_sources = {w.get("data_source") for w in existing_widgets}
+        existing_by_source = {
+            w.get("data_source"): w
+            for w in existing_widgets
+            if isinstance(w, dict) and w.get("data_source")
+        }
 
         # Find the max order from existing widgets
         max_order = max(
             (w.get("layout", {}).get("order", 0) for w in existing_widgets), default=-1
         )
 
-        # Add only new widgets (not already in config)
         for widget in export_widgets:
-            if widget.get("data_source") not in existing_data_sources:
+            data_source = widget.get("data_source")
+            existing_widget = existing_by_source.get(data_source)
+            if existing_widget:
+                preserved_layout = existing_widget.get("layout", {})
+                existing_widget.clear()
+                existing_widget.update(widget)
+                existing_widget["layout"] = {
+                    **widget.get("layout", {}),
+                    **preserved_layout,
+                }
+            else:
                 max_order += 1
                 widget["layout"]["order"] = max_order
                 existing_widgets.append(widget)
@@ -718,22 +762,76 @@ def _generate_export_config(
     html_exporter["groups"][group_idx] = group_config
     export_config["exports"][html_exporter_idx] = html_exporter
 
-    # Write export config
-    with open(export_path, "w", encoding="utf-8") as f:
-        yaml.dump(
-            export_config,
-            f,
-            default_flow_style=False,
-            sort_keys=False,
-            allow_unicode=True,
-            width=120,
-        )
+    return export_path, export_config
 
-    logger.info(f"Generated export config for group '{group_name}' to {export_path}")
+
+def _write_yaml_atomic(path: Path, payload: Any) -> None:
+    """Write YAML to a temp file, then atomically replace the target."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            yaml.dump(
+                payload,
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+                width=120,
+            )
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
+def _serialize_yaml_to_temp(path: Path, payload: Any) -> Path:
+    """Serialize YAML to a sibling temp file without replacing the target."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            yaml.dump(
+                payload,
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+                width=120,
+            )
+        return tmp_path
+    except Exception:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
+def _replace_serialized_yaml_files(replacements: list[tuple[Path, Path]]) -> None:
+    """Commit already serialized YAML temp files in order."""
+    try:
+        for target_path, tmp_path in replacements:
+            os.replace(tmp_path, target_path)
+    finally:
+        for _target_path, tmp_path in replacements:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 @router.post("/save-config", response_model=SaveConfigResponse)
-async def save_transform_config(request: SaveConfigRequest):
+async def save_transform_config(request: SaveConfigRequest, http_request: Request):
     """
     Save generated widget configuration to transform.yml.
 
@@ -746,6 +844,8 @@ async def save_transform_config(request: SaveConfigRequest):
     - If the group already exists, widgets are merged (new widgets added, existing updated)
     - Sources are replaced entirely for the group
     """
+    require_desktop_mutation_auth(http_request)
+
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not configured")
@@ -858,10 +958,7 @@ async def save_transform_config(request: SaveConfigRequest):
 
             validated_groups = validate_transform_config(existing_groups)
 
-            # Generate export.yml only after transform.yml data validates, so an
-            # invalid save request cannot leave export widgets pointing at unsaved
-            # transform data.
-            _generate_export_config(
+            export_path, export_config = _build_export_config(
                 work_dir,
                 group_name,
                 request.widgets_data,
@@ -869,16 +966,25 @@ async def save_transform_config(request: SaveConfigRequest):
                 mode=request.mode,
             )
 
-            # Write updated config as list
-            with open(transform_path, "w", encoding="utf-8") as f:
-                yaml.dump(
-                    validated_groups,
-                    f,
-                    default_flow_style=False,
-                    sort_keys=False,
-                    allow_unicode=True,
-                    width=120,
+            replacements: list[tuple[Path, Path]] = []
+            try:
+                replacements.append(
+                    (
+                        transform_path,
+                        _serialize_yaml_to_temp(transform_path, validated_groups),
+                    )
                 )
+                replacements.append(
+                    (export_path, _serialize_yaml_to_temp(export_path, export_config))
+                )
+                _replace_serialized_yaml_files(replacements)
+                replacements = []
+            finally:
+                for _target_path, tmp_path in replacements:
+                    try:
+                        tmp_path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
 
         logger.info(
             f"Saved transform config for group '{group_name}' to {transform_path}"
@@ -947,7 +1053,9 @@ async def get_configured_widgets(group_by: str):
                 "Invalid transform.yml format: expected list, got %s",
                 type(config).__name__,
             )
-            return {"configured_ids": [], "has_config": False}
+            raise HTTPException(
+                status_code=400, detail="transform.yml must be a list of groups"
+            )
 
         for group in config:
             if not isinstance(group, dict):
@@ -961,9 +1069,14 @@ async def get_configured_widgets(group_by: str):
 
         return {"configured_ids": [], "has_config": False}
 
+    except HTTPException:
+        raise
+    except yaml.YAMLError as e:
+        logger.warning("Invalid transform.yml while reading configured widgets: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid transform.yml")
     except Exception as e:
         logger.warning(f"Error reading configured widgets: {e}")
-        return {"configured_ids": [], "has_config": False}
+        raise HTTPException(status_code=500, detail="Error reading configured widgets")
 
 
 @router.get("/categories")
@@ -1191,7 +1304,7 @@ async def get_widget_suggestions(
                 detail=f"No tabular source found for group '{group_by}'",
             )
 
-        csv_path = work_dir / csv_source["data"]
+        csv_path = _resolve_project_relative_path(work_dir, csv_source["data"])
         if not csv_path.exists():
             raise HTTPException(
                 status_code=404, detail=f"CSV file not found: {csv_source['data']}"
@@ -1266,7 +1379,9 @@ async def get_widget_suggestions(
         raise
     except Exception as e:
         logger.exception(f"Error analyzing CSV for widget suggestions: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500, detail="Error analyzing CSV for widget suggestions"
+        )
 
 
 # =============================================================================
@@ -1473,7 +1588,7 @@ async def get_combined_widget_suggestions(
 )
 async def get_semantic_groups(
     reference_name: str,
-    entity: str = Query(default="occurrences", description="Source entity name"),
+    entity: Optional[str] = Query(default=None, description="Source entity name"),
 ):
     """Detect semantic groups for proactive combined widget suggestions."""
     try:
@@ -1491,12 +1606,13 @@ async def get_semantic_groups(
         db = Database(str(db_path), read_only=True)
         try:
             registry = EntityRegistry(db)
+            source_name = _resolve_reference_source_name(reference_name, entity)
 
             try:
-                entity_meta = registry.get(entity)
+                entity_meta = registry.get(source_name)
             except (DatabaseQueryError, KeyError):
                 logger.warning(
-                    f"Entity '{entity}' not found in registry, returning empty groups"
+                    f"Entity '{source_name}' not found in registry, returning empty groups"
                 )
                 return SemanticGroupsResponse(groups=[])
             semantic_profile = entity_meta.config.get("semantic_profile", {})

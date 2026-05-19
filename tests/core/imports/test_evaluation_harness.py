@@ -1,5 +1,7 @@
 """Tests for the ML evaluation harness."""
 
+import hashlib
+
 import pytest
 import numpy as np
 import pandas as pd
@@ -54,7 +56,8 @@ class DummyPredictor:
 
     def predict(self, col: LabeledColumn):
         # Deterministic: correct for first N%, wrong for rest
-        hash_val = hash(col.column_name + col.source_dataset) % 100
+        key = f"{col.column_name}:{col.source_dataset}".encode("utf-8")
+        hash_val = int.from_bytes(hashlib.sha256(key).digest()[:4], "big") % 100
         if hash_val < self.correct_rate * 100:
             pred = col.concept
             conf = 0.85

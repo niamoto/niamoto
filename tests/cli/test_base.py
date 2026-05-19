@@ -4,7 +4,6 @@ Tests for the base CLI module.
 
 import pytest
 from click.testing import CliRunner
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 from importlib import metadata
 
@@ -34,12 +33,8 @@ version = "1.0.0"
     pyproject_path = tmp_path / "pyproject.toml"
     pyproject_path.write_text(mock_content)
 
-    # Mock the path resolution to return our mock file
-    def mock_get_pyproject_path(*args, **kwargs):
-        return pyproject_path
-
-    monkeypatch.setattr(Path, "resolve", lambda self: self)
-    monkeypatch.setattr(Path, "__truediv__", lambda self, other: pyproject_path)
+    monkeypatch.setattr("niamoto.common.bundle.is_frozen", lambda: False)
+    monkeypatch.setattr("niamoto.common.bundle.get_base_path", lambda: tmp_path)
 
     version = get_version_from_pyproject()
     assert version == "1.0.0"
@@ -54,11 +49,8 @@ def test_get_version_from_pyproject_file_not_found(tmp_path, monkeypatch):
 
     monkeypatch.setattr(metadata, "version", mock_version)
 
-    # Mock the path resolution to return a non-existent file
-    pyproject_path = tmp_path / "nonexistent.toml"
-
-    monkeypatch.setattr(Path, "resolve", lambda self: self)
-    monkeypatch.setattr(Path, "__truediv__", lambda self, other: pyproject_path)
+    monkeypatch.setattr("niamoto.common.bundle.is_frozen", lambda: False)
+    monkeypatch.setattr("niamoto.common.bundle.get_base_path", lambda: tmp_path)
 
     # In test environment, we're not exiting but raising the exception
     with pytest.raises(VersionError):
@@ -82,8 +74,8 @@ def test_get_version_from_pyproject_invalid_content(tmp_path, monkeypatch):
     pyproject_path = tmp_path / "pyproject.toml"
     pyproject_path.write_text(mock_content)
 
-    monkeypatch.setattr(Path, "resolve", lambda self: self)
-    monkeypatch.setattr(Path, "__truediv__", lambda self, other: pyproject_path)
+    monkeypatch.setattr("niamoto.common.bundle.is_frozen", lambda: False)
+    monkeypatch.setattr("niamoto.common.bundle.get_base_path", lambda: tmp_path)
 
     # In test environment, we're not exiting but raising the exception
     with pytest.raises(VersionError):

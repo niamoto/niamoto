@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 import yaml
 
+from niamoto.common.exceptions import DatabaseQueryError
 from niamoto.gui.api.app import create_app
 
 
@@ -253,3 +254,35 @@ def test_get_transformer_suggestions_returns_404_without_semantic_profile(monkey
 
     assert response.status_code == 404
     assert "No semantic analysis available" in response.json()["detail"]
+
+
+def test_get_transformer_suggestions_returns_404_for_missing_entity(monkeypatch):
+    class FakeRegistry:
+        def __init__(self, db):
+            self.db = db
+
+        def get(self, entity_name):
+            raise DatabaseQueryError(
+                query="registry_lookup",
+                message="Entity not found",
+                details={"name": entity_name},
+            )
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.transformer_suggestions.get_database_path",
+        lambda: "/tmp/niamoto.duckdb",
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.transformer_suggestions.open_database",
+        lambda db_path: nullcontext(object()),
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.transformer_suggestions.EntityRegistry",
+        FakeRegistry,
+    )
+
+    client = TestClient(create_app())
+    response = client.get("/api/transformer-suggestions/missing")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Entity 'missing' not found"

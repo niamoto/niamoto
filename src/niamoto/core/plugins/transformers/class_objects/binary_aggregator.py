@@ -313,9 +313,14 @@ class ClassObjectBinaryAggregator(TransformerPlugin):
                         },
                     )
 
-                # Create distribution dictionary
-                # Initialize distribution for all unique output classes from mapping
-                output_classes = set(class_mapping.values())
+                mapped_output_classes = set(class_mapping.values())
+                configured_output_classes = set(group.classes)
+                if group.class_mapping and mapped_output_classes.issubset(
+                    configured_output_classes
+                ):
+                    output_classes = configured_output_classes
+                else:
+                    output_classes = mapped_output_classes
                 distribution = {out_cls: 0.0 for out_cls in output_classes}
 
                 # Map classes and aggregate values

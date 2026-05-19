@@ -26,12 +26,12 @@ class _FakeStream:
 
 class _FakeProcess:
     def __init__(self):
-        self.stdout = _FakeStream([b"sending incremental file list\n", b"index.html\n"])
+        self.stdout = _FakeStream([])
         self.stderr = _FakeStream([])
         self.returncode = 0
 
-    async def wait(self) -> int:
-        return self.returncode
+    async def communicate(self) -> tuple[bytes, bytes]:
+        return b"sending incremental file list\nindex.html\n", b""
 
 
 def test_ssh_deployer_reports_missing_rsync(monkeypatch, tmp_path: Path) -> None:

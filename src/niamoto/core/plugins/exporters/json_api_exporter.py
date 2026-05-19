@@ -826,7 +826,7 @@ class JsonApiExporter(ExporterPlugin):
 
                         # Merge all columns into the item
                         for col_name, col_value in row_dict.items():
-                            if col_value:  # If the column has data
+                            if col_value is not None:
                                 try:
                                     # Try to parse as JSON first
                                     if isinstance(

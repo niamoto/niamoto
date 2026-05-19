@@ -174,6 +174,36 @@ class TestIndexGeneratorPlugin(NiamotoTestCase):
         self.assertEqual(result[0]["name"], "Species 1")
         self.assertEqual(result[0]["scientific_name"], "Scientific Name 1")
 
+    def test_get_group_data_rejects_unsafe_group_identifier(self):
+        """Configured group names must be validated before SQL is built."""
+        self.mock_db.has_table.return_value = True
+        config = IndexGeneratorConfig(
+            template="group_index.html",
+            display_fields=[
+                IndexGeneratorDisplayField(
+                    name="name", source="name", label="Name", type="text"
+                )
+            ],
+            page_config=IndexGeneratorPageConfig(title="Test Index"),
+        )
+
+        with self.assertRaises(ProcessError):
+            self.plugin._get_group_data('taxon"; DROP TABLE taxon; --', config)
+
+        self.mock_db.fetch_all.assert_not_called()
+
+    def test_resolve_entity_join_column_rejects_unsafe_table_identifier(self):
+        """Entity join probing must validate table names before SQL is built."""
+        with self.assertRaises(ValueError):
+            self.plugin._resolve_entity_join_column(
+                'entity_bad"; DROP TABLE x; --',
+                {"id"},
+                {1},
+                "taxon_id",
+            )
+
+        self.mock_db.fetch_all.assert_not_called()
+
     def test_get_group_data_with_filters(self):
         """Test data retrieval with filters applied."""
         # Mock database responses

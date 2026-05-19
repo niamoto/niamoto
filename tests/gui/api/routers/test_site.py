@@ -916,6 +916,40 @@ class TestSiteGroups:
                 in html
             )
 
+    def test_preview_template_sanitizes_markdown_html(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.post(
+                    "/api/site/preview-template",
+                    json={
+                        "template": "page.html",
+                        "context": {
+                            "title": "Methodology",
+                            "content_markdown": (
+                                "# Safe title\n"
+                                "<img src='javascript:alert(1)' onerror='alert(2)'>"
+                            ),
+                        },
+                        "site": {"title": "Niamoto", "lang": "fr"},
+                        "navigation": [],
+                        "footer_navigation": [],
+                    },
+                )
+
+            assert response.status_code == 200, response.text
+            html = response.json()["html"]
+            assert "Safe title" in html
+            assert "javascript:alert" not in html
+            assert "onerror" not in html
+
     def test_preview_template_rejects_content_source_outside_project(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir) / "project"

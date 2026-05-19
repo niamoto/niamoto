@@ -171,6 +171,8 @@ class CategoricalDistribution(TransformerPlugin):
             # Service has already loaded the correct source - just use the data
             # Get field data
             if params.field is not None:
+                if params.field not in data.columns:
+                    raise ValueError(f"Input data is missing field: {params.field}")
                 field_data = data[params.field]
             else:
                 field_data = data

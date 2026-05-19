@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import inspect, text
+from starlette.concurrency import run_in_threadpool
 import yaml
 
 from niamoto.common.database import Database
@@ -39,6 +40,11 @@ NIAMOTO_MAP_GREEN = "#2E7D32"
 DESKTOP_TOKEN_HEADER = "x-niamoto-desktop-token"
 _WKT_NUMBER_RE = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
 _CSV_FORMULA_PREFIXES = ("=", "+", "-", "@")
+
+
+def _escape_sql_like(value: str) -> str:
+    """Escape SQL LIKE metacharacters for literal search semantics."""
+    return value.replace("!", "!!").replace("%", "!%").replace("_", "!_")
 
 
 def _require_stats_mutation_auth(request: Request) -> None:
@@ -422,21 +428,10 @@ def detect_coordinate_columns(columns: List[str]) -> Dict[str, str]:
     result = {}
     x_patterns = ["x", "lon", "longitude", "lng", "coord_x", "geo_x"]
     y_patterns = ["y", "lat", "latitude", "coord_y", "geo_y"]
-    # WKT geometry columns
-    wkt_patterns = ["geo_pt", "geo", "geom", "geometry", "wkt", "location"]
+    wkt_patterns = {"geo_pt", "geom", "geometry", "wkt", "location"}
 
     columns_lower = [c.lower() for c in columns]
 
-    # First check for WKT columns
-    for i, col_lower in enumerate(columns_lower):
-        for pattern in wkt_patterns:
-            if pattern == col_lower or col_lower.startswith(pattern):
-                result["wkt_col"] = columns[i]
-                break
-        if "wkt_col" in result:
-            break
-
-    # Then check for x/y columns
     for i, col_lower in enumerate(columns_lower):
         for pattern in x_patterns:
             if pattern == col_lower or col_lower.startswith(pattern):
@@ -446,6 +441,15 @@ def detect_coordinate_columns(columns: List[str]) -> Dict[str, str]:
             if pattern == col_lower or col_lower.startswith(pattern):
                 result["y_col"] = columns[i]
                 break
+
+    if "x_col" in result and "y_col" in result:
+        return result
+
+    for i, col_lower in enumerate(columns_lower):
+        normalized = re.sub(r"[^a-z0-9]+", "_", col_lower).strip("_")
+        if normalized in wkt_patterns or normalized.endswith("_wkt"):
+            result["wkt_col"] = columns[i]
+            break
 
     return result
 
@@ -934,7 +938,7 @@ def _find_geometry_column(
 ) -> Tuple[Optional[str], bool]:
     """Detect geometry column and whether it's native GEOMETRY/BYTEA."""
     native_patterns = ["_geom", "geometry", "the_geom", "wkb_geometry"]
-    wkt_patterns = ["geo_pt", "geo", "geom", "location", "wkt"]
+    wkt_patterns = {"geo_pt", "geom", "geometry", "location", "wkt"}
 
     wkt_candidate = None
     for col in columns_info:
@@ -944,7 +948,10 @@ def _find_geometry_column(
         if "GEOMETRY" in col_type or "BYTEA" in col_type:
             if any(col_name.endswith(p) or col_name == p for p in native_patterns):
                 return col["name"], True
-        elif wkt_candidate is None and any(p in col_name for p in wkt_patterns):
+        normalized = re.sub(r"[^a-z0-9]+", "_", col_name).strip("_")
+        if wkt_candidate is None and (
+            normalized in wkt_patterns or normalized.endswith("_wkt")
+        ):
             wkt_candidate = col["name"]
 
     return wkt_candidate, False
@@ -1063,7 +1070,7 @@ def _compute_wkt_geometry_stats_fallback(
     geometry_col = quote_identifier(db, geometry_column)
     layer_filter = _spatial_layer_filter_sql(db, layer_column, selected_layer)
     params = {"selected_layer": selected_layer} if selected_layer is not None else {}
-    rows = conn.execute(
+    result = conn.execute(
         text(
             f"""
             SELECT {geometry_col}
@@ -1073,11 +1080,11 @@ def _compute_wkt_geometry_stats_fallback(
             """
         ),
         params,
-    ).fetchall()
+    )
 
     count = 0
     bbox: Optional[Dict[str, float]] = None
-    for row in rows:
+    for row in result:
         row_bbox = _extract_wkt_bbox(row[0])
         if not row_bbox:
             continue
@@ -1179,7 +1186,7 @@ def _fetch_wkt_spatial_layers(
     quoted_table = quote_identifier(db, table_name)
     geometry_col = quote_identifier(db, geometry_column)
     layer_col = quote_identifier(db, layer_column)
-    rows = conn.execute(
+    result = conn.execute(
         text(
             f"""
             SELECT
@@ -1190,10 +1197,10 @@ def _fetch_wkt_spatial_layers(
               AND TRY_CAST({layer_col} AS VARCHAR) <> ''
             """
         )
-    ).fetchall()
+    )
 
     layer_counts: Dict[str, Dict[str, int]] = {}
-    for row in rows:
+    for row in result:
         layer_value = str(row[0])
         counts = layer_counts.setdefault(layer_value, {"feature_count": 0, "valid": 0})
         counts["feature_count"] += 1
@@ -1255,6 +1262,9 @@ def _build_wkt_spatial_map_inspection(
         else "NULL"
     )
 
+    features: List[Dict[str, Any]] = []
+    geometry_types: List[str] = []
+
     with db.engine.connect() as conn:
         layer_column = _resolve_wkt_spatial_layer_column(
             conn,
@@ -1288,9 +1298,8 @@ def _build_wkt_spatial_map_inspection(
         with_geometry, bbox = _compute_wkt_geometry_stats_fallback(
             conn, db, table_name, geometry_column, layer_column, selected_layer
         )
-        rows = []
         if limit > 0:
-            rows = conn.execute(
+            result = conn.execute(
                 text(
                     f"""
                     SELECT
@@ -1306,39 +1315,41 @@ def _build_wkt_spatial_map_inspection(
                     """
                 ),
                 params,
-            ).fetchall()
+            )
+            valid_seen = 0
+            stop_after = max(offset, 0) + limit + 1
+            for row in result:
+                parsed = _wkt_geometry_to_geojson(
+                    _row_value(row, "geometry_value", 4), simplify_tolerance
+                )
+                if not parsed:
+                    continue
 
-    features: List[Dict[str, Any]] = []
-    geometry_types: List[str] = []
-    for row in rows:
-        parsed = _wkt_geometry_to_geojson(
-            _row_value(row, "geometry_value", 4), simplify_tolerance
-        )
-        if not parsed:
-            continue
-
-        geometry_type, geometry = parsed
-        if geometry_type not in geometry_types:
-            geometry_types.append(geometry_type)
-        feature_id = _row_value(row, "id_value", 0)
-        feature_name = _row_value(row, "name_value", 1) or feature_id
-        feature_type = _row_value(row, "type_value", 2)
-        feature_layer = _row_value(row, "layer_value", 3)
-        features.append(
-            {
-                "type": "Feature",
-                "id": feature_id,
-                "geometry": geometry,
-                "properties": {
-                    "id": feature_id,
-                    "label": str(feature_name) if feature_name else None,
-                    "name": str(feature_name) if feature_name else None,
-                    "type": str(feature_type) if feature_type else None,
-                    "layer": str(feature_layer) if feature_layer else None,
-                    "geometry_type": geometry_type,
-                },
-            }
-        )
+                valid_seen += 1
+                geometry_type, geometry = parsed
+                if geometry_type not in geometry_types:
+                    geometry_types.append(geometry_type)
+                feature_id = _row_value(row, "id_value", 0)
+                feature_name = _row_value(row, "name_value", 1) or feature_id
+                feature_type = _row_value(row, "type_value", 2)
+                feature_layer = _row_value(row, "layer_value", 3)
+                features.append(
+                    {
+                        "type": "Feature",
+                        "id": feature_id,
+                        "geometry": geometry,
+                        "properties": {
+                            "id": feature_id,
+                            "label": str(feature_name) if feature_name else None,
+                            "name": str(feature_name) if feature_name else None,
+                            "type": str(feature_type) if feature_type else None,
+                            "layer": str(feature_layer) if feature_layer else None,
+                            "geometry_type": geometry_type,
+                        },
+                    }
+                )
+                if valid_seen >= stop_after:
+                    break
 
     requested_offset = max(offset, 0)
     visible_features = (
@@ -1445,6 +1456,71 @@ def _compute_geometry_bbox(
         "min_y": float(row[1]),
         "max_x": float(row[2]),
         "max_y": float(row[3]),
+    }
+
+
+def _compute_geometry_count_and_bbox(
+    conn: Any,
+    db: Database,
+    table_name: str,
+    geometry_column: str,
+    is_native: bool,
+) -> Tuple[int, Optional[Dict[str, float]]]:
+    """Compute valid geometry count and bbox with one fallback pass."""
+    quoted_table = quote_identifier(db, table_name)
+    geom_expr = _geometry_sql_expression(db, geometry_column, is_native)
+
+    try:
+        _load_spatial_extension_best_effort(conn)
+        row = conn.execute(
+            text(
+                f"""
+                WITH mapped AS (
+                    SELECT {geom_expr} AS geom
+                    FROM {quoted_table}
+                    WHERE {quote_identifier(db, geometry_column)} IS NOT NULL
+                ),
+                summary AS (
+                    SELECT
+                        COUNT(*) AS valid_count,
+                        ST_Extent_Agg(geom) AS bbox
+                    FROM mapped
+                    WHERE geom IS NOT NULL
+                )
+                SELECT
+                    valid_count,
+                    ST_XMin(bbox),
+                    ST_YMin(bbox),
+                    ST_XMax(bbox),
+                    ST_YMax(bbox)
+                FROM summary
+                """
+            )
+        ).fetchone()
+    except Exception as exc:
+        logger.debug(
+            "Failed to compute geometry count and bbox for table '%s': %s",
+            table_name,
+            exc,
+        )
+        if not is_native:
+            return _compute_wkt_geometry_stats_fallback(
+                conn, db, table_name, geometry_column
+            )
+        return 0, None
+
+    if not row:
+        return 0, None
+
+    count = int(row[0] or 0)
+    if row[1] is None:
+        return count, None
+
+    return count, {
+        "min_x": float(row[1]),
+        "min_y": float(row[2]),
+        "max_x": float(row[3]),
+        "max_y": float(row[4]),
     }
 
 
@@ -2032,6 +2108,67 @@ def _resolve_spatial_reference_tables(
 # =============================================================================
 
 
+def _compute_import_summary(db_path: Path) -> ImportSummary:
+    """Compute import summary with synchronous database access."""
+    with open_database(db_path, read_only=True) as db:
+        preparer = db.engine.dialect.identifier_preparer
+
+        table_names = db.get_table_names()
+        datasets, references = _load_import_entities_config()
+        entity_type_map = _build_entity_type_map(table_names, datasets, references)
+        entities = []
+        total_rows = 0
+        alerts = []
+
+        with db.engine.connect() as conn:
+            for table_name in table_names:
+                # Skip internal tables
+                if table_name.startswith("_") or table_name.startswith("sqlite"):
+                    continue
+
+                quoted_table = preparer.quote(table_name)
+
+                # Get row count
+                result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_table}"))
+                row_count = result.scalar() or 0
+                total_rows += row_count
+
+                # Get columns
+                columns_info = db.get_columns(table_name)
+                column_names = [c["name"] for c in columns_info]
+
+                entity_type = entity_type_map.get(
+                    table_name, classify_table_type(table_name)
+                )
+
+                entities.append(
+                    EntitySummary(
+                        name=table_name,
+                        entity_type=entity_type,
+                        row_count=row_count,
+                        column_count=len(column_names),
+                        columns=column_names,
+                    )
+                )
+
+                # Generate alerts
+                if row_count == 0:
+                    alerts.append(
+                        {
+                            "level": "warning",
+                            "entity": table_name,
+                            "message": f"Table '{table_name}' is empty",
+                        }
+                    )
+
+        return ImportSummary(
+            total_entities=len(entities),
+            total_rows=total_rows,
+            entities=entities,
+            alerts=alerts,
+        )
+
+
 @router.get("/summary", response_model=ImportSummary)
 async def get_import_summary():
     """
@@ -2049,72 +2186,15 @@ async def get_import_summary():
         )
 
     try:
-        with open_database(db_path, read_only=True) as db:
-            preparer = db.engine.dialect.identifier_preparer
-
-            table_names = db.get_table_names()
-            datasets, references = _load_import_entities_config()
-            entity_type_map = _build_entity_type_map(table_names, datasets, references)
-            entities = []
-            total_rows = 0
-            alerts = []
-
-            with db.engine.connect() as conn:
-                for table_name in table_names:
-                    # Skip internal tables
-                    if table_name.startswith("_") or table_name.startswith("sqlite"):
-                        continue
-
-                    quoted_table = preparer.quote(table_name)
-
-                    # Get row count
-                    result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_table}"))
-                    row_count = result.scalar() or 0
-                    total_rows += row_count
-
-                    # Get columns
-                    columns_info = db.get_columns(table_name)
-                    column_names = [c["name"] for c in columns_info]
-
-                    entity_type = entity_type_map.get(
-                        table_name, classify_table_type(table_name)
-                    )
-
-                    entities.append(
-                        EntitySummary(
-                            name=table_name,
-                            entity_type=entity_type,
-                            row_count=row_count,
-                            column_count=len(column_names),
-                            columns=column_names,
-                        )
-                    )
-
-                    # Generate alerts
-                    if row_count == 0:
-                        alerts.append(
-                            {
-                                "level": "warning",
-                                "entity": table_name,
-                                "message": f"Table '{table_name}' is empty",
-                            }
-                        )
-
-            return ImportSummary(
-                total_entities=len(entities),
-                total_rows=total_rows,
-                entities=entities,
-                alerts=alerts,
-            )
+        return await run_in_threadpool(_compute_import_summary, db_path)
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error getting import summary: {str(e)}"
-        )
+        logger.exception("Error getting import summary: %s", e)
+        raise HTTPException(status_code=500, detail="Error getting import summary")
 
 
 @router.get("/completeness/{entity}", response_model=EntityCompleteness)
-async def get_completeness(entity: str):
+def get_completeness(entity: str):
     """
     Get completeness statistics per column for an entity.
 
@@ -2297,10 +2377,16 @@ async def get_hierarchy_inspection(
                     ]
                     if path_field:
                         search_conditions.append(
-                            f"LOWER(CAST({node_alias}.{quote_identifier(db, path_field)} AS VARCHAR)) LIKE :search"
+                            f"LOWER(CAST({node_alias}.{quote_identifier(db, path_field)} AS VARCHAR)) LIKE :search ESCAPE '!'"
                         )
+                    search_conditions = [
+                        f"{condition} ESCAPE '!'"
+                        if " ESCAPE " not in condition
+                        else condition
+                        for condition in search_conditions
+                    ]
                     where_clause = " WHERE " + " OR ".join(search_conditions)
-                    params["search"] = f"%{search_value}%"
+                    params["search"] = f"%{_escape_sql_like(search_value)}%"
             elif mode == "children":
                 if parent_id is None:
                     raise HTTPException(
@@ -2787,9 +2873,8 @@ async def get_spatial_map_inspection(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error getting spatial map data: {str(e)}"
-        )
+        logger.exception("Error getting spatial map data: %s", e)
+        raise HTTPException(status_code=500, detail="Error getting spatial map data")
 
 
 @router.get("/spatial-map/{reference_name}/render", response_class=HTMLResponse)
@@ -2963,10 +3048,7 @@ async def get_spatial_stats(
                     is_native = _is_native_geometry_column(
                         columns_info, geometry_column
                     )
-                    with_coords = _count_valid_geometries(
-                        conn, db, target_table, geometry_column, is_native
-                    )
-                    bbox = _compute_geometry_bbox(
+                    with_coords, bbox = _compute_geometry_count_and_bbox(
                         conn, db, target_table, geometry_column, is_native
                     )
 
@@ -3149,10 +3231,13 @@ async def get_taxonomy_consistency(
                                 ))
                                 """
                             )
-                        if level_col:
-                            orphan_parts.append(
-                                f"(node.{level_col} > 0 AND node.{parent_col} IS NULL)"
-                            )
+                    level_is_numeric = _is_numeric_column(
+                        columns_info, columns_by_lower.get("level")
+                    )
+                    if level_col and level_is_numeric:
+                        orphan_parts.append(
+                            f"(node.{level_col} > 0 AND node.{parent_col} IS NULL)"
+                        )
                         if orphan_parts:
                             orphan_condition = "(" + " OR ".join(orphan_parts) + ")"
 
@@ -3285,7 +3370,7 @@ async def get_value_validation(
     columns: Optional[str] = Query(
         default=None, description="Comma-separated list of columns to validate"
     ),
-    method: str = Query(
+    method: Literal["iqr", "zscore", "percentile"] = Query(
         default="iqr", description="Outlier detection method: iqr, zscore, percentile"
     ),
     threshold: float = Query(
@@ -3297,6 +3382,8 @@ async def get_value_validation(
 
     Returns min/max/median/outliers per column with configurable detection.
     """
+    _validate_outlier_export_params(method, threshold)
+
     db_path = get_database_path()
     if not db_path:
         raise HTTPException(status_code=404, detail="Database not found")
@@ -3319,8 +3406,10 @@ async def get_value_validation(
             if columns:
                 requested = [c.strip() for c in columns.split(",") if c.strip()]
                 requested_set = set(requested)
+                matched_columns = set()
                 for col in columns_info:
                     if col["name"] in requested_set:
+                        matched_columns.add(col["name"])
                         if not _is_numeric_column(columns_info, col["name"]):
                             raise HTTPException(
                                 status_code=400,
@@ -3330,6 +3419,15 @@ async def get_value_validation(
                                 ),
                             )
                         target_columns.append(col)
+                missing_columns = sorted(requested_set - matched_columns)
+                if missing_columns:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=(
+                            "Column(s) not found in "
+                            f"{entity}: {', '.join(missing_columns)}"
+                        ),
+                    )
             else:
                 for col in columns_info:
                     if _is_numeric_column(columns_info, col["name"]):
@@ -3817,6 +3915,11 @@ async def export_outliers_csv(
                 raise HTTPException(
                     status_code=404, detail=f"Column '{column}' not found in {entity}"
                 )
+            if not _is_numeric_column(columns_info, column):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Column '{column}' is not numeric and cannot be analyzed for outliers",
+                )
 
             quoted_table = preparer.quote(entity)
             quoted_col = preparer.quote(column)
@@ -3962,19 +4065,15 @@ async def get_geo_coverage(
 
             # Find geo column in occurrences
             columns_info = db.get_columns(occ_table)
-            geo_column, _ = _find_geometry_column(columns_info)
+            geo_column, occ_geo_is_native = _find_geometry_column(columns_info)
 
             # Count occurrences with geometry
             occ_with_geo = 0
             if geo_column:
-                quoted_geo = preparer.quote(geo_column)
                 with db.engine.connect() as conn:
-                    result = conn.execute(
-                        text(
-                            f"SELECT COUNT(*) FROM {quoted_occ} WHERE {quoted_geo} IS NOT NULL"
-                        )
+                    occ_with_geo = _count_valid_geometries(
+                        conn, db, occ_table, geo_column, occ_geo_is_native
                     )
-                    occ_with_geo = result.scalar() or 0
 
             # Resolve spatial references from config (kind=spatial), fallback to geometry scan.
             spatial_tables = _resolve_spatial_reference_tables(
@@ -4101,10 +4200,18 @@ async def analyze_spatial_coverage(
             geo_column, occ_geo_is_native = _find_geometry_column(columns_info)
 
             if not geo_column:
+                quoted_occ = preparer.quote(occ_table)
+                with db.engine.connect() as conn:
+                    total = (
+                        conn.execute(
+                            text(f"SELECT COUNT(*) FROM {quoted_occ}")
+                        ).scalar()
+                        or 0
+                    )
                 return SpatialAnalysisResult(
-                    total_occurrences=0,
+                    total_occurrences=total,
                     occurrences_with_geo=0,
-                    occurrences_without_geo=0,
+                    occurrences_without_geo=total,
                     shape_coverage=[],
                     analysis_time_seconds=time.time() - start_time,
                     geo_column=None,
@@ -4156,6 +4263,7 @@ async def analyze_spatial_coverage(
 
             # Run spatial analysis
             shape_coverage = []
+            coverage_errors: List[str] = []
 
             with db.engine.connect() as conn:
                 try:
@@ -4267,7 +4375,9 @@ async def analyze_spatial_coverage(
                                 shape_table,
                                 exc,
                             )
-                            # Spatial functions not available or query failed
+                            coverage_errors.append(
+                                f"{shape_table}: spatial coverage query failed"
+                            )
                             covered = 0
 
                     coverage_pct = (covered / with_geo * 100) if with_geo > 0 else 0
@@ -4280,6 +4390,18 @@ async def analyze_spatial_coverage(
                             occurrences_covered=covered,
                             coverage_percent=round(coverage_pct, 1),
                         )
+                    )
+
+                if coverage_errors:
+                    return SpatialAnalysisResult(
+                        total_occurrences=total_occ,
+                        occurrences_with_geo=with_geo,
+                        occurrences_without_geo=total_occ - with_geo,
+                        shape_coverage=shape_coverage,
+                        analysis_time_seconds=round(time.time() - start_time, 2),
+                        geo_column=geo_column,
+                        status="error",
+                        message="; ".join(coverage_errors),
                     )
 
             return SpatialAnalysisResult(

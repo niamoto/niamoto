@@ -479,6 +479,23 @@ def test_fetch_group_data_uses_first_existing_default_table():
     repository.has_table.assert_any_call("plots")
 
 
+def test_fetch_group_data_preserves_falsy_non_null_values():
+    exporter = JsonApiExporter(Mock())
+    repository = Mock()
+    repository.has_table.side_effect = lambda table_name: table_name == "plots"
+    connection = Mock()
+    repository.engine.connect.return_value.__enter__ = Mock(return_value=connection)
+    repository.engine.connect.return_value.__exit__ = Mock(return_value=None)
+    result = Mock()
+    result.fetchall.return_value = [(0, False, 0.0, "", None)]
+    result.keys.return_value = ["id", "endemic", "ratio", "notes", "missing"]
+    connection.execute.return_value = result
+
+    rows = exporter._fetch_group_data(repository, None, "plots")
+
+    assert rows == [{"id": 0, "endemic": False, "ratio": 0.0, "notes": ""}]
+
+
 def test_fetch_group_data_falls_back_to_stats_table_when_base_table_is_missing():
     exporter = JsonApiExporter(Mock())
     repository = Mock()

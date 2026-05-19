@@ -471,7 +471,7 @@ class FragmentationAnalysis(TransformerPlugin):
         if "edge_density" in metrics:
             result["edge_length"] = 0.0
             result["edge_density"] = 0.0
-            result["edge_unit"] = f"m/{area_unit}"
+            result["edge_unit"] = "m/km²" if area_unit == "km2" else f"m/{area_unit}"
 
         if "connectivity_index" in metrics:
             result["connectivity_index"] = 0.0

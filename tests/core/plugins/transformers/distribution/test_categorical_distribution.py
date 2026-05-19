@@ -187,5 +187,13 @@ class TestCategoricalDistribution:
         }
         assert result == expected
 
+    def test_transform_with_missing_input_field(self):
+        """Missing configured fields should raise a clear public error."""
+        data = pd.DataFrame({"other": ["A"]})
+        config = {"params": {"source": "occurrences", "field": "category"}}
+
+        with pytest.raises(ValueError, match="missing field: category"):
+            self.plugin.transform(data, config)
+
     # TODO: Add test for source != 'occurrences' if needed, requires more DB mocking
     # TODO: Add test for general transformation error

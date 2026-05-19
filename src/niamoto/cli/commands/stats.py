@@ -345,8 +345,9 @@ def stats_command(
         db_path = config.database_path
 
         if not db_path or not Path(db_path).exists():
-            print_error("Database not found. Please run 'niamoto init' first.")
-            return
+            raise click.ClickException(
+                "Database not found. Please run 'niamoto init' first."
+            )
 
         db = Database(db_path)
         registry = EntityRegistry(db)
@@ -370,10 +371,10 @@ def stats_command(
 
     except DatabaseError as e:
         if not getattr(e, "_handled", False):
-            print_error(f"Database error: {str(e)}")
+            raise click.ClickException(f"Database error: {str(e)}") from e
     except Exception as e:
         if not getattr(e, "_handled", False):
-            print_error(f"Unexpected error: {str(e)}")
+            raise click.ClickException(f"Unexpected error: {str(e)}") from e
 
 
 # ============================================================================

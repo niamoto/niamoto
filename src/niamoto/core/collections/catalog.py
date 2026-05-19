@@ -177,6 +177,7 @@ class CollectionCatalogService:
         source = raw_source if isinstance(raw_source, dict) else {}
         source_type = source.get("type", "dataset")
         source_name = source.get("name", name)
+        self._validate_source(source_type, source_name)
         roles = self._validate_roles(metadata.get("roles", ["api"]))
         return CollectionCatalogEntry(
             name=name,
@@ -221,6 +222,7 @@ class CollectionCatalogService:
         if isinstance(source, dict):
             data["source_type"] = source.get("type", data["source_type"])
             data["source_name"] = source.get("name", data["source_name"])
+            self._validate_source(data["source_type"], data["source_name"])
 
         return CollectionCatalogEntry.model_validate(data)
 

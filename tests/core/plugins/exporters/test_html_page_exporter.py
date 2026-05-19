@@ -301,6 +301,18 @@ class TestHtmlPageExporter(NiamotoTestCase):
         js_content = js_path.read_text()
         self.assertIn('"taxonomy_id":"10"', js_content)
 
+    def test_navigation_data_rejects_unsafe_reference_identifier(self):
+        """Reference table names must be validated before navigation SQL is built."""
+        exporter = HtmlPageExporter(self.mock_db)
+        self.mock_db.has_table.return_value = True
+
+        result = exporter._load_and_cache_navigation_data(
+            'taxon"; DROP TABLE taxon; --'
+        )
+
+        self.assertEqual(result, [])
+        self.mock_db.fetch_all.assert_not_called()
+
     def test_export_basic(self):
         """Test basic export functionality."""
         exporter = HtmlPageExporter(self.mock_db)
@@ -513,6 +525,31 @@ class TestHtmlPageExporter(NiamotoTestCase):
                 static_pages, jinja_env, params, self.output_dir, MarkdownIt()
             )
         self.assertFalse((Path(self.test_dir) / "escaped.html").exists())
+
+    def test_process_static_pages_raises_when_template_missing(self):
+        exporter = HtmlPageExporter(self.mock_db)
+        static_pages = [
+            StaticPageConfig(
+                name="missing",
+                output_file="missing.html",
+                template="missing-template.html",
+                context=StaticPageContext(title="Missing"),
+            )
+        ]
+
+        from jinja2 import Environment, FileSystemLoader
+        from markdown_it import MarkdownIt
+
+        jinja_env = Environment(loader=FileSystemLoader(str(self.template_dir)))
+        params = HtmlExporterParams(
+            output_dir=str(self.output_dir), template_dir=str(self.template_dir)
+        )
+
+        with self.assertRaisesRegex(ProcessError, "Template 'missing-template.html'"):
+            exporter._process_static_pages(
+                static_pages, jinja_env, params, self.output_dir, MarkdownIt()
+            )
+        self.assertFalse((self.output_dir / "missing.html").exists())
 
     def test_detail_output_pattern_cannot_escape_output_dir(self):
         """Detail output patterns must stay inside the export directory."""
@@ -822,6 +859,9 @@ class TestHtmlPageExporter(NiamotoTestCase):
         result = exporter._get_item_detail_data(self.mock_db, "taxon", "taxon_id", 1)
         self.assertEqual(result["taxon_id"], 1)
         self.assertEqual(result["name"], "Species A")
+        self.mock_db.fetch_one.assert_called_with(
+            'SELECT * FROM "taxon" WHERE "taxon_id" = :item_id', {"item_id": 1}
+        )
 
         # Test not found
         self.mock_db.fetch_one.return_value = None

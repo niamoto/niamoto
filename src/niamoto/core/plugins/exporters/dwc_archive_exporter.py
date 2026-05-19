@@ -332,7 +332,7 @@ class DwcArchiveExporter(ExporterPlugin):
                         item = {}
 
                         for col_name, col_value in row_dict.items():
-                            if col_value:
+                            if col_value is not None:
                                 try:
                                     if isinstance(col_value, str):
                                         data = json.loads(col_value)

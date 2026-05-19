@@ -1,6 +1,7 @@
 """Tests for project-scoped job store resolution."""
 
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -40,3 +41,16 @@ def test_resolve_job_store_switches_with_working_directory(monkeypatch):
         store_2.complete_job(job_2["id"], result={"metrics": {"generated_pages": 3}})
 
         assert store_2.get_last_run("export", status="completed")["id"] == job_2["id"]
+
+
+def test_concurrent_resolve_job_store_returns_single_instance(monkeypatch, tmp_path):
+    app = FastAPI()
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.job_store_runtime.get_working_directory",
+        lambda: tmp_path,
+    )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        stores = list(executor.map(lambda _: resolve_job_store(app), range(2)))
+
+    assert stores[0] is stores[1]

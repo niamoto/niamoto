@@ -50,6 +50,15 @@ class TestCreateJob:
         with pytest.raises(RuntimeError, match="déjà en cours"):
             store.create_job("export")
 
+    def test_rejects_running_job_across_store_instances(self, tmp_path: Path):
+        first = JobFileStore(tmp_path)
+        second = JobFileStore(tmp_path)
+
+        first.create_job("transform")
+
+        with pytest.raises(RuntimeError, match="déjà en cours"):
+            second.create_job("export")
+
     def test_archives_terminal_job_before_creating_new(
         self, store: JobFileStore, history_path: Path
     ):
@@ -263,6 +272,32 @@ class TestGetLastRun:
 
         assert last is not None
         assert last["id"] == job["id"]
+
+    def test_skips_malformed_history_entries_without_type(
+        self, store: JobFileStore, history_path: Path
+    ):
+        history_path.write_text(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "id": "job-valid",
+                            "type": "transform",
+                            "status": "completed",
+                            "group_by": "taxons",
+                        }
+                    ),
+                    json.dumps({"id": "legacy", "status": "completed"}),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        last = store.get_last_run("transform", group_by="taxons")
+
+        assert last is not None
+        assert last["id"] == "job-valid"
 
 
 class TestClearHistory:

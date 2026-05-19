@@ -7,15 +7,18 @@ import os
 from pathlib import Path
 import tempfile
 import time
+from urllib.parse import urlparse
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from niamoto.common.utils.logging_utils import setup_logging
 from niamoto.gui.startup_logging import log_desktop_startup
 
+from .desktop_auth import require_desktop_mutation_auth
 from .routers import (
     config,
     collections,
@@ -54,6 +57,18 @@ log_desktop_startup("app.py import started")
 # Get the path to the built React app
 # Works in both source and frozen (PyInstaller) modes
 UI_BUILD_DIR = Path(__file__).parent.parent / "ui" / "dist"
+DEFAULT_CORS_ORIGINS = [
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "null",
+    "tauri://localhost",
+    "http://tauri.localhost",
+]
+ALLOWED_CORS_SCHEMES = {"http", "https", "tauri"}
+LOCAL_CORS_HOSTS = {"localhost", "127.0.0.1", "::1", "tauri.localhost"}
+MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
 @asynccontextmanager
@@ -87,6 +102,49 @@ def _configure_gui_logging() -> None:
         log_desktop_startup(f"gui logging setup failed: {exc}")
 
 
+def _parse_configured_cors_origins(configured_origins: str | None) -> list[str]:
+    """Return validated CORS origins for local GUI and desktop use."""
+    if not configured_origins:
+        return DEFAULT_CORS_ORIGINS.copy()
+
+    allow_origins: list[str] = []
+    for raw_origin in configured_origins.split(","):
+        origin = raw_origin.strip()
+        if not origin:
+            continue
+        if _is_allowed_cors_origin(origin):
+            allow_origins.append(origin)
+        else:
+            logging.getLogger(__name__).warning(
+                "Ignoring unsafe NIAMOTO_CORS_ORIGINS entry: %s", origin
+            )
+
+    return allow_origins or DEFAULT_CORS_ORIGINS.copy()
+
+
+def _is_allowed_cors_origin(origin: str) -> bool:
+    if origin == "*" or origin.startswith("*."):
+        return False
+    if origin == "null":
+        return True
+
+    parsed = urlparse(origin)
+    if parsed.scheme not in ALLOWED_CORS_SCHEMES:
+        return False
+    if not parsed.netloc or parsed.path not in {"", "/"}:
+        return False
+    if parsed.params or parsed.query or parsed.fragment:
+        return False
+
+    hostname = parsed.hostname
+    if parsed.scheme == "tauri":
+        return hostname == "localhost"
+    if hostname in LOCAL_CORS_HOSTS:
+        return True
+
+    return False
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     create_app_started = time.perf_counter()
@@ -103,22 +161,7 @@ def create_app() -> FastAPI:
         lifespan=_lifespan,
     )
 
-    configured_origins = os.getenv("NIAMOTO_CORS_ORIGINS")
-    if configured_origins:
-        allow_origins = [
-            origin.strip() for origin in configured_origins.split(",") if origin.strip()
-        ]
-    else:
-        # Safe defaults for local development + Tauri desktop runtime.
-        allow_origins = [
-            "http://localhost",
-            "http://127.0.0.1",
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "null",
-            "tauri://localhost",
-            "http://tauri.localhost",
-        ]
+    allow_origins = _parse_configured_cors_origins(os.getenv("NIAMOTO_CORS_ORIGINS"))
 
     # Add CORS middleware
     app.add_middleware(
@@ -128,6 +171,15 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def require_desktop_auth_for_api_mutations(request: Request, call_next):
+        if request.method in MUTATING_METHODS and request.url.path.startswith("/api/"):
+            try:
+                require_desktop_mutation_auth(request)
+            except StarletteHTTPException as exc:
+                return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+        return await call_next(request)
 
     @app.get("/openapi.json", include_in_schema=False)
     async def openapi_compat() -> JSONResponse:
@@ -200,8 +252,9 @@ def create_app() -> FastAPI:
             async def get_response(self, path: str, scope):
                 try:
                     return await super().get_response(path, scope)
-                except Exception:
-                    # If file not found, serve index.html for client-side routing
+                except StarletteHTTPException as exc:
+                    if exc.status_code != 404:
+                        raise
                     return await super().get_response("index.html", scope)
 
         # Mount SPA handler last, so API routes take precedence

@@ -604,6 +604,8 @@ def test_find_entity_by_id_returns_spatial_entity_with_geometry(monkeypatch, tmp
     assert result["geometry"] == "POLYGON((0 0,1 0,1 1,0 1,0 0))"
     assert result["spatial_query"] is True
     assert result["kind"] == "spatial"
+    assert result["source_dataset"] == "occurrences"
+    assert result["source_table"] == "occurrences"
     assert result["entity_data"]["name"] == "Province Sud"
 
 
