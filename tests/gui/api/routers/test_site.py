@@ -116,6 +116,22 @@ def test_import_csv_rejects_duplicate_normalized_headers():
     )
 
 
+def test_import_csv_rejects_oversized_upload(monkeypatch):
+    client = TestClient(create_app())
+    monkeypatch.setattr(site_router, "MAX_CSV_IMPORT_UPLOAD_SIZE_BYTES", 10)
+    monkeypatch.setattr(site_router, "CSV_IMPORT_UPLOAD_CHUNK_SIZE_BYTES", 4)
+
+    response = client.post(
+        "/api/site/import-csv",
+        files={"file": ("data.csv", b"a" * 11, "text/csv")},
+    )
+
+    assert response.status_code == 413
+    assert response.json()["detail"] == (
+        "CSV file exceeds the maximum allowed size of 10 bytes"
+    )
+
+
 def test_site_helper_normalization_rewrites_home_aliases_recursively():
     static_pages, output_aliases = _normalize_static_pages(
         [
