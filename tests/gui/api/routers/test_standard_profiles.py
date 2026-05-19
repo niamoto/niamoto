@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import yaml
 
+from niamoto.gui.api.routers import standard_profiles as standard_profiles_router
+
 
 def test_create_standard_profile_persists_under_standard_profiles(
     gui_duckdb_client, gui_duckdb_context
@@ -447,6 +449,44 @@ def test_standard_profile_compatibility_report_uses_collection_context(
     assert payload["status"] == "compatible"
     assert payload["source_grain"] == "taxon"
     assert payload["evidence"][0]["details"]["occurrence_dataset"] == "occurrences"
+
+
+def test_standard_profile_compatibility_errors_return_client_error(
+    monkeypatch, gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [],
+                "standard_profiles": [
+                    {
+                        "name": "bad_profile",
+                        "standard": "darwin_core_occurrence",
+                        "target_grain": "occurrence",
+                        "source": {"type": "dataset", "name": "occurrences"},
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    class FailingCompatibilityService:
+        def evaluate(self, profile):
+            raise ValueError("Unsupported compatibility setup")
+
+    monkeypatch.setattr(
+        standard_profiles_router,
+        "_compatibility_service",
+        lambda: FailingCompatibilityService(),
+    )
+
+    response = gui_duckdb_client.get("/api/standard-profiles/bad_profile/compatibility")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Unsupported compatibility setup"
 
 
 def test_standard_profile_validation_report_serializes_summary_and_details(
