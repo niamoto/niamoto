@@ -15,6 +15,7 @@ import type {
   StaticPage,
   GroupInfo,
 } from '@/shared/hooks/useSiteConfig'
+import { getGroupIndexOutputPattern, getGroupIndexUrl, hasEnabledGroupIndex } from '../utils/groupIndex'
 
 // =============================================================================
 // TYPES
@@ -29,7 +30,7 @@ export interface UnifiedTreeItem {
   collectionRef?: string    // GroupInfo.name (type 'collection')
   url?: string              // URL for external links or page output
   template?: string         // page template
-  hasIndex?: boolean        // collection with index_output_pattern
+  hasIndex?: boolean        // collection with enabled index_generator
   children: UnifiedTreeItem[]
 }
 
@@ -64,14 +65,15 @@ function findPageByUrl(url: string | undefined, pages: StaticPage[]): StaticPage
 
 /**
  * Match a navigation URL to a group index page.
- * Groups are matched by their index_output_pattern.
+ * Groups are matched by their enabled index page output pattern.
  */
 function findGroupByUrl(url: string | undefined, groups: GroupInfo[]): GroupInfo | null {
   if (!url) return null
   const normalized = url.replace(/^\//, '')
   return groups.find(g => {
-    if (!g.index_output_pattern) return false
-    const pattern = g.index_output_pattern.replace(/^\//, '')
+    const outputPattern = getGroupIndexOutputPattern(g)
+    if (!outputPattern) return false
+    const pattern = outputPattern.replace(/^\//, '')
     return pattern === normalized
   }) ?? null
 }
@@ -116,7 +118,7 @@ function navItemToTreeItem(
       visible: true,
       collectionRef: group.name,
       url: item.url,
-      hasIndex: !!group.index_output_pattern,
+      hasIndex: hasEnabledGroupIndex(group),
       children: (item.children ?? []).map(child =>
         navItemToTreeItem(child, pages, groups, matchedPages, matchedGroups)
       ),
@@ -180,8 +182,8 @@ export function buildUnifiedTree(
       label: group.name as LocalizedString,
       visible: false,
       collectionRef: group.name,
-      url: group.index_output_pattern ? `/${group.index_output_pattern}` : undefined,
-      hasIndex: !!group.index_output_pattern,
+      url: getGroupIndexUrl(group),
+      hasIndex: hasEnabledGroupIndex(group),
       children: [],
     }))
 

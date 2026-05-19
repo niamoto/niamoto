@@ -79,11 +79,13 @@ function CollectionCard({
   const isStale = status === 'stale'
   const isUnconfigured = status === 'unconfigured'
   const isError = status === 'error'
+  const isStatusPending = status === 'pending'
+  const isStatusRunning = status === 'running'
   const lastRunAt = entityStatus?.last_run_at
   const canRun = configuredIds.length > 0
-  const isBusy = isRunning || isSubmitting
+  const isBusy = isRunning || isSubmitting || isStatusRunning
   const isCompletedInCurrentBatch = activityState === 'completed'
-  const showRunButton = canTransform && !isBusy && !isCompletedInCurrentBatch
+  const showRunButton = canTransform && !isBusy && !isStatusPending && !isCompletedInCurrentBatch
   const defaultTab = defaultCollectionTab(reference)
 
   // Kind labels
@@ -116,6 +118,11 @@ function CollectionCard({
             <Badge variant="outline" className="shrink-0 gap-1 border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">
               <CheckCircle className="h-3 w-3" />
               {t('collections.overviewCompleted', 'Terminé')}
+            </Badge>
+          ) : isStatusPending ? (
+            <Badge variant="outline" className="shrink-0 gap-1 border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400">
+              <Clock className="h-3 w-3" />
+              {t('collections.overviewPending', 'En attente')}
             </Badge>
           ) : isFresh ? (
             <Badge variant="outline" className="shrink-0 gap-1 border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">

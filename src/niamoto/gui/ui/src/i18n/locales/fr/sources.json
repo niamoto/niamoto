@@ -398,6 +398,7 @@
     "overview": "Vue d'ensemble",
     "overviewFresh": "À jour",
     "overviewStale": "À recalculer",
+    "overviewPending": "En attente",
     "overviewRunning": "Calcul en cours",
     "overviewCompleted": "Terminé",
     "overviewError": "Erreur",

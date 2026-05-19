@@ -6,6 +6,7 @@ publication) so the frontend can show what needs to be recalculated.
 
 import hashlib
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -33,7 +34,7 @@ TERMINAL_JOB_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
 
 class EntityStatus(BaseModel):
     name: str
-    status: str  # "fresh", "stale", "never_run", "unconfigured", "error", "running"
+    status: str  # "fresh", "stale", "never_run", "unconfigured", "error", "pending", "running"
     last_run_at: Optional[str] = None
     reason: Optional[str] = None
 
@@ -98,6 +99,45 @@ def _get_transform_groups(work_dir: Path) -> list[str]:
         group.get("group_by", "default")
         for group in _get_transform_group_configs(work_dir)
     ]
+
+
+def _get_current_running_transform_group(running: Optional[dict]) -> Optional[str]:
+    """Return the transform group currently executing, not just queued."""
+    if not running or running.get("type") != "transform":
+        return None
+
+    group_by = running.get("group_by")
+    if group_by:
+        return group_by
+
+    group_bys = running.get("group_bys") or []
+    if len(group_bys) == 1:
+        return group_bys[0]
+
+    message = running.get("message") or ""
+    match = re.match(r"^Processing\s+(.+?)\s+·", message)
+    if not match:
+        return None
+
+    group_name = match.group(1).strip()
+    return group_name if group_name in group_bys else None
+
+
+def _get_pending_transform_groups(
+    running: Optional[dict], current_group: Optional[str]
+) -> set[str]:
+    """Return transform groups targeted by the active batch but not executing."""
+    if not running or running.get("type") != "transform":
+        return set()
+
+    group_bys = running.get("group_bys") or []
+    if not group_bys:
+        return set()
+
+    pending_groups = set(group_bys)
+    if current_group:
+        pending_groups.discard(current_group)
+    return pending_groups
 
 
 def _has_configured_transform_widgets(group_config: dict) -> bool:
@@ -370,7 +410,7 @@ def _compute_stage_status(items: list[EntityStatus]) -> str:
     statuses = {item.status for item in items}
     if statuses == {"never_run"}:
         return "never_run"
-    if "running" in statuses:
+    if "running" in statuses or "pending" in statuses:
         return "running"
     if "error" in statuses:
         return "stale"
@@ -560,6 +600,10 @@ async def get_pipeline_status(http_request: Request):
         group for group in group_configs if _has_configured_transform_widgets(group)
     ]
     group_items: list[EntityStatus] = []
+    running_transform_group = _get_current_running_transform_group(running)
+    pending_transform_groups = _get_pending_transform_groups(
+        running, running_transform_group
+    )
 
     for group_config in configured_group_configs:
         group_name = group_config.get("group_by", "default")
@@ -570,17 +614,26 @@ async def get_pipeline_status(http_request: Request):
             last_transform.get("completed_at") if last_transform else None
         )
 
-        if (
-            running
-            and running.get("type") == "transform"
-            and (
-                running.get("group_by") == group_name
-                or group_name in (running.get("group_bys") or [])
-            )
-        ):
+        if running_transform_group == group_name:
             group_items.append(
                 EntityStatus(
-                    name=group_name, status="running", reason="Calcul en cours"
+                    name=group_name,
+                    status="running",
+                    last_run_at=last_transform.get("completed_at")
+                    if last_transform
+                    else None,
+                    reason="Calcul en cours",
+                )
+            )
+        elif group_name in pending_transform_groups:
+            group_items.append(
+                EntityStatus(
+                    name=group_name,
+                    status="pending",
+                    last_run_at=last_transform.get("completed_at")
+                    if last_transform
+                    else None,
+                    reason="En attente de calcul",
                 )
             )
         elif not transform_at:

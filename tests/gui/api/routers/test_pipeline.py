@@ -200,6 +200,76 @@ def test_pipeline_marks_batch_transform_groups_as_fresh(tmp_path: Path, monkeypa
     assert taxons_status.status == "fresh"
 
 
+def test_pipeline_marks_batch_target_groups_as_pending_until_they_run(
+    tmp_path: Path, monkeypatch
+):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    db_dir = work_dir / "db"
+    config_dir.mkdir(parents=True)
+    db_dir.mkdir(parents=True)
+
+    (config_dir / "transform.yml").write_text(
+        """
+- group_by: plots
+  sources: []
+  widgets_data:
+    plot_widget:
+      plugin: field_aggregator
+- group_by: taxons
+  sources: []
+  widgets_data:
+    taxon_widget:
+      plugin: field_aggregator
+""".strip()
+    )
+    (config_dir / "export.yml").write_text("exports: []\n")
+
+    store = JobFileStore(work_dir)
+    completed_job = store.create_job("transform", group_bys=["plots", "taxons"])
+    store.complete_job(completed_job["id"])
+    running_job = store.create_job("transform", group_bys=["plots", "taxons"])
+    store.update_progress(
+        running_job["id"],
+        45,
+        "Processing taxons · taxon_widget",
+    )
+
+    monkeypatch.setattr(pipeline_router, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(
+        pipeline_router, "get_database_path", lambda: db_dir / "niamoto.duckdb"
+    )
+    monkeypatch.setattr(pipeline_router, "resolve_job_store", lambda app: store)
+
+    app = FastAPI()
+    app.state.job_store = store
+    app.state.job_store_work_dir = work_dir
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/pipeline/status",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = asyncio.run(pipeline_router.get_pipeline_status(request))
+
+    plots_status = next(item for item in response.groups.items if item.name == "plots")
+    taxons_status = next(
+        item for item in response.groups.items if item.name == "taxons"
+    )
+
+    assert plots_status.status == "pending"
+    assert plots_status.last_run_at is not None
+    assert plots_status.reason == "En attente de calcul"
+    assert taxons_status.status == "running"
+    assert taxons_status.last_run_at is not None
+    assert response.groups.status == "running"
+
+
 # ---------------------------------------------------------------------------
 # /api/pipeline/history endpoint
 # ---------------------------------------------------------------------------

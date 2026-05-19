@@ -107,6 +107,7 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
   const [fieldEditorIsValid, setFieldEditorIsValid] = useState(true)
   const activeGroupRef = useRef(groupBy)
   const mountedRef = useRef(true)
+  const autoDetectAttemptedGroupRef = useRef<string | null>(null)
   const {
     mutate: requestGroupIndexPreview,
     isPending: isPreviewPending,
@@ -117,6 +118,7 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
   useEffect(() => {
     mountedRef.current = true
     activeGroupRef.current = groupBy
+    autoDetectAttemptedGroupRef.current = null
 
     return () => {
       mountedRef.current = false
@@ -217,18 +219,8 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
     }
   }
 
-  // Handle enable toggle with auto-detection
-  const handleEnableToggle = async (enabled: boolean) => {
-    setEnabled(enabled)
-
-    // If enabling and no display fields yet, auto-detect
-    if (enabled && config.display_fields.length === 0) {
-      await runAutoDetect()
-    }
-  }
-
   // Run auto-detection
-  const runAutoDetect = async () => {
+  const runAutoDetect = useCallback(async () => {
     const requestedGroup = groupBy
     setDetecting(true)
     const suggestions = await fetchSuggestions()
@@ -239,6 +231,32 @@ function IndexConfigEditorContent({ groupBy, className }: IndexConfigEditorProps
     if (suggestions) {
       rememberAvailableFields(suggestions)
       applySuggestions(suggestions)
+    }
+  }, [applySuggestions, fetchSuggestions, groupBy, rememberAvailableFields])
+
+  useEffect(() => {
+    if (
+      loading ||
+      detecting ||
+      !config.enabled ||
+      config.display_fields.length > 0 ||
+      autoDetectAttemptedGroupRef.current === groupBy
+    ) {
+      return
+    }
+
+    autoDetectAttemptedGroupRef.current = groupBy
+    void runAutoDetect()
+  }, [config.display_fields.length, config.enabled, detecting, groupBy, loading, runAutoDetect])
+
+  // Handle enable toggle with auto-detection
+  const handleEnableToggle = async (enabled: boolean) => {
+    setEnabled(enabled)
+
+    // If enabling and no display fields yet, auto-detect
+    if (enabled && config.display_fields.length === 0) {
+      autoDetectAttemptedGroupRef.current = groupBy
+      await runAutoDetect()
     }
   }
 

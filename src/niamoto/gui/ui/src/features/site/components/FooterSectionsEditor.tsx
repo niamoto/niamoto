@@ -39,6 +39,7 @@ import type {
   StaticPage,
   GroupInfo,
 } from '@/shared/hooks/useSiteConfig'
+import { getGroupIndexUrl, hasEnabledGroupIndex } from '../utils/groupIndex'
 
 interface FooterSectionsEditorProps {
   sections: FooterSection[]
@@ -68,10 +69,10 @@ export function FooterSectionsEditor({
       type: 'static' as const,
     })),
     ...groups
-      .filter((g) => g.index_output_pattern)
+      .filter(hasEnabledGroupIndex)
       .map((group) => ({
         name: `${group.name} (index)`,
-        url: `/${group.index_output_pattern}`,
+        url: getGroupIndexUrl(group) ?? '',
         type: 'group' as const,
       })),
   ]

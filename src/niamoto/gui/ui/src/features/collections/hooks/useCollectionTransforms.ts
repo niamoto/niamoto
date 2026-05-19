@@ -64,17 +64,11 @@ export function getTransformActivityByGroup({
       const progress = runningJob.progress ?? 0
 
       if (jobGroups.length > 1 && currentGroup && jobGroups.includes(currentGroup)) {
-        for (const groupName of jobGroups) {
-          if (groupName === currentGroup) {
-            states.set(groupName, {
-              state: 'running',
-              progress,
-              message: runningJob.message,
-            })
-            break
-          }
-          states.set(groupName, { state: 'completed', progress: 100 })
-        }
+        states.set(currentGroup, {
+          state: 'running',
+          progress,
+          message: runningJob.message,
+        })
         return states
       }
 
@@ -107,6 +101,20 @@ export function getTransformActivityByGroup({
     }
   }
 
+  return states
+}
+
+export function applyCompletedTransformGroups(
+  activityByGroup: Map<string, TransformGroupActivity>,
+  completedGroups: string[]
+): Map<string, TransformGroupActivity> {
+  if (completedGroups.length === 0) return activityByGroup
+
+  const states = new Map(activityByGroup)
+  for (const groupName of completedGroups) {
+    if (states.get(groupName)?.state === 'running') continue
+    states.set(groupName, { state: 'completed', progress: 100 })
+  }
   return states
 }
 

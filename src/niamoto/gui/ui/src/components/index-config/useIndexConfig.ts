@@ -160,6 +160,62 @@ const DEFAULT_CONFIG: IndexGeneratorConfig = {
   ],
 }
 
+export function createDefaultIndexGeneratorConfig(
+  groupBy: string,
+  title?: LocalizedString
+): IndexGeneratorConfig {
+  return {
+    ...DEFAULT_CONFIG,
+    page_config: {
+      ...DEFAULT_CONFIG.page_config,
+      title: title ?? `Index ${groupBy}`,
+    },
+  }
+}
+
+export function applyIndexFieldSuggestions(
+  config: IndexGeneratorConfig,
+  suggestions: IndexFieldSuggestions
+): IndexGeneratorConfig {
+  const displayFields: IndexDisplayField[] = suggestions.display_fields.map(sf => ({
+    name: sf.name,
+    source: sf.source,
+    fallback: sf.fallback,
+    type: sf.type === 'number' ? 'text' : sf.type,
+    label: sf.label,
+    searchable: sf.searchable,
+    dynamic_options: sf.dynamic_options,
+    display: sf.display ?? 'normal',
+    is_title: sf.is_title ?? false,
+    inline_badge: sf.inline_badge ?? false,
+    format: sf.format as IndexDisplayField['format'],
+    link_label: sf.link_label,
+    link_title: sf.link_title,
+    link_target: sf.link_target,
+    image_fields: sf.image_fields,
+  }))
+
+  const filters: IndexFilterConfig[] = suggestions.filters.map(sf => ({
+    field: sf.source,
+    values: sf.values,
+    operator: sf.operator as 'in' | 'not_in' | 'equals',
+  }))
+
+  return {
+    ...config,
+    display_fields: displayFields,
+    filters: filters.length > 0 ? filters : config.filters,
+  }
+}
+
+export async function fetchIndexFieldSuggestions(groupBy: string): Promise<IndexFieldSuggestions> {
+  const response = await apiClient.get<IndexFieldSuggestions>(
+    `${API_BASE}/export/${encodeURIComponent(groupBy)}/index-generator/suggestions`,
+    { timeout: 30000 }
+  )
+  return response.data
+}
+
 export interface UseIndexConfigReturn {
   // Current config (local state)
   config: IndexGeneratorConfig
@@ -224,13 +280,7 @@ export function useIndexConfig(groupBy: string): UseIndexConfigReturn {
   const [error, setError] = useState<string | null>(null)
 
   const buildDefaultConfig = useCallback(
-    (): IndexGeneratorConfig => ({
-      ...DEFAULT_CONFIG,
-      page_config: {
-        ...DEFAULT_CONFIG.page_config,
-        title: t('defaultTitle', { groupBy }),
-      },
-    }),
+    (): IndexGeneratorConfig => createDefaultIndexGeneratorConfig(groupBy, t('defaultTitle', { groupBy })),
     [groupBy, t]
   )
 
@@ -381,11 +431,7 @@ export function useIndexConfig(groupBy: string): UseIndexConfigReturn {
   // Fetch suggestions from auto-detection
   const fetchSuggestions = useCallback(async (): Promise<IndexFieldSuggestions | null> => {
     try {
-      const response = await apiClient.get<IndexFieldSuggestions>(
-        `${API_BASE}/export/${encodeURIComponent(groupBy)}/index-generator/suggestions`,
-        { timeout: 30000 }
-      )
-      return response.data
+      return await fetchIndexFieldSuggestions(groupBy)
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to fetch suggestions'))
       return null
@@ -394,37 +440,7 @@ export function useIndexConfig(groupBy: string): UseIndexConfigReturn {
 
   // Apply suggestions to local config
   const applySuggestions = useCallback((suggestions: IndexFieldSuggestions) => {
-    // Convert suggested display fields to IndexDisplayField format
-    const displayFields: IndexDisplayField[] = suggestions.display_fields.map(sf => ({
-      name: sf.name,
-      source: sf.source,
-      fallback: sf.fallback,
-      type: sf.type === 'number' ? 'text' : sf.type,
-      label: sf.label,
-      searchable: sf.searchable,
-      dynamic_options: sf.dynamic_options,
-      display: sf.display ?? 'normal',
-      is_title: sf.is_title ?? false,
-      inline_badge: sf.inline_badge ?? false,
-      format: sf.format as IndexDisplayField['format'],
-      link_label: sf.link_label,
-      link_title: sf.link_title,
-      link_target: sf.link_target,
-      image_fields: sf.image_fields,
-    }))
-
-    // Convert suggested filters to IndexFilterConfig format
-    const filters: IndexFilterConfig[] = suggestions.filters.map(sf => ({
-      field: sf.source,
-      values: sf.values,
-      operator: sf.operator as 'in' | 'not_in' | 'equals',
-    }))
-
-    setLocalConfig(prev => ({
-      ...prev,
-      display_fields: displayFields,
-      filters: filters.length > 0 ? filters : prev.filters,
-    }))
+    setLocalConfig(prev => applyIndexFieldSuggestions(prev, suggestions))
   }, [])
 
   return {

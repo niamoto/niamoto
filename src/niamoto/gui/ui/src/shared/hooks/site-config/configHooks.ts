@@ -46,7 +46,30 @@ export function useUpdateGroupIndexConfig() {
   return useMutation({
     mutationFn: ({ groupName, config }: { groupName: string; config: GroupIndexConfig }) =>
       updateGroupIndexConfig(groupName, config),
-    onSuccess: () => {
+    onSuccess: (config, { groupName }) => {
+      queryClient.setQueryData(siteConfigQueryKeys.groups(), (current: { groups: Array<{
+        name: string
+        output_pattern: string
+        index_output_pattern?: string | null
+        index_generator?: GroupIndexConfig | null
+        widgets_count: number
+      }> } | undefined) => {
+        if (!current) return current
+        return {
+          ...current,
+          groups: current.groups.map((group) =>
+            group.name === groupName
+              ? {
+                  ...group,
+                  index_output_pattern: config.enabled
+                    ? group.index_output_pattern ?? `${groupName}/index.html`
+                    : null,
+                  index_generator: config,
+                }
+              : group
+          ),
+        }
+      })
       queryClient.invalidateQueries({ queryKey: siteConfigQueryKeys.groups() })
     },
   })

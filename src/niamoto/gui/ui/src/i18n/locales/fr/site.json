@@ -212,6 +212,8 @@
     "activating": "Activation...",
     "indexPageActivated": "Page d'index activée",
     "indexPageActivatedDesc": "La page d'index de la collection est maintenant disponible dans le Site Builder.",
+    "indexPageActivatedAutoDetectDesc": "La page d'index de la collection est maintenant disponible avec des champs détectés automatiquement.",
+    "indexPageActivatedAutoDetectFailedDesc": "La page a été activée, mais l'auto-détection n'a pas pu se terminer. Vous pouvez la relancer depuis l'onglet Liste.",
     "editWidgets": "Modifier les widgets",
     "editWidgetsDesc": "Configurez les widgets dans l'onglet Transform/Export",
     "open": "Ouvrir"

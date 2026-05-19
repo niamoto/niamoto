@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiClient } from '@/shared/lib/api/client'
 import { useProjectInfo } from '@/hooks/useProjectInfo'
 
-export type FreshnessStatus = 'fresh' | 'stale' | 'never_run' | 'unconfigured' | 'running' | 'error'
+export type FreshnessStatus = 'fresh' | 'stale' | 'never_run' | 'unconfigured' | 'pending' | 'running' | 'error'
 
 export interface EntityStatus {
   name: string

@@ -386,6 +386,53 @@ class TestSiteGroups:
         finally:
             shutil.rmtree(temp_dir)
 
+    def test_groups_endpoint_does_not_expose_disabled_index_page(self):
+        temp_dir = tempfile.mkdtemp()
+        try:
+            config_dir = Path(temp_dir) / "config"
+
+            _write_config(
+                config_dir / "export.yml",
+                {
+                    "exports": [
+                        {
+                            "name": "web_pages",
+                            "enabled": True,
+                            "exporter": "html_page_exporter",
+                            "params": {},
+                            "groups": [
+                                {
+                                    "group_by": "plots",
+                                    "index_output_pattern": "plots/index.html",
+                                    "index_generator": {
+                                        "enabled": False,
+                                        "template": "_group_index.html",
+                                        "page_config": {"title": "Plots"},
+                                        "filters": [],
+                                        "display_fields": [],
+                                        "views": [{"type": "grid", "default": True}],
+                                    },
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
+
+            with patch("niamoto.gui.api.routers.site.get_working_directory") as mock_wd:
+                mock_wd.return_value = Path(temp_dir)
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.get("/api/site/groups")
+                assert response.status_code == 200, response.text
+
+            data = response.json()
+            assert data["groups"][0]["index_output_pattern"] is None
+            assert data["groups"][0]["index_generator"]["enabled"] is False
+        finally:
+            shutil.rmtree(temp_dir)
+
     def test_preview_exported_site_follows_current_working_directory(self):
         with (
             tempfile.TemporaryDirectory() as temp1,
@@ -1388,6 +1435,77 @@ class TestSiteGroups:
 
         assert isinstance(items[0]["occurrences_count"], int)
         assert items[0]["occurrences_count"] != "Plot 1"
+
+    def test_preview_group_index_prefers_real_items_for_selected_title_field(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(
+                config_dir / "export.yml",
+                {
+                    "exports": [
+                        {
+                            "name": "web_pages",
+                            "enabled": True,
+                            "exporter": "html_page_exporter",
+                            "params": {
+                                "site": {
+                                    "title": "Niamoto",
+                                    "lang": "fr",
+                                },
+                                "navigation": [],
+                            },
+                            "groups": [
+                                {
+                                    "group_by": "plots",
+                                    "index_generator": {
+                                        "enabled": True,
+                                        "template": "_group_index.html",
+                                        "page_config": {"title": "Plots"},
+                                        "filters": [],
+                                        "display_fields": [
+                                            {
+                                                "name": "display_title",
+                                                "source": "details.title.value",
+                                                "type": "text",
+                                                "label": "Display title",
+                                                "is_title": True,
+                                            }
+                                        ],
+                                        "views": [{"type": "grid", "default": True}],
+                                    },
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
+
+            monkeypatch.setattr(
+                site_router,
+                "_load_preview_index_items",
+                lambda group_name, index_config: [
+                    {
+                        "plots_id": "1",
+                        "display_title": "Actual selected title",
+                    }
+                ],
+            )
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                response = client.post("/api/site/preview-group-index/plots", json={})
+                assert response.status_code == 200, response.text
+
+            html = response.json()["html"]
+            assert "Actual selected title" in html
+            assert "Plot 1" not in html
 
     def test_preview_exported_site_falls_back_to_legacy_home_output(self):
         with tempfile.TemporaryDirectory() as temp_dir:

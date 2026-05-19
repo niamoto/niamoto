@@ -10,6 +10,11 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
+  applyIndexFieldSuggestions,
+  createDefaultIndexGeneratorConfig,
+  fetchIndexFieldSuggestions,
+} from '@/components/index-config/useIndexConfig'
+import {
   useSiteConfig,
   useUpdateSiteConfig,
   useUpdateGroupIndexConfig,
@@ -27,6 +32,7 @@ import {
   getCanonicalStaticPageOutputFile,
   hasRootIndexPage,
   isRootIndexTemplate,
+  type GroupIndexConfig,
 } from '@/shared/hooks/useSiteConfig'
 import {
   type UnifiedTreeItem,
@@ -34,6 +40,7 @@ import {
   decomposeUnifiedTree,
   resetIdCounter,
 } from './useUnifiedSiteTree'
+import { getGroupIndexUrl, hasEnabledGroupIndex } from '../utils/groupIndex'
 
 export type SelectionType = 'general' | 'appearance' | 'navigation' | 'footer' | 'page' | 'group' | 'new-page' | 'external-link'
 
@@ -101,6 +108,34 @@ function mapSectionToSelection(section: string): Selection | null {
   }
 }
 
+function normalizeGroupIndexConfig(config: ReturnType<typeof createDefaultIndexGeneratorConfig>): GroupIndexConfig {
+  return {
+    ...config,
+    filters: config.filters ?? [],
+    views: config.views ?? [
+      { type: 'grid', default: true },
+      { type: 'list', default: false },
+    ],
+  }
+}
+
+function createEnabledIndexGeneratorConfig(
+  groupName: string,
+  title: string
+): ReturnType<typeof createDefaultIndexGeneratorConfig> {
+  return {
+    ...createDefaultIndexGeneratorConfig(groupName, title),
+    enabled: true,
+  }
+}
+
+export function createEnabledGroupIndexConfig(
+  groupName: string,
+  title: string
+): GroupIndexConfig {
+  return normalizeGroupIndexConfig(createEnabledIndexGeneratorConfig(groupName, title))
+}
+
 // =============================================================================
 // HOOK
 // =============================================================================
@@ -114,6 +149,7 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
   const { data: templatesData } = useTemplates()
   const updateMutation = useUpdateSiteConfig()
   const updateGroupIndexMutation = useUpdateGroupIndexConfig()
+  const [enablingIndexGroup, setEnablingIndexGroup] = useState<string | null>(null)
 
   // ---------------------------------------------------------------------------
   // Source of truth: unified tree + allPages + editedSite + editedFooterNavigation
@@ -194,12 +230,12 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
         if (item.type === 'collection' && item.collectionRef) {
           const group = groupMap.get(item.collectionRef)
           if (group) {
-            const newHasIndex = !!group.index_output_pattern
+            const newHasIndex = hasEnabledGroupIndex(group)
             if (item.hasIndex !== newHasIndex) {
               return {
                 ...item,
                 hasIndex: newHasIndex,
-                url: group.index_output_pattern ? `/${group.index_output_pattern}` : item.url,
+                url: getGroupIndexUrl(group),
               }
             }
           }
@@ -770,7 +806,8 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
   /** Add a collection to the menu as a visible item. */
   const addCollectionToMenu = useCallback((groupName: string) => {
     const group = groups.find(g => g.name === groupName)
-    if (!group || !group.index_output_pattern) return
+    const groupIndexUrl = group ? getGroupIndexUrl(group) : undefined
+    if (!group || !groupIndexUrl) return
     setUnifiedTree(prev => {
       const existing = findTreeItem(prev, i => i.type === 'collection' && i.collectionRef === groupName && !i.visible)
       if (existing) {
@@ -785,7 +822,7 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
         label: group.name,
         visible: true,
         collectionRef: group.name,
-        url: `/${group.index_output_pattern}`,
+        url: groupIndexUrl,
         hasIndex: true,
         children: [],
       }
@@ -800,33 +837,41 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
   // ---------------------------------------------------------------------------
 
   const handleEnableGroupIndexPage = async (groupName: string) => {
+    setEnablingIndexGroup(groupName)
+    const baseConfig = createEnabledIndexGeneratorConfig(
+      groupName,
+      t('indexConfig:defaultTitle', { groupBy: groupName })
+    )
+    const enabledConfig = normalizeGroupIndexConfig(baseConfig)
+    let detectionFailed = false
+
     try {
       await updateGroupIndexMutation.mutateAsync({
         groupName,
-        config: {
-          enabled: true,
-          template: '_group_index.html',
-          page_config: {
-            title: t('indexConfig:defaultTitle', { groupBy: groupName }),
-            description: '',
-            items_per_page: 24,
-          },
-          filters: [],
-          display_fields: [],
-          views: [
-            { type: 'grid', default: true },
-            { type: 'list', default: false },
-          ],
-        },
+        config: enabledConfig,
       })
 
+      try {
+        const suggestions = await fetchIndexFieldSuggestions(groupName)
+        await updateGroupIndexMutation.mutateAsync({
+          groupName,
+          config: normalizeGroupIndexConfig(applyIndexFieldSuggestions(baseConfig, suggestions)),
+        })
+      } catch {
+        detectionFailed = true
+      }
+
       toast.success(t('collectionViewer.indexPageActivated'), {
-        description: t('collectionViewer.indexPageActivatedDesc'),
+        description: detectionFailed
+          ? t('collectionViewer.indexPageActivatedAutoDetectFailedDesc')
+          : t('collectionViewer.indexPageActivatedAutoDetectDesc'),
       })
     } catch (err) {
       toast.error(t('common:status.error'), {
         description: err instanceof Error ? err.message : t('messages.saveFailed'),
       })
+    } finally {
+      setEnablingIndexGroup(null)
     }
   }
 
@@ -870,7 +915,7 @@ export function useSiteBuilderState(initialSection: string = 'pages') {
 
     // Mutation state
     isSaving: updateMutation.isPending,
-    isEnablingIndexPage: updateGroupIndexMutation.isPending,
+    isEnablingIndexPage: updateGroupIndexMutation.isPending || enablingIndexGroup !== null,
 
     // Page handlers
     handleSave,
