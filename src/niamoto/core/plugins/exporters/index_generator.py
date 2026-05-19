@@ -21,6 +21,7 @@ from niamoto.common.hierarchy_context import (
 from niamoto.common.i18n import I18nResolver
 from niamoto.common.table_resolver import resolve_entity_table
 from niamoto.core.plugins.base import ExporterPlugin, PluginType, register
+from niamoto.core.plugins.loaders._sql_identifier import quote_identifier
 from niamoto.core.plugins.models import IndexGeneratorConfig, IndexGeneratorDisplayField
 
 logger = logging.getLogger(__name__)
@@ -229,9 +230,11 @@ class IndexGeneratorPlugin(ExporterPlugin):
             if candidate not in entity_columns:
                 continue
 
+            quoted_candidate = quote_identifier(candidate, "entity join column")
+            quoted_entity_table = quote_identifier(entity_table, "entity table name")
             query = (
-                f'SELECT "{candidate}" FROM "{entity_table}" '
-                f'WHERE "{candidate}" IS NOT NULL'
+                f"SELECT {quoted_candidate} FROM {quoted_entity_table} "
+                f"WHERE {quoted_candidate} IS NOT NULL"
             )
             rows = self.db.fetch_all(query)
             overlap = sum(
@@ -317,9 +320,15 @@ class IndexGeneratorPlugin(ExporterPlugin):
         if len(selected_columns) == 1:
             return {}
 
-        quoted_columns = ", ".join(f'"{column}"' for column in sorted(selected_columns))
+        quoted_columns = ", ".join(
+            quote_identifier(column, "entity column")
+            for column in sorted(selected_columns)
+        )
+        quoted_entity_table = quote_identifier(entity_table, "entity table name")
+        quoted_join_column = quote_identifier(join_column, "join column")
         query = (
-            f'SELECT {quoted_columns} FROM "{entity_table}" ORDER BY "{join_column}"'
+            f"SELECT {quoted_columns} FROM {quoted_entity_table} "
+            f"ORDER BY {quoted_join_column}"
         )
 
         rows = self.db.fetch_all(query)
@@ -365,7 +374,9 @@ class IndexGeneratorPlugin(ExporterPlugin):
                 return []
 
             # Base query - get all items
-            query = f'SELECT * FROM "{table_name}" ORDER BY {id_column}'
+            quoted_table_name = quote_identifier(table_name, "group table name")
+            quoted_id_column = quote_identifier(id_column, "group id column")
+            query = f"SELECT * FROM {quoted_table_name} ORDER BY {quoted_id_column}"
             logger.debug(f"Executing query: {query}")
 
             results = self.db.fetch_all(query)

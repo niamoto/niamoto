@@ -252,6 +252,17 @@ class ClassObjectSeriesRatioAggregator(TransformerPlugin):
                             details={"error": str(e)},
                         )
 
+                total_data_raw = (
+                    total_data_raw.groupby("class_name", as_index=False)["class_value"]
+                    .sum()
+                    .copy()
+                )
+                subset_data_raw = (
+                    subset_data_raw.groupby("class_name", as_index=False)["class_value"]
+                    .sum()
+                    .copy()
+                )
+
                 # Get all unique classes from both datasets
                 all_classes = sorted(
                     pd.unique(

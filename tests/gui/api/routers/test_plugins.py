@@ -102,6 +102,26 @@ def test_check_compatibility_accepts_known_plugin(monkeypatch):
         PluginRegistry.clear()
 
 
+def test_check_compatibility_rejects_missing_source_type(monkeypatch):
+    monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
+    PluginRegistry.clear()
+    try:
+        PluginRegistry.register_plugin("dummy_widget", DummyWidget, PluginType.WIDGET)
+        client = TestClient(create_app())
+
+        response = client.post(
+            "/api/plugins/check-compatibility",
+            json={"plugin_id": "dummy_widget", "source_data": {}},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["compatible"] is False
+        assert "source_data.type is required" in payload["reason"]
+    finally:
+        PluginRegistry.clear()
+
+
 def test_get_plugin_uses_registry_type_when_class_type_disagrees(monkeypatch):
     monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
     PluginRegistry.clear()

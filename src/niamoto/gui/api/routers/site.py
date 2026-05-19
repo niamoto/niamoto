@@ -1368,6 +1368,7 @@ async def preview_template(request: TemplatePreviewRequest, http_request: Reques
                     elif line.strip():
                         html_lines.append(f"<p>{line}</p>")
                 page_content_html = "\n".join(html_lines)
+            page_content_html = _sanitize_markdown_html(page_content_html)
 
         elif "content_source" in page_context and page_context["content_source"]:
             # Load content from file
@@ -1390,13 +1391,26 @@ async def preview_template(request: TemplatePreviewRequest, http_request: Reques
                             page_content_html = md.convert(content)
                         except ImportError:
                             page_content_html = f"<pre>{content}</pre>"
+                        page_content_html = _sanitize_markdown_html(page_content_html)
                     else:
-                        page_content_html = content
+                        import html as html_escape
+
+                        page_content_html = (
+                            f"<pre>{html_escape.escape(content, quote=True)}</pre>"
+                        )
                 except Exception as e:
-                    page_content_html = f"<p><em>Error loading content: {e}</em></p>"
+                    import html as html_escape
+
+                    safe_error = html_escape.escape(str(e), quote=True)
+                    page_content_html = (
+                        f"<p><em>Error loading content: {safe_error}</em></p>"
+                    )
             else:
+                import html as html_escape
+
+                safe_source = html_escape.escape(content_source, quote=True)
                 page_content_html = (
-                    f"<p><em>Content file not found: {content_source}</em></p>"
+                    f"<p><em>Content file not found: {safe_source}</em></p>"
                 )
 
         # Resolve *_source JSON files (team_source, references_source, etc.)

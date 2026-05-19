@@ -395,14 +395,8 @@ class TestUploadFiles:
             files={"files": ("", io.BytesIO(file_content), "text/csv")},
         )
 
-        # Can return either 422 (validation error) or 200 with errors in response
-        assert response.status_code in [200, 422]
-
-        if response.status_code == 200:
-            data = response.json()
-            # Should have an error, no upload
-            assert len(data["errors"]) > 0
-            assert len(data["uploaded_files"]) == 0
+        assert response.status_code == 422
+        assert response.json()["detail"]
 
     def test_upload_mixed_file_types(self, test_client: TestClient, fixtures_dir: Path):
         """Test uploading different file types in one request."""
@@ -1083,11 +1077,22 @@ class TestAutoConfigureMain:
 
         # Taxonomy should be configured as hierarchical reference
         entities = data["entities"]
+        references = entities.get("references", {})
 
-        # Look for reference configuration
-        if "references" in entities:
-            # Should have hierarchy configuration
-            pass  # Implementation-specific assertion
+        assert "sample_taxonomy" in references
+        taxonomy = references["sample_taxonomy"]
+        assert taxonomy["kind"] == "hierarchical"
+        assert taxonomy["schema"]["id_field"] == "id"
+        assert taxonomy["hierarchy"]["strategy"] == "adjacency_list"
+        assert taxonomy["hierarchy"]["levels"][:3] == [
+            "family",
+            "genus",
+            "species",
+        ]
+        assert (
+            data["decision_summary"]["sample_taxonomy"]["final_entity_type"]
+            == "hierarchical_reference"
+        )
 
 
 # ============================================================================

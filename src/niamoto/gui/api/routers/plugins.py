@@ -401,10 +401,17 @@ async def check_compatibility(check: CompatibilityCheck):
             )
 
         source_type = check.source_data.get("type")
+        if not isinstance(source_type, str) or not source_type.strip():
+            return CompatibilityResult(
+                compatible=False,
+                reason="source_data.type is required and must be a non-empty string.",
+                suggestions=[
+                    "Provide one of: " + ", ".join(plugin_info.compatible_inputs)
+                ],
+            )
+        source_type = source_type.strip()
         if (
-            isinstance(source_type, str)
-            and source_type
-            and source_type not in plugin_info.compatible_inputs
+            source_type not in plugin_info.compatible_inputs
             and "any" not in plugin_info.compatible_inputs
         ):
             return CompatibilityResult(

@@ -35,15 +35,6 @@ def load_sample_data(
     Args:
         limit: Max rows to load. None for all data, or int for random sampling.
     """
-    # For entity-sourced data that doesn't need occurrence filtering
-    # (e.g., entity_map showing the shape itself)
-    if representative.get("source_type") == "entity" and representative.get(
-        "entity_data"
-    ):
-        entity_data = representative["entity_data"]
-        # Convert single entity dict to DataFrame (single row)
-        return pd.DataFrame([entity_data])
-
     # Get required field from template config
     required_field = template_config.get("field", "*")
 
@@ -114,6 +105,15 @@ def load_sample_data(
             logger.warning(f"Spatial query failed: {e}, trying simpler approach")
             # If spatial query fails, return empty (shape without occurrences)
             return pd.DataFrame()
+
+    # For entity-sourced data that doesn't need occurrence filtering
+    # (e.g., entity_map showing the shape itself)
+    if representative.get("source_type") == "entity" and representative.get(
+        "entity_data"
+    ):
+        entity_data = representative["entity_data"]
+        # Convert single entity dict to DataFrame (single row)
+        return pd.DataFrame([entity_data])
 
     # Standard flow for occurrence-based data (hierarchical and flat references)
     table_name = representative["table_name"]

@@ -247,127 +247,152 @@ class GitHubDeployer(DeployerPlugin):
             "Accept": "application/vnd.github+json",
         }
 
-        async with httpx.AsyncClient(
-            base_url=BASE_URL, headers=headers, timeout=60.0
-        ) as client:
-            parent_sha, err = await self._ensure_branch(client, owner, repo, branch)
-            if parent_sha is None:
-                yield self.sse_error(err or f"Failed to initialise branch '{branch}'.")
+        try:
+            async with httpx.AsyncClient(
+                base_url=BASE_URL, headers=headers, timeout=60.0
+            ) as client:
+                parent_sha, err = await self._ensure_branch(client, owner, repo, branch)
+                if parent_sha is None:
+                    yield self.sse_error(
+                        err or f"Failed to initialise branch '{branch}'."
+                    )
+                    yield self.sse_done()
+                    return
+
+                async for line in self._upload_with_api_client(
+                    client=client,
+                    config=config,
+                    owner=owner,
+                    repo=repo,
+                    branch=branch,
+                    parent_sha=parent_sha,
+                    file_paths=file_paths,
+                ):
+                    yield line
+        except httpx.HTTPError as exc:
+            yield self.sse_error(f"GitHub API request failed: {exc}")
+            yield self.sse_done()
+
+    async def _upload_with_api_client(
+        self,
+        client: httpx.AsyncClient,
+        config: DeployConfig,
+        owner: str,
+        repo: str,
+        branch: str,
+        parent_sha: str,
+        file_paths: list[tuple[str, str]],
+    ) -> AsyncIterator[str]:
+        """Upload files through an already configured GitHub API client."""
+        _ = branch
+        yield self.sse_log(f"Branch '{branch}' ready (tip: {parent_sha[:8]})")
+
+        tree_entries: list[dict] = []
+        total = len(file_paths)
+
+        for index, (rel_path, abs_path) in enumerate(file_paths, start=1):
+            try:
+                with open(abs_path, "rb") as f:
+                    content_b64 = base64.b64encode(f.read()).decode("ascii")
+
+                resp = await client.post(
+                    f"/repos/{owner}/{repo}/git/blobs",
+                    json={"content": content_b64, "encoding": "base64"},
+                )
+                resp.raise_for_status()
+                blob_sha = resp.json()["sha"]
+            except httpx.HTTPStatusError as exc:
+                detail = exc.response.text[:200] or str(exc)
+                yield self.sse_error(f"Upload failed: {rel_path}: {detail}")
+                yield self.sse_done()
+                return
+            except OSError as exc:
+                yield self.sse_error(f"Upload failed: {rel_path}: {exc}")
                 yield self.sse_done()
                 return
 
-            yield self.sse_log(f"Branch '{branch}' ready (tip: {parent_sha[:8]})")
+            tree_entries.append(
+                {
+                    "path": rel_path.replace("\\", "/"),
+                    "mode": "100644",
+                    "type": "blob",
+                    "sha": blob_sha,
+                }
+            )
 
-            tree_entries: list[dict] = []
-            total = len(file_paths)
+            if index % 20 == 0 or index == total:
+                yield self.sse_log(f"Uploading files: {index}/{total}")
 
-            for index, (rel_path, abs_path) in enumerate(file_paths, start=1):
-                try:
-                    with open(abs_path, "rb") as f:
-                        content_b64 = base64.b64encode(f.read()).decode("ascii")
+            if index < total:
+                await asyncio.sleep(GITHUB_API_WRITE_DELAY_SECONDS)
 
-                    resp = await client.post(
-                        f"/repos/{owner}/{repo}/git/blobs",
-                        json={"content": content_b64, "encoding": "base64"},
-                    )
-                    resp.raise_for_status()
-                    blob_sha = resp.json()["sha"]
-                except httpx.HTTPStatusError as exc:
-                    detail = exc.response.text[:200] or str(exc)
-                    yield self.sse_error(f"Upload failed: {rel_path}: {detail}")
-                    yield self.sse_done()
-                    return
-                except OSError as exc:
-                    yield self.sse_error(f"Upload failed: {rel_path}: {exc}")
-                    yield self.sse_done()
-                    return
-
+        if not any(entry["path"] == ".nojekyll" for entry in tree_entries):
+            try:
+                resp = await client.post(
+                    f"/repos/{owner}/{repo}/git/blobs",
+                    json={"content": "", "encoding": "utf-8"},
+                )
+                resp.raise_for_status()
                 tree_entries.append(
                     {
-                        "path": rel_path.replace("\\", "/"),
+                        "path": ".nojekyll",
                         "mode": "100644",
                         "type": "blob",
-                        "sha": blob_sha,
+                        "sha": resp.json()["sha"],
                     }
                 )
-
-                if index % 20 == 0 or index == total:
-                    yield self.sse_log(f"Uploading files: {index}/{total}")
-
-                if index < total:
-                    await asyncio.sleep(GITHUB_API_WRITE_DELAY_SECONDS)
-
-            if not any(entry["path"] == ".nojekyll" for entry in tree_entries):
-                try:
-                    resp = await client.post(
-                        f"/repos/{owner}/{repo}/git/blobs",
-                        json={"content": "", "encoding": "utf-8"},
-                    )
-                    resp.raise_for_status()
-                    tree_entries.append(
-                        {
-                            "path": ".nojekyll",
-                            "mode": "100644",
-                            "type": "blob",
-                            "sha": resp.json()["sha"],
-                        }
-                    )
-                except httpx.HTTPStatusError as exc:
-                    yield self.sse_error(
-                        f"Failed to prepare .nojekyll: {exc.response.text[:200]}"
-                    )
-                    yield self.sse_done()
-                    return
-
-            yield self.sse_log("Creating file tree...")
-            try:
-                tree_resp = await client.post(
-                    f"/repos/{owner}/{repo}/git/trees",
-                    json={"tree": tree_entries},
-                )
-                tree_resp.raise_for_status()
-                tree_sha = tree_resp.json()["sha"]
             except httpx.HTTPStatusError as exc:
                 yield self.sse_error(
-                    f"Failed to create tree: {exc.response.text[:200]}"
+                    f"Failed to prepare .nojekyll: {exc.response.text[:200]}"
                 )
                 yield self.sse_done()
                 return
 
-            yield self.sse_log("Creating commit...")
-            try:
-                commit_resp = await client.post(
-                    f"/repos/{owner}/{repo}/git/commits",
-                    json={
-                        "message": f"Deploy {config.project_name}",
-                        "tree": tree_sha,
-                        "parents": [parent_sha],
-                    },
-                )
-                commit_resp.raise_for_status()
-                commit_sha = commit_resp.json()["sha"]
-            except httpx.HTTPStatusError as exc:
-                yield self.sse_error(
-                    f"Failed to create commit: {exc.response.text[:200]}"
-                )
-                yield self.sse_done()
-                return
-
-            yield self.sse_log("Updating branch reference...")
-            try:
-                ref_resp = await client.patch(
-                    f"/repos/{owner}/{repo}/git/refs/heads/{branch}",
-                    json={"sha": commit_sha},
-                )
-                ref_resp.raise_for_status()
-            except httpx.HTTPStatusError as exc:
-                yield self.sse_error(f"Failed to update ref: {exc.response.text[:200]}")
-                yield self.sse_done()
-                return
-
-            yield self.sse_success(f"Deployed to GitHub Pages ({commit_sha[:8]})")
-            yield self.sse_url(self._get_pages_url(owner, repo))
+        yield self.sse_log("Creating file tree...")
+        try:
+            tree_resp = await client.post(
+                f"/repos/{owner}/{repo}/git/trees",
+                json={"tree": tree_entries},
+            )
+            tree_resp.raise_for_status()
+            tree_sha = tree_resp.json()["sha"]
+        except httpx.HTTPStatusError as exc:
+            yield self.sse_error(f"Failed to create tree: {exc.response.text[:200]}")
             yield self.sse_done()
+            return
+
+        yield self.sse_log("Creating commit...")
+        try:
+            commit_resp = await client.post(
+                f"/repos/{owner}/{repo}/git/commits",
+                json={
+                    "message": f"Deploy {config.project_name}",
+                    "tree": tree_sha,
+                    "parents": [parent_sha],
+                },
+            )
+            commit_resp.raise_for_status()
+            commit_sha = commit_resp.json()["sha"]
+        except httpx.HTTPStatusError as exc:
+            yield self.sse_error(f"Failed to create commit: {exc.response.text[:200]}")
+            yield self.sse_done()
+            return
+
+        yield self.sse_log("Updating branch reference...")
+        try:
+            ref_resp = await client.patch(
+                f"/repos/{owner}/{repo}/git/refs/heads/{branch}",
+                json={"sha": commit_sha},
+            )
+            ref_resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            yield self.sse_error(f"Failed to update ref: {exc.response.text[:200]}")
+            yield self.sse_done()
+            return
+
+        yield self.sse_success(f"Deployed to GitHub Pages ({commit_sha[:8]})")
+        yield self.sse_url(self._get_pages_url(owner, repo))
+        yield self.sse_done()
 
     async def unpublish(self, config: DeployConfig) -> AsyncIterator[str]:
         """Remove GitHub Pages by deleting the deployment branch."""
@@ -394,21 +419,26 @@ class GitHubDeployer(DeployerPlugin):
             "Accept": "application/vnd.github+json",
         }
 
-        async with httpx.AsyncClient(
-            base_url=BASE_URL, headers=headers, timeout=30.0
-        ) as client:
-            resp = await client.delete(f"/repos/{owner}/{repo}/git/refs/heads/{branch}")
+        try:
+            async with httpx.AsyncClient(
+                base_url=BASE_URL, headers=headers, timeout=30.0
+            ) as client:
+                resp = await client.delete(
+                    f"/repos/{owner}/{repo}/git/refs/heads/{branch}"
+                )
 
-            if resp.status_code == 204:
-                yield self.sse_success(
-                    f"Branch '{branch}' deleted. GitHub Pages will be disabled."
-                )
-            elif resp.status_code == 404:
-                yield self.sse_error(f"Branch '{branch}' not found.")
-            else:
-                yield self.sse_error(
-                    f"Failed to delete branch: HTTP {resp.status_code} — {resp.text[:200]}"
-                )
+                if resp.status_code == 204:
+                    yield self.sse_success(
+                        f"Branch '{branch}' deleted. GitHub Pages will be disabled."
+                    )
+                elif resp.status_code == 404:
+                    yield self.sse_error(f"Branch '{branch}' not found.")
+                else:
+                    yield self.sse_error(
+                        f"Failed to delete branch: HTTP {resp.status_code} — {resp.text[:200]}"
+                    )
+        except httpx.HTTPError as exc:
+            yield self.sse_error(f"GitHub API request failed: {exc}")
 
         yield self.sse_done()
 

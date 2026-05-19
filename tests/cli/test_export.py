@@ -261,7 +261,7 @@ def test_export_list_option_error(mock_config, mock_path, mock_exporter):
     runner = CliRunner()
     result = runner.invoke(export_command, ["--list"])
 
-    assert result.exit_code == 0
+    assert result.exit_code != 0
     assert "Failed to list targets" in result.output
 
 
@@ -337,7 +337,7 @@ def test_export_dry_run_target_not_found(mock_config, mock_path, mock_exporter):
     runner = CliRunner()
     result = runner.invoke(export_command, ["--dry-run", "--target", "nonexistent"])
 
-    assert result.exit_code == 0
+    assert result.exit_code != 0
     assert "not found in configuration" in result.output
 
 
@@ -388,7 +388,7 @@ def test_export_dry_run_group_not_found(mock_config, mock_path, mock_exporter):
         export_command, ["--dry-run", "--target", "web_pages", "--group", "nonexistent"]
     )
 
-    assert result.exit_code == 0
+    assert result.exit_code != 0
     assert "not found in this target" in result.output
 
 
@@ -405,7 +405,7 @@ def test_export_dry_run_error(mock_config, mock_path, mock_exporter):
     runner = CliRunner()
     result = runner.invoke(export_command, ["--dry-run"])
 
-    assert result.exit_code == 0
+    assert result.exit_code != 0
     assert "Failed to analyze export configuration" in result.output
 
 
@@ -419,7 +419,7 @@ def test_export_group_without_target(mock_config, mock_path, mock_exporter):
     runner = CliRunner()
     result = runner.invoke(export_command, ["--group", "taxon"])
 
-    assert result.exit_code == 0  # Function returns normally but prints error
+    assert result.exit_code != 0
     assert "requires --target" in result.output
 
 
@@ -438,7 +438,7 @@ def test_export_database_not_found(mock_config):
         runner = CliRunner()
         result = runner.invoke(export_command, ["--target", "web_pages"])
 
-        assert result.exit_code == 0  # Function returns normally but prints error
+        assert result.exit_code != 0
         assert "Database not found" in result.output
 
 
@@ -451,7 +451,7 @@ def test_export_database_path_none(mock_config, mock_path, mock_exporter):
     runner = CliRunner()
     result = runner.invoke(export_command, ["--target", "web_pages"])
 
-    assert result.exit_code == 0  # Function returns normally but prints error
+    assert result.exit_code != 0
     assert "Database not found" in result.output
 
 

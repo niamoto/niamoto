@@ -4,11 +4,27 @@ from types import SimpleNamespace
 import pytest
 import yaml
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from niamoto.core.imports.config_models import ConnectorType
 from niamoto.gui.api.app import create_app
 from niamoto.gui.api import context
 from niamoto.gui.api.routers import imports
+
+
+@pytest.fixture(autouse=True)
+def isolate_import_jobs():
+    """Restore the module-level import job store after each test."""
+    original_jobs = dict(imports.import_jobs)
+    try:
+        yield
+    finally:
+        imports.import_jobs.clear()
+        imports.import_jobs.update(original_jobs)
+
+
+def _request() -> Request:
+    return Request({"type": "http", "headers": []})
 
 
 def _base_job(job_id: str = "job-1") -> dict:
@@ -512,7 +528,7 @@ def test_delete_entity_drops_registry_table_before_removing_config(
     monkeypatch.setattr(imports, "quote_identifier", lambda _db, name: f'"{name}"')
 
     response = asyncio.run(
-        imports.delete_entity("reference", "plots", delete_table=True)
+        imports.delete_entity(_request(), "reference", "plots", delete_table=True)
     )
 
     assert response["success"] is True
@@ -580,7 +596,11 @@ def test_delete_entity_keeps_config_when_requested_table_drop_fails(
     monkeypatch.setattr(imports, "quote_identifier", lambda _db, name: f'"{name}"')
 
     with pytest.raises(imports.HTTPException) as exc_info:
-        asyncio.run(imports.delete_entity("dataset", "occurrences", delete_table=True))
+        asyncio.run(
+            imports.delete_entity(
+                _request(), "dataset", "occurrences", delete_table=True
+            )
+        )
 
     assert exc_info.value.status_code == 500
     current_config = yaml.safe_load(import_path.read_text(encoding="utf-8"))

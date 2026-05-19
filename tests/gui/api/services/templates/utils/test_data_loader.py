@@ -131,6 +131,8 @@ def test_load_sample_data_spatial_query_uses_configured_source_dataset(monkeypat
             "spatial_query": True,
             "geometry": "POLYGON ((0 0,1 0,1 1,0 1,0 0))",
             "source_dataset": "observations",
+            "source_type": "entity",
+            "entity_data": {"id": 1, "value": "shape row"},
         },
         template_config={"field": "value"},
         limit=10,

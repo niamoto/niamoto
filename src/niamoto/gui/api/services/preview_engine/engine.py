@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import html as html_module
+import json
 import logging
 import os
 import threading
@@ -366,10 +367,30 @@ class PreviewEngine:
         global _transformer_svc, _transformer_svc_context
         _transformer_svc = None
         _transformer_svc_context = None
+        self._close_db()
         self._data_fingerprint = self._compute_data_fingerprint()
-        self._db = None
         self._rich_entity_cache.clear()
         self._group_ids_cache.clear()
+
+    def _close_db(self) -> None:
+        """Close the cached database session and engine if they exist."""
+        db = self._db
+        self._db = None
+        if db is None:
+            return
+        try:
+            close_session = getattr(db, "close_db_session", None)
+            if callable(close_session):
+                close_session()
+        except Exception as exc:
+            logger.warning("Could not close preview database session: %s", exc)
+        engine = getattr(db, "engine", None)
+        dispose = getattr(engine, "dispose", None)
+        if callable(dispose):
+            try:
+                dispose()
+            except Exception as exc:
+                logger.warning("Could not dispose preview database engine: %s", exc)
 
     # ------------------------------------------------------------------
     # Shared helpers
@@ -690,9 +711,13 @@ class PreviewEngine:
         return hashlib.md5(":".join(parts).encode()).hexdigest()[:12]
 
     def _compute_etag(self, request: PreviewRequest) -> str:
+        inline_key = ""
+        if request.inline is not None:
+            inline_key = json.dumps(request.inline, sort_keys=True, default=str)
         key = (
             f"{request.template_id}:{request.group_by}:{request.source}"
-            f":{request.entity_id}:{self._data_fingerprint}"
+            f":{request.entity_id}:{request.mode}:{inline_key}"
+            f":{self._data_fingerprint}"
         )
         return hashlib.md5(key.encode()).hexdigest()
 
@@ -852,9 +877,12 @@ class PreviewEngine:
 
             # Sample query
             if is_hierarchical and has_nested_set:
+                where_clause = (
+                    f"WHERE {quote_identifier(db, 'level')} <= 3 " if has_level else ""
+                )
                 query = text(
                     f"SELECT {safe_sql} FROM {quoted} "
-                    f"WHERE {quote_identifier(db, 'level')} <= 3 "
+                    f"{where_clause}"
                     f"ORDER BY {quote_identifier(db, 'lft')} LIMIT 50"
                 )
             elif is_hierarchical and has_parent:
@@ -1989,6 +2017,9 @@ def get_preview_engine() -> PreviewEngine | None:
                 and _engine_instance._config_dir == config_dir
             ):
                 return _engine_instance
+            invalidate = getattr(_engine_instance, "invalidate", None)
+            if callable(invalidate):
+                invalidate()
         engine = PreviewEngine(
             db_path=str(db_path),
             config_dir=config_dir,
@@ -2001,6 +2032,9 @@ def reset_preview_engine() -> None:
     """Reset the instance -- useful after switching projects."""
     global _engine_instance, _transformer_svc, _transformer_svc_context
     with _engine_lock:
+        invalidate = getattr(_engine_instance, "invalidate", None)
+        if callable(invalidate):
+            invalidate()
         _engine_instance = None
         _transformer_svc = None
         _transformer_svc_context = None

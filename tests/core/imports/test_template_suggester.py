@@ -180,7 +180,7 @@ def test_template_suggestion_to_dict_exposes_widget_metadata(monkeypatch):
     assert payload["config"] == {"source": "occurrences", "field": "dbh"}
 
 
-def test_create_general_info_suggestion_builds_generic_reference_payload():
+def test_create_general_info_suggestion_defers_schema_specific_fields_to_ui():
     suggestion = TemplateSuggester()._create_general_info_suggestion(
         reference_name="plots",
         source_name="occurrences",
@@ -190,18 +190,5 @@ def test_create_general_info_suggestion_builds_generic_reference_payload():
     assert suggestion.plugin == "field_aggregator"
     assert suggestion.source == "template"
     assert suggestion.matched_column == "plots"
-    assert suggestion.config == {
-        "fields": [
-            {
-                "source": "plots",
-                "field": "name",
-                "target": "name",
-            },
-            {
-                "source": "occurrences",
-                "field": "id",
-                "target": "count",
-                "transformation": "count",
-            },
-        ]
-    }
+    assert suggestion.source_name == "occurrences"
+    assert suggestion.config == {"fields": []}

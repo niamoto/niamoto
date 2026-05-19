@@ -209,20 +209,8 @@ class TemplateSuggester:
             match_reason=f"Widget essentiel pour {reference_name}",
             is_recommended=True,
             config={
-                # Generic config - user should configure specific fields in UI
-                "fields": [
-                    {
-                        "source": reference_name,
-                        "field": "name",  # Generic - user configures actual field
-                        "target": "name",
-                    },
-                    {
-                        "source": source_name,
-                        "field": "id",
-                        "target": "count",
-                        "transformation": "count",
-                    },
-                ]
+                # Generic config - user should configure specific fields in UI.
+                "fields": []
             },
             alternatives=[],
         )

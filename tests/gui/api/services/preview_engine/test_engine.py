@@ -17,6 +17,85 @@ def _make_engine() -> PreviewEngine:
     return PreviewEngine("/tmp/niamoto-preview.db", "/tmp/niamoto/config")
 
 
+def test_compute_etag_includes_mode_and_inline_configuration():
+    engine = _make_engine()
+    base = PreviewRequest(
+        template_id="taxons_bar_plot",
+        group_by="taxons",
+        source="occurrences",
+        entity_id="1",
+        mode="full",
+    )
+
+    assert engine._compute_etag(base) != engine._compute_etag(
+        PreviewRequest(
+            template_id="taxons_bar_plot",
+            group_by="taxons",
+            source="occurrences",
+            entity_id="1",
+            mode="thumbnail",
+        )
+    )
+    assert engine._compute_etag(
+        PreviewRequest(
+            mode="full",
+            inline={
+                "widget_plugin": "bar_plot",
+                "transformer_params": {"field": "dbh"},
+            },
+        )
+    ) == engine._compute_etag(
+        PreviewRequest(
+            mode="full",
+            inline={
+                "transformer_params": {"field": "dbh"},
+                "widget_plugin": "bar_plot",
+            },
+        )
+    )
+    assert engine._compute_etag(PreviewRequest(mode="full", inline={"a": 1})) != (
+        engine._compute_etag(PreviewRequest(mode="full", inline={"a": 2}))
+    )
+
+
+def test_render_navigation_nested_set_without_level_column(monkeypatch):
+    engine = _make_engine()
+    db = MagicMock()
+    db.engine.dialect.identifier_preparer.quote.side_effect = lambda name: f'"{name}"'
+
+    conn = MagicMock()
+    conn.execute.return_value.fetchall.return_value = [
+        ("id", "INTEGER"),
+        ("name", "VARCHAR"),
+        ("lft", "INTEGER"),
+        ("rght", "INTEGER"),
+    ]
+    db.engine.connect.return_value.__enter__.return_value = conn
+
+    captured: dict[str, str] = {}
+
+    def fake_read_sql(query, _engine):
+        captured["query"] = str(query)
+        return pd.DataFrame([{"id": 1, "name": "Root", "lft": 1, "rght": 2}])
+
+    monkeypatch.setattr(
+        preview_engine_module, "resolve_reference_table", lambda _db, _name: "taxons"
+    )
+    monkeypatch.setattr(
+        preview_engine_module, "quote_identifier", lambda _db, name: f'"{name}"'
+    )
+    monkeypatch.setattr(preview_engine_module.pd, "read_sql", fake_read_sql)
+    monkeypatch.setattr(
+        engine,
+        "_render_navigation_inline",
+        lambda *args, **kwargs: "<nav>ok</nav>",
+    )
+
+    assert engine._render_navigation("taxons", db, []) == "<nav>ok</nav>"
+    assert 'ORDER BY "lft" LIMIT 50' in captured["query"]
+    assert '"level"' not in captured["query"]
+
+
 def test_get_preview_engine_rebuilds_when_context_changes(monkeypatch):
     created: list[tuple[str, str]] = []
 
@@ -55,6 +134,35 @@ def test_get_preview_engine_rebuilds_when_context_changes(monkeypatch):
         ("/tmp/project-a/db/niamoto.duckdb", "/tmp/project-a/config"),
         ("/tmp/project-b/db/niamoto.duckdb", "/tmp/project-b/config"),
     ]
+
+
+def test_get_preview_engine_closes_previous_database_on_context_change(monkeypatch):
+    current = {
+        "db_path": Path("/tmp/project-a/db/niamoto.duckdb"),
+        "work_dir": Path("/tmp/project-a"),
+    }
+    monkeypatch.setattr(
+        preview_engine_module, "get_database_path", lambda: current["db_path"]
+    )
+    monkeypatch.setattr(
+        preview_engine_module, "get_working_directory", lambda: current["work_dir"]
+    )
+
+    preview_engine_module.reset_preview_engine()
+    try:
+        first = preview_engine_module.get_preview_engine()
+        db = MagicMock()
+        first._db = db
+
+        current["db_path"] = Path("/tmp/project-b/db/niamoto.duckdb")
+        current["work_dir"] = Path("/tmp/project-b")
+        second = preview_engine_module.get_preview_engine()
+    finally:
+        preview_engine_module.reset_preview_engine()
+
+    assert second is not first
+    db.close_db_session.assert_called_once()
+    db.engine.dispose.assert_called_once()
 
 
 def test_get_transformer_service_rebuilds_when_engine_context_changes():
@@ -169,13 +277,29 @@ def test_invalidate_clears_all_caches():
     engine = _make_engine()
     engine._rich_entity_cache["taxons"] = 42
     engine._group_ids_cache["taxons"] = [1, 2, 3]
-    engine._db = MagicMock()
+    db = MagicMock()
+    engine._db = db
 
     engine.invalidate()
 
     assert engine._rich_entity_cache == {}
     assert engine._group_ids_cache == {}
     assert engine._db is None
+    db.close_db_session.assert_called_once()
+    db.engine.dispose.assert_called_once()
+
+
+def test_reset_preview_engine_closes_existing_database():
+    engine = _make_engine()
+    db = MagicMock()
+    engine._db = db
+    preview_engine_module._engine_instance = engine
+
+    preview_engine_module.reset_preview_engine()
+
+    assert preview_engine_module._engine_instance is None
+    db.close_db_session.assert_called_once()
+    db.engine.dispose.assert_called_once()
 
 
 def test_invalidate_forces_requery():

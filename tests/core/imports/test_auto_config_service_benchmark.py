@@ -26,6 +26,17 @@ def _copy_import_fixtures(tmp_path: Path, filenames: list[str]) -> Path:
     return tmp_path
 
 
+def test_benchmark_fixture_directory_contains_required_samples():
+    """Guard the shared GUI fixture path used by benchmark scenarios."""
+    assert FIXTURES_DIR.exists()
+    for filename in (
+        "sample_occurrences.csv",
+        "sample_taxonomy.csv",
+        "sample_plots.csv",
+    ):
+        assert (FIXTURES_DIR / filename).is_file()
+
+
 @pytest.fixture
 def benchmark_service(tmp_path: Path) -> AutoConfigService:
     """Create an AutoConfigService rooted in a temporary working directory."""

@@ -72,6 +72,10 @@ class TransformMetrics(BaseModel):
     execution_time: float
 
 
+class TransformCancelled(RuntimeError):
+    """Raised inside the transform worker when a user cancels the job."""
+
+
 def get_transform_config(config_path: str) -> Dict[str, Any]:
     """Load and parse transform configuration."""
     path = get_config_path(config_path)
@@ -99,6 +103,18 @@ def _get_job_store(request: Request) -> JobFileStore:
         raise HTTPException(status_code=500, detail=f"JobFileStore unavailable: {exc}")
 
 
+def _normalize_transform_groups(config: Any) -> List[Dict[str, Any]]:
+    """Return transform groups from supported transform.yml shapes."""
+    if isinstance(config, list):
+        return [group for group in config if isinstance(group, dict)]
+    if isinstance(config, dict):
+        transforms = config.get("transforms")
+        if isinstance(transforms, list):
+            return [group for group in transforms if isinstance(group, dict)]
+        return [config]
+    raise ValueError("Unsupported transform configuration format")
+
+
 async def execute_transform_background(
     job_id: str,
     job_store: JobFileStore,
@@ -110,7 +126,14 @@ async def execute_transform_background(
     """Execute transformations in the background."""
 
     try:
+
+        def raise_if_cancelled() -> None:
+            job = job_store.get_job(job_id)
+            if job and job.get("status") == "cancelled":
+                raise TransformCancelled("Transform job cancelled")
+
         job_store.update_progress(job_id, 0, "Loading configuration...")
+        raise_if_cancelled()
 
         # Load configuration
         config = get_transform_config(config_path)
@@ -163,12 +186,7 @@ async def execute_transform_background(
             group_copy["widgets_data"] = widgets
             return group_copy
 
-        if isinstance(config, list):
-            raw_groups = config
-        elif isinstance(config, dict):
-            raw_groups = [config]
-        else:
-            raise ValueError("Unsupported transform configuration format")
+        raw_groups = _normalize_transform_groups(config)
 
         available_groups = {
             group.get("group_by", "default")
@@ -194,16 +212,21 @@ async def execute_transform_background(
         expected_transformations: List[Dict[str, str]] = []
         widget_name_counts: Dict[str, int] = {}
         for group in prepared_config:
+            widgets = group.get("widgets_data", {}) or {}
+            for widget_name in widgets.keys():
+                widget_name_counts[widget_name] = (
+                    widget_name_counts.get(widget_name, 0) + 1
+                )
+
+        for group in prepared_config:
             group_name = group.get("group_by", "default")
             widgets = group.get("widgets_data", {}) or {}
             for widget_name in widgets.keys():
-                occurrence = widget_name_counts.get(widget_name, 0)
-                widget_name_counts[widget_name] = occurrence + 1
-
-                if occurrence > 0:
-                    key = f"{group_name}:{widget_name}"
-                else:
-                    key = widget_name
+                key = (
+                    f"{group_name}:{widget_name}"
+                    if widget_name_counts.get(widget_name, 0) > 1
+                    else widget_name
+                )
 
                 expected_transformations.append(
                     {
@@ -243,6 +266,7 @@ async def execute_transform_background(
         start_time = datetime.now()
 
         def handle_progress(update: Dict[str, Any]) -> None:
+            raise_if_cancelled()
             processed = update.get("processed") or 0
             total = update.get("total") or total_transforms
             progress_value = 10
@@ -254,6 +278,7 @@ async def execute_transform_background(
                 f"{update.get('widget', 'widget')}"
             )
             job_store.update_progress(job_id, progress_value, message)
+            raise_if_cancelled()
 
         transform_results = await asyncio.to_thread(
             transformer_service.transform_data,
@@ -262,6 +287,7 @@ async def execute_transform_background(
             True,
             handle_progress,
         )
+        raise_if_cancelled()
 
         execution_time = (datetime.now() - start_time).total_seconds()
 
@@ -315,6 +341,8 @@ async def execute_transform_background(
             },
         )
 
+    except TransformCancelled:
+        logger.info("Transform job %s was cancelled", job_id)
     except Exception as e:
         logger.exception("Transform job %s failed", job_id)
         job_store.fail_job(job_id, str(e))
@@ -416,10 +444,12 @@ async def list_transform_jobs(http_request: Request):
     """
     job_store = _get_job_store(http_request)
     jobs = []
+    seen_job_ids: set[str] = set()
 
     # Job actif (filtré par type)
     active = job_store.get_active_job(job_type="transform")
     if active:
+        seen_job_ids.add(active["id"])
         jobs.append(
             {
                 "job_id": active["id"],
@@ -433,10 +463,13 @@ async def list_transform_jobs(http_request: Request):
 
     # Historique récent
     for entry in job_store.get_history(limit=10):
-        if entry.get("type") == "transform":
+        entry_id = entry.get("id")
+        if entry.get("type") == "transform" and entry_id not in seen_job_ids:
+            if entry_id:
+                seen_job_ids.add(entry_id)
             jobs.append(
                 {
-                    "job_id": entry["id"],
+                    "job_id": entry_id,
                     "status": entry["status"],
                     "started_at": entry["started_at"],
                     "completed_at": entry.get("completed_at"),
@@ -459,10 +492,21 @@ async def cancel_transform_job(job_id: str, http_request: Request):
     if not job:
         raise HTTPException(status_code=404, detail=f"Transform job {job_id} not found")
 
-    # L'annulation réelle n'est pas implémentée en v1
-    raise HTTPException(
-        status_code=501, detail=f"Annulation non implémentée en v1 (job {job_id})"
-    )
+    if job.get("type") != "transform":
+        raise HTTPException(status_code=404, detail=f"Transform job {job_id} not found")
+    if job.get("status") != "running":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Transform job {job_id} is not running",
+        )
+
+    cancelled = job_store.cancel_job(job_id, "Transform job cancelled")
+    if not cancelled:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Transform job {job_id} could not be cancelled",
+        )
+    return _job_to_status(cancelled)
 
 
 @router.get("/config")
@@ -481,48 +525,29 @@ async def get_transform_config_endpoint():
         total_widgets = 0
         all_widgets_data = {}
 
-        if isinstance(config, list):
-            # If config is a list of transform groups
-            widget_name_counts: Dict[str, int] = {}
-            for group in config:
-                if not isinstance(group, dict):
-                    continue
-                widgets_data = group.get("widgets_data", {})
-                if isinstance(widgets_data, dict):
-                    for widget_name in widgets_data:
-                        widget_name_counts[widget_name] = (
-                            widget_name_counts.get(widget_name, 0) + 1
-                        )
+        groups = _normalize_transform_groups(config)
+        widget_name_counts: Dict[str, int] = {}
+        for group in groups:
+            widgets_data = group.get("widgets_data", {})
+            if isinstance(widgets_data, dict):
+                for widget_name in widgets_data:
+                    widget_name_counts[widget_name] = (
+                        widget_name_counts.get(widget_name, 0) + 1
+                    )
 
-            for group in config:
-                if isinstance(group, dict):
-                    group_name = group.get("group_by", "default")
-                    widgets_data = group.get("widgets_data", {})
-                    if isinstance(widgets_data, dict):
-                        total_widgets += len(widgets_data)
-                        for widget_name, widget_config in widgets_data.items():
-                            response_key = (
-                                f"{group_name}:{widget_name}"
-                                if widget_name_counts.get(widget_name, 0) > 1
-                                else widget_name
-                            )
-                            all_widgets_data[response_key] = widget_config
-                            if isinstance(widget_config, dict):
-                                plugin_type = widget_config.get("plugin", "unknown")
-                                widget_types[plugin_type] = (
-                                    widget_types.get(plugin_type, 0) + 1
-                                )
-        elif isinstance(config, dict):
-            # If config is a dict with widgets_data at root
-            widgets_data = config.get("widgets_data", {})
-            if widgets_data is None:
-                widgets_data = {}
-            elif not isinstance(widgets_data, dict):
-                widgets_data = {}
-
-            all_widgets_data = widgets_data
-            total_widgets = len(widgets_data)
-            for widget_config in widgets_data.values():
+        for group in groups:
+            group_name = group.get("group_by", "default")
+            widgets_data = group.get("widgets_data", {})
+            if not isinstance(widgets_data, dict):
+                continue
+            total_widgets += len(widgets_data)
+            for widget_name, widget_config in widgets_data.items():
+                response_key = (
+                    f"{group_name}:{widget_name}"
+                    if widget_name_counts.get(widget_name, 0) > 1
+                    else widget_name
+                )
+                all_widgets_data[response_key] = widget_config
                 if isinstance(widget_config, dict):
                     plugin_type = widget_config.get("plugin", "unknown")
                     widget_types[plugin_type] = widget_types.get(plugin_type, 0) + 1
@@ -596,7 +621,7 @@ async def get_last_transform_run(group_by: str, http_request: Request):
     Returns the last terminal job for this group_by or null.
     """
     job_store = _get_job_store(http_request)
-    job = job_store.get_last_run("transform", group_by=group_by)
+    job = job_store.get_last_run("transform", group_by=group_by, status="completed")
 
     if not job:
         return None
@@ -650,6 +675,8 @@ async def get_transform_sources(
         sources = []
 
         for transform in transforms:
+            if not isinstance(transform, dict):
+                continue
             transform_group = transform.get("group_by")
 
             # If group_by filter specified, skip non-matching groups
@@ -657,7 +684,12 @@ async def get_transform_sources(
                 continue
 
             # Extract source names
-            for source in transform.get("sources", []):
+            transform_sources = transform.get("sources", [])
+            if not isinstance(transform_sources, list):
+                continue
+            for source in transform_sources:
+                if not isinstance(source, dict):
+                    continue
                 source_name = source.get("name")
                 if source_name:
                     sources.append(source_name)
@@ -665,6 +697,8 @@ async def get_transform_sources(
         # Return sorted unique sources
         return {"sources": sorted(list(set(sources)))}
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error loading transform sources: {str(e)}"

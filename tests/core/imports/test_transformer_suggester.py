@@ -12,6 +12,7 @@ from niamoto.core.imports.data_analyzer import (
 from niamoto.core.imports.transformer_suggester import (
     TransformerSuggester,
 )
+from niamoto.core.imports.widget_generator import WidgetGenerator
 
 
 @pytest.fixture
@@ -110,6 +111,20 @@ class TestCategoryMapping:
         # Identifiers with high cardinality can get top_ranking to show most frequent values
         assert len(suggestions) == 1
         assert suggestions[0].transformer_name == "top_ranking"
+
+    def test_identifier_pipeline_suppresses_widgets_after_transformer_suggestion(
+        self, suggester, id_profile
+    ):
+        """Widget generation intentionally suppresses identifier suggestions."""
+        transformer_suggestions = suggester.suggest_transformers(
+            id_profile, "occurrences"
+        )
+        widget_suggestions = WidgetGenerator().generate_for_columns([id_profile])
+
+        assert [item.transformer_name for item in transformer_suggestions] == [
+            "top_ranking"
+        ]
+        assert widget_suggestions == []
 
     def test_identifier_like_numeric_profile_skips_measurement_widgets(self, suggester):
         """Legacy identifier names should not get measurement-oriented transformers."""

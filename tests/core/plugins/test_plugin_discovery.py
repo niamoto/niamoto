@@ -174,18 +174,19 @@ class TestPluginDiscovery:
                                 ) as mock_module_from_spec:
                                     # Set up the mock module
                                     mock_module = MagicMock()
+                                    mock_module.__name__ = "fake_module"
                                     mock_module_from_spec.return_value = mock_module
 
                                     # Mock the plugin class
-                                    mock_plugin_class = MagicMock()
-                                    mock_plugin_class.type = PluginType.TRANSFORMER
+                                    class FakePlugin:
+                                        type = PluginType.TRANSFORMER
+
+                                    FakePlugin.__module__ = "fake_module"
 
                                     # Mock inspect.getmembers to return our fake plugin
                                     with patch(
                                         "inspect.getmembers",
-                                        return_value=[
-                                            ("FakePlugin", mock_plugin_class)
-                                        ],
+                                        return_value=[("FakePlugin", FakePlugin)],
                                     ):
                                         # Mock is_plugin_class
                                         with patch(
@@ -198,28 +199,26 @@ class TestPluginDiscovery:
                                                 "_get_module_name",
                                                 return_value="fake_module",
                                             ):
-                                                # Discover plugins
-                                                discovered = (
-                                                    plugin_loader.discover_plugins(
-                                                        Path("/fake/path")
+                                                with patch(
+                                                    "importlib.import_module",
+                                                    return_value=mock_module,
+                                                ):
+                                                    discovered = (
+                                                        plugin_loader.discover_plugins(
+                                                            Path("/fake/path")
+                                                        )
                                                     )
+
+                                                assert any(
+                                                    item["path"] == str(fake_file_path)
+                                                    and item["module"] == "fake_module"
+                                                    and item["type"] == "transformer"
+                                                    for item in discovered
                                                 )
 
-                                                # Manually add a discovered plugin for testing
-                                                if not discovered:
-                                                    discovered.append(
-                                                        {
-                                                            "path": str(fake_file_path),
-                                                            "module": "fake_module",
-                                                            "name": "plugin1",
-                                                            "type": "transformer",
-                                                        }
-                                                    )
-
-                                                # Verify that plugins were discovered
-                                                assert len(discovered) > 0
-
-    def test_plugin_discovery_error_handling(self, plugin_loader, clear_registry):
+    def test_plugin_discovery_error_handling(
+        self, plugin_loader, clear_registry, tmp_path
+    ):
         """Test error handling during plugin discovery."""
         # Test with a non-existent path
         non_existent_path = Path("/path/that/does/not/exist")
@@ -228,25 +227,14 @@ class TestPluginDiscovery:
         discovered = plugin_loader.discover_plugins(non_existent_path)
         assert discovered == []
 
-        # Test with a path that exists but has import errors
-        with patch("os.walk") as mock_walk:
-            # Mock the os.walk function to return a fake directory structure
-            mock_walk.return_value = [
-                ("/fake/path", [], ["plugin_with_error.py"]),
-            ]
+        # Test with a real plugin file that raises during speculative import.
+        plugin_root = tmp_path / "plugins"
+        plugin_root.mkdir()
+        (plugin_root / "plugin_with_error.py").write_text("raise ImportError('boom')\n")
 
-            # Mock the isfile check
-            with patch("os.path.isfile", return_value=True):
-                # Mock the import_module function to raise ImportError
-                with patch(
-                    "importlib.import_module",
-                    side_effect=ImportError("Fake import error"),
-                ):
-                    # Discover plugins - should not raise an exception
-                    discovered = plugin_loader.discover_plugins(Path("/fake/path"))
+        discovered = plugin_loader.discover_plugins(plugin_root)
 
-                    # Should return an empty list
-                    assert discovered == []
+        assert discovered == []
 
 
 # Add more test classes as needed for plugin discovery

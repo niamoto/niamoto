@@ -159,6 +159,29 @@ def test_transform_success_ratio_mode(aggregator, sample_config_ratio, sample_da
     np.testing.assert_allclose(res_dist["complement"], expected_complement)
 
 
+def test_duplicate_class_buckets_are_summed_before_ratio(
+    aggregator, sample_config_ratio
+):
+    data = pd.DataFrame(
+        {
+            "class_object": [
+                "land_elevation",
+                "land_elevation",
+                "forest_elevation",
+                "forest_elevation",
+            ],
+            "class_name": [100, 100, 100, 100],
+            "class_value": [60, 40, 25, 25],
+        }
+    )
+
+    result = aggregator.transform(data=data, config=sample_config_ratio)
+
+    assert result["elevation_ratio"]["classes"] == [100]
+    np.testing.assert_allclose(result["elevation_ratio"]["subset"], [50.0])
+    np.testing.assert_allclose(result["elevation_ratio"]["complement"], [0.5])
+
+
 def test_transform_success_difference_mode(
     aggregator, sample_config_difference, sample_data
 ):

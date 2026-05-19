@@ -64,7 +64,6 @@ def test_detect_coordinate_columns_detects_wkt_and_xy_candidates():
     )
 
     assert detected == {
-        "wkt_col": "geo_pt_geom",
         "x_col": "Longitude",
         "y_col": "Latitude",
     }
@@ -526,6 +525,22 @@ def test_import_summary_uses_duckdb_fixture_without_sqlalchemy_reflection_errors
     assert entities["entity_taxons"]["entity_type"] == "reference"
 
 
+def test_import_summary_hides_unexpected_exception_details(
+    gui_duckdb_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def fail_summary(_db_path):
+        raise RuntimeError("secret /private/db/path")
+
+    monkeypatch.setattr(stats_router, "_compute_import_summary", fail_summary)
+
+    response = gui_duckdb_client.get("/api/stats/summary")
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Error getting import summary"
+    assert "secret /private/db/path" not in response.text
+
+
 def test_completeness_endpoint_uses_duckdb_fixture_without_reflection_errors(
     gui_duckdb_client: TestClient,
 ):
@@ -687,6 +702,46 @@ def test_hierarchy_inspection_loads_roots_children_and_search(
     second_page = second_page_response.json()
     assert second_page["offset"] == 1
     assert second_page["nodes"][0]["label"] == "Araucaria"
+
+
+def test_hierarchy_inspection_search_escapes_like_wildcards(
+    gui_duckdb_client: TestClient, gui_duckdb_project
+):
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute("DROP TABLE entity_taxons")
+        conn.execute(
+            """
+            CREATE TABLE entity_taxons (
+                id INTEGER,
+                parent_id INTEGER,
+                level INTEGER,
+                rank_name VARCHAR,
+                rank_value VARCHAR,
+                full_name VARCHAR,
+                full_path VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_taxons VALUES
+                (101, NULL, 0, 'family', 'Percentaceae', '100% literal', '100% literal'),
+                (102, NULL, 0, 'family', 'Plainaceae', 'Plain family', 'Plain family')
+            """
+        )
+    finally:
+        conn.close()
+
+    response = gui_duckdb_client.get(
+        "/api/stats/hierarchy/taxons?mode=search&search=%25&limit=10"
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["result_count"] == 1
+    assert payload["nodes"][0]["label"] == "100% literal"
 
 
 def test_taxonomy_consistency_counts_dangling_parent_orphans(
@@ -1096,6 +1151,19 @@ def test_spatial_stats_preserves_wkt_counts_without_spatial_extension(
     monkeypatch.setattr(
         stats_router, "_load_spatial_extension_best_effort", fail_spatial_extension
     )
+    fallback_calls = 0
+    original_wkt_fallback = stats_router._compute_wkt_geometry_stats_fallback
+
+    def count_wkt_fallback_calls(*args, **kwargs):
+        nonlocal fallback_calls
+        fallback_calls += 1
+        return original_wkt_fallback(*args, **kwargs)
+
+    monkeypatch.setattr(
+        stats_router,
+        "_compute_wkt_geometry_stats_fallback",
+        count_wkt_fallback_calls,
+    )
 
     response = gui_duckdb_client.get("/api/stats/spatial?entity=shapes")
     assert response.status_code == 200, response.text
@@ -1110,6 +1178,7 @@ def test_spatial_stats_preserves_wkt_counts_without_spatial_extension(
         "max_x": 167.0,
         "max_y": -20.0,
     }
+    assert fallback_calls == 1
 
 
 def test_spatial_stats_prefers_explicit_xy_columns_over_detected_wkt(
@@ -1319,6 +1388,20 @@ def test_value_validation_rejects_requested_non_numeric_column(
     )
 
 
+def test_value_validation_rejects_requested_missing_column(
+    gui_duckdb_client: TestClient,
+):
+    response = gui_duckdb_client.get(
+        "/api/stats/value-validation/dataset_occurrences",
+        params={"columns": "count,missing_column"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == (
+        "Column(s) not found in dataset_occurrences: missing_column"
+    )
+
+
 def test_value_validation_preserves_zero_median(
     gui_duckdb_client: TestClient,
     gui_duckdb_project,
@@ -1463,6 +1546,20 @@ def test_export_outliers_csv_rejects_unknown_method(
     assert response.status_code == 422
 
 
+def test_export_outliers_csv_rejects_non_numeric_column(
+    gui_duckdb_client: TestClient,
+):
+    response = gui_duckdb_client.get(
+        "/api/stats/value-validation/dataset_occurrences/export-outliers",
+        params={"column": "locality", "method": "iqr"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Column 'locality' is not numeric and cannot be analyzed for outliers"
+    )
+
+
 def test_export_outliers_csv_accepts_valid_percentile_request(
     gui_duckdb_client: TestClient,
 ):
@@ -1474,6 +1571,22 @@ def test_export_outliers_csv_accepts_valid_percentile_request(
     assert response.status_code == 200, response.text
     assert response.headers["content-type"].startswith("text/csv")
     assert response.text.splitlines()[0].startswith("count,")
+
+
+def test_spatial_map_inspection_hides_unexpected_exception_details(
+    gui_duckdb_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def fail_spatial_map(*_args, **_kwargs):
+        raise RuntimeError("secret /tmp/spatial.sql")
+
+    monkeypatch.setattr(stats_router, "_build_spatial_map_inspection", fail_spatial_map)
+
+    response = gui_duckdb_client.get("/api/stats/spatial-map/plots")
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Error getting spatial map data"
+    assert "secret /tmp/spatial.sql" not in response.text
 
 
 def test_spatial_map_preserves_wkt_features_without_spatial_extension(

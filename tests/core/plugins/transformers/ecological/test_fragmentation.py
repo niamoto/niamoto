@@ -187,7 +187,7 @@ class TestFragmentationAnalysis:
         assert result["meff_unit"] == "km2"  # Expect 'km2' as per the code logic
         assert result["edge_length"] == 0.0
         assert result["edge_density"] == 0.0
-        assert result["edge_unit"] == "m/km2"  # Density unit depends on area_unit
+        assert result["edge_unit"] == "m/km²"  # Density unit depends on area_unit
 
         # Verify the mock was called correctly with the full path
         expected_path = "/fake/base/dir/dummy/outside.shp"

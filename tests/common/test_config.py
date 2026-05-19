@@ -32,8 +32,8 @@ class TestConfig(NiamotoTestCase):
         from unittest import mock
 
         # Clean up test directory
-        if os.path.exists(self.config_dir):
-            shutil.rmtree(self.config_dir)
+        if os.path.exists(self.test_dir):
+            shutil.rmtree(self.test_dir)
 
         # Stop all active patches to prevent MagicMock leaks
         mock.patch.stopall()

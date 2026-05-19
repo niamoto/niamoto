@@ -565,6 +565,8 @@ def find_entity_by_id(
                             result["geometry"] = wkt_result.iloc[0]["wkt"]
                             result["spatial_query"] = True
                             result["kind"] = "spatial"
+                            result["source_dataset"] = source_dataset
+                            result["source_table"] = table_name
                 except Exception as e:
                     logger.debug(
                         "WKT conversion failed for entity %s: %s", entity_id, e

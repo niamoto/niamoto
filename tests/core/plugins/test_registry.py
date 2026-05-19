@@ -83,6 +83,39 @@ class TestPluginRegistry(NiamotoTestCase):
         stored_metadata = PluginRegistry.get_plugin_metadata("test_plugin")
         self.assertEqual(stored_metadata, metadata)
 
+    def test_metadata_is_isolated_by_plugin_type(self):
+        """Same-name plugins of different types keep independent metadata."""
+        PluginRegistry.register_plugin(
+            "shared_plugin",
+            MockPlugin,
+            metadata={"kind": "transformer"},
+        )
+        PluginRegistry.register_plugin(
+            "shared_plugin",
+            MockLoaderPlugin,
+            metadata={"kind": "loader"},
+        )
+
+        self.assertEqual(
+            PluginRegistry.get_plugin_metadata("shared_plugin", PluginType.TRANSFORMER),
+            {"kind": "transformer"},
+        )
+        self.assertEqual(
+            PluginRegistry.get_plugin_metadata("shared_plugin", PluginType.LOADER),
+            {"kind": "loader"},
+        )
+
+        PluginRegistry.remove_plugin("shared_plugin", PluginType.TRANSFORMER)
+
+        self.assertEqual(
+            PluginRegistry.get_plugin_metadata("shared_plugin", PluginType.TRANSFORMER),
+            {},
+        )
+        self.assertEqual(
+            PluginRegistry.get_plugin_metadata("shared_plugin", PluginType.LOADER),
+            {"kind": "loader"},
+        )
+
     def test_register_plugin_invalid_type(self):
         """Test registering a plugin with invalid type."""
         # Try to register a plugin with invalid type

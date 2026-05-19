@@ -117,6 +117,38 @@ def test_duplicate_class_rows_are_summed(plugin, sample_data):
     assert result["forest_cover"]["Hors-forêt"] == 775.0
 
 
+def test_configured_classes_are_preserved_when_absent_from_data(plugin):
+    """Configured binary output keys should remain stable even with missing rows."""
+    data = pd.DataFrame(
+        {
+            "class_object": ["cover_forest"],
+            "class_name": ["Forêt"],
+            "class_value": [300],
+        }
+    )
+    config = {
+        "plugin": "class_object_binary_aggregator",
+        "params": {
+            "source": "shape_stats",
+            "groups": [
+                {
+                    "label": "forest_cover",
+                    "field": "cover_forest",
+                    "classes": ["forest", "non_forest"],
+                    "class_mapping": {
+                        "Forêt": "forest",
+                        "Hors-forêt": "non_forest",
+                    },
+                }
+            ],
+        },
+    }
+
+    result = plugin.transform(data, config)
+
+    assert result["forest_cover"] == {"forest": 300.0, "non_forest": 0.0}
+
+
 def test_legacy_binary_config_is_migrated(plugin, sample_data):
     """Legacy generated binary config should still transform successfully."""
     config = {
