@@ -124,7 +124,7 @@ class DataProfiler:
     and value-based high-precision rules for coordinates, WKT, and dates.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the profiler."""
         self._alias_registry = _get_alias_registry()
 
@@ -170,10 +170,16 @@ class DataProfiler:
         # Store file path in data attributes for detection
         df.attrs["file_path"] = file_path
 
+        semantic_detections = self.detect_semantic_types(
+            [(col_name, df[col_name]) for col_name in df.columns]
+        )
+
         # Profile columns
         columns = []
-        for col_name in df.columns:
-            col_profile = self._profile_column(df[col_name], col_name)
+        for col_name, semantic_detection in zip(df.columns, semantic_detections):
+            col_profile = self._profile_column(
+                df[col_name], col_name, semantic_detection=semantic_detection
+            )
             columns.append(col_profile)
 
         # Detect dataset type based on column profiles
@@ -296,7 +302,13 @@ class DataProfiler:
 
         return sep
 
-    def _profile_column(self, series: pd.Series, col_name: str) -> ColumnProfile:
+    def _profile_column(
+        self,
+        series: pd.Series,
+        col_name: str,
+        *,
+        semantic_detection: Optional[Tuple[Optional[str], float]] = None,
+    ) -> ColumnProfile:
         """Profile a single column."""
         profile = ColumnProfile(name=col_name, dtype=str(series.dtype))
 
@@ -312,7 +324,10 @@ class DataProfiler:
             profile.sample_values = non_null.head(10).tolist()
 
         # Detect semantic type (legacy flat string)
-        semantic_type, confidence = self._detect_semantic_type(col_name, series)
+        if semantic_detection is None:
+            semantic_type, confidence = self._detect_semantic_type(col_name, series)
+        else:
+            semantic_type, confidence = semantic_detection
         profile.semantic_type = semantic_type
         profile.confidence = confidence
 
@@ -363,18 +378,49 @@ class DataProfiler:
         2. ML classifier 3-branch (header + values + fusion)
         3. Value rules (WKT geometry, FK pattern)
         """
-        # ── 1. Alias registry exact match (fast path) ─────────────────
-        concept, score = self._alias_registry.match(col_name)
-        if concept and score >= 1.0:
-            return concept, score
+        return self.detect_semantic_types([(col_name, series)])[0]
 
-        # ── 2. ML classifier (header + values + fusion) ──────────────
-        classifier = _get_classifier()
-        ml_concept, ml_confidence = classifier.classify(col_name, series)
-        if ml_concept and ml_confidence >= self.MIN_ML_CONFIDENCE:
-            return ml_concept, ml_confidence
+    def detect_semantic_types(
+        self, columns: List[Tuple[str, pd.Series]]
+    ) -> List[Tuple[Optional[str], float]]:
+        """Detect semantic types for several columns using batched ML inference."""
+        if not columns:
+            return []
 
-        # ── 3. Value rules ───────────────────────────────────────────
+        detections: List[Tuple[Optional[str], float]] = [(None, 0.0) for _ in columns]
+        pending_columns: List[Tuple[str, pd.Series]] = []
+        pending_indices: List[int] = []
+
+        for index, (col_name, series) in enumerate(columns):
+            concept, score = self._alias_registry.match(col_name)
+            if concept and score >= 1.0:
+                detections[index] = (concept, score)
+                continue
+
+            pending_indices.append(index)
+            pending_columns.append((col_name, series))
+
+        if pending_columns:
+            classifier = _get_classifier()
+            ml_results = classifier.classify_many(pending_columns)
+            for source_index, (ml_concept, ml_confidence) in zip(
+                pending_indices, ml_results
+            ):
+                if ml_concept and ml_confidence >= self.MIN_ML_CONFIDENCE:
+                    detections[source_index] = (ml_concept, ml_confidence)
+                    continue
+
+                col_name, series = columns[source_index]
+                detections[source_index] = self._detect_semantic_value_rules(
+                    col_name, series
+                )
+
+        return detections
+
+    def _detect_semantic_value_rules(
+        self, col_name: str, series: pd.Series
+    ) -> Tuple[Optional[str], float]:
+        """Apply deterministic value/name rules after ML fallback."""
         col_lower = col_name.lower()
 
         # Foreign key structural pattern (id prefix/suffix)

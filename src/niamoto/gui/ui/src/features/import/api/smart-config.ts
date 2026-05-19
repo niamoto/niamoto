@@ -63,6 +63,10 @@ export interface AutoConfigureJobStatusResponse {
   events: AutoConfigureProgressEvent[]
   result?: AutoConfigureResponse | null
   error?: string | null
+  created_at?: number
+  started_at?: number | null
+  completed_at?: number | null
+  elapsed_seconds?: number
 }
 
 export type DecisionAlignment =

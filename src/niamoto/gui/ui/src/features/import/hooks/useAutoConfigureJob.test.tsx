@@ -147,4 +147,50 @@ describe('useAutoConfigureJob', () => {
 
     await harness.unmount()
   })
+
+  it('includes the latest progress event when the job times out', async () => {
+    const close = vi.fn()
+    const progressEvent = {
+      kind: 'stage',
+      message: 'Classifying entities',
+      timestamp: Date.now(),
+    } as const
+
+    startAutoConfigureJob.mockResolvedValue({ job_id: 'job-3', status: 'running' })
+    subscribeToAutoConfigureJobEvents.mockReturnValue({ close })
+    getAutoConfigureJob.mockResolvedValue({
+      status: 'running',
+      events: [progressEvent],
+      elapsed_seconds: 3.2,
+    })
+
+    const harness = createHookHarness(() =>
+      useAutoConfigureJob({ timeoutMs: 5, pollIntervalMs: 10 })
+    )
+    await harness.render()
+
+    let caughtError: unknown
+    await act(async () => {
+      const startPromise = harness.current
+        .start(['imports/slow.csv'], {
+          timedOut: 'Auto-configuration too slow',
+        })
+        .catch((error) => {
+          caughtError = error
+        })
+      await vi.advanceTimersByTimeAsync(20)
+      await startPromise
+    })
+
+    expect(caughtError).toBeInstanceOf(Error)
+    expect((caughtError as Error).message).toBe(
+      'Auto-configuration too slow (3s - Classifying entities)'
+    )
+    expect(harness.current.status).toBe('failed')
+    expect(harness.current.stage).toBe('Classifying entities')
+    expect(harness.current.events).toEqual([progressEvent])
+    expect(close).toHaveBeenCalled()
+
+    await harness.unmount()
+  })
 })

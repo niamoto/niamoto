@@ -11,7 +11,7 @@ The ML models handle fuzzy names, anonymous columns, and value-based detection.
 import logging
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -77,11 +77,13 @@ class ColumnClassifier:
     Branch 3 (fusion): LogReg combining both branch probabilities
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._header_model = None
         self._value_model = None
         self._fusion_model = None
         self._fusion_concepts = None
+        self._header_class_index: Optional[dict[Any, int]] = None
+        self._value_class_index: Optional[dict[Any, int]] = None
         self._loaded = False
 
     def _ensure_loaded(self) -> bool:
@@ -108,11 +110,19 @@ class ColumnClassifier:
 
             if header_path.exists():
                 self._header_model = joblib.load(header_path)
+                self._header_class_index = {
+                    concept: index
+                    for index, concept in enumerate(self._header_model.classes_)
+                }
                 logger.debug("Loaded header model from %s", header_path)
 
             if value_path.exists():
                 value_data = joblib.load(value_path)
                 self._value_model = value_data["model"]
+                self._value_class_index = {
+                    concept: index
+                    for index, concept in enumerate(self._value_model.classes_)
+                }
                 logger.debug("Loaded value model from %s", value_path)
 
             if fusion_path.exists():
@@ -143,41 +153,116 @@ class ColumnClassifier:
         Returns:
             (concept, confidence) or (None, 0.0) if no model available
         """
+        return self.classify_many(
+            [(col_name, series)], normalized_names=[name_normalized]
+        )[0]
+
+    def classify_many(
+        self,
+        columns: List[Tuple[str, pd.Series]],
+        *,
+        normalized_names: Optional[List[Optional[str]]] = None,
+    ) -> List[tuple[Optional[str], float]]:
+        """Classify multiple columns in one model pass.
+
+        The value branch is expensive when called once per column because the
+        histogram gradient boosting model has a high fixed prediction cost.
+        Batching keeps the same model behavior while paying that cost once per
+        file analysis.
+        """
+        if not columns:
+            return []
+
         if not self._ensure_loaded():
-            return None, 0.0
+            return [(None, 0.0) for _ in columns]
 
         # Prepare name for header model (same preprocessing as training)
         from niamoto.core.imports.ml.alias_registry import _normalize
 
-        norm = name_normalized or _normalize(col_name)
-
-        # Get header probabilities
-        header_proba = self._predict_header(norm, series)
-
-        # Get value probabilities
-        value_proba = self._predict_values(series)
-
-        # Detect anonymous column names
-        is_anonymous = bool(_ANONYMOUS_RE.match(norm.strip())) if norm else False
-
-        # If we have a fusion model, combine
-        if self._fusion_model is not None and self._fusion_concepts is not None:
-            return self._predict_fusion(
-                header_proba,
-                value_proba,
-                series,
-                norm_name=norm,
-                raw_name=col_name,
-                is_anonymous=is_anonymous,
+        norm_names = [
+            (
+                normalized_names[index]
+                if normalized_names
+                and index < len(normalized_names)
+                and normalized_names[index] is not None
+                else _normalize(col_name)
             )
+            for index, (col_name, _series) in enumerate(columns)
+        ]
 
-        # Fallback: use header model alone
-        if header_proba is not None:
-            idx = np.argmax(header_proba)
-            classes = self._header_model.classes_
-            return classes[idx], float(header_proba[idx])
+        header_probas: List[Optional[np.ndarray]] = [None for _ in columns]
+        if self._header_model is not None:
+            header_indices = []
+            header_inputs = []
+            for index, ((_, series), norm_name) in enumerate(zip(columns, norm_names)):
+                if not norm_name:
+                    continue
+                try:
+                    header_inputs.append(
+                        build_header_text_from_series(norm_name, series)
+                    )
+                    header_indices.append(index)
+                except Exception as e:
+                    logger.debug("Header feature extraction failed: %s", e)
 
-        return None, 0.0
+            if header_inputs:
+                try:
+                    header_predictions = self._header_model.predict_proba(header_inputs)
+                    for index, proba in zip(header_indices, header_predictions):
+                        header_probas[index] = proba
+                except Exception as e:
+                    logger.debug("Header batch prediction failed: %s", e)
+
+        value_probas: List[Optional[np.ndarray]] = [None for _ in columns]
+        if self._value_model is not None:
+            value_indices = []
+            value_features = []
+            for index, (_, series) in enumerate(columns):
+                try:
+                    value_features.append(_extract_value_features(series))
+                    value_indices.append(index)
+                except Exception as e:
+                    logger.debug("Value feature extraction failed: %s", e)
+
+            if value_features:
+                try:
+                    feature_matrix = np.vstack(value_features)
+                    value_predictions = self._value_model.predict_proba(feature_matrix)
+                    for index, proba in zip(value_indices, value_predictions):
+                        value_probas[index] = proba
+                except Exception as e:
+                    logger.debug("Value batch prediction failed: %s", e)
+
+        results: List[tuple[Optional[str], float]] = []
+        for (col_name, series), norm, header_proba, value_proba in zip(
+            columns, norm_names, header_probas, value_probas
+        ):
+            # Detect anonymous column names
+            is_anonymous = bool(_ANONYMOUS_RE.match(norm.strip())) if norm else False
+
+            # If we have a fusion model, combine
+            if self._fusion_model is not None and self._fusion_concepts is not None:
+                results.append(
+                    self._predict_fusion(
+                        header_proba,
+                        value_proba,
+                        series,
+                        norm_name=norm or "",
+                        raw_name=col_name,
+                        is_anonymous=is_anonymous,
+                    )
+                )
+                continue
+
+            # Fallback: use header model alone
+            if header_proba is not None and self._header_model is not None:
+                idx = np.argmax(header_proba)
+                classes = self._header_model.classes_
+                results.append((classes[idx], float(header_proba[idx])))
+                continue
+
+            results.append((None, 0.0))
+        return results
 
     def _predict_header(
         self, norm_name: str, series: pd.Series
@@ -216,26 +301,31 @@ class ColumnClassifier:
         is_anonymous: bool = False,
     ) -> tuple[Optional[str], float]:
         """Combine header + value probabilities via fusion model."""
-        n_concepts = len(self._fusion_concepts)
-        features = []
+        fusion_model = self._fusion_model
+        fusion_concepts = self._fusion_concepts
+        if fusion_model is None or fusion_concepts is None:
+            return None, 0.0
+
+        n_concepts = len(fusion_concepts)
+        features: list[float] = []
         aligned_header = np.zeros(n_concepts)
         aligned_value = np.zeros(n_concepts)
 
         # Align header probabilities to fusion concept space
         if header_proba is not None:
-            header_classes = list(self._header_model.classes_)
-            for i, c in enumerate(self._fusion_concepts):
-                if c in header_classes:
-                    aligned_header[i] = header_proba[header_classes.index(c)]
+            for i, c in enumerate(fusion_concepts):
+                index = (self._header_class_index or {}).get(c)
+                if index is not None:
+                    aligned_header[i] = header_proba[index]
         if value_proba is not None:
-            value_classes = list(self._value_model.classes_)
-            for i, c in enumerate(self._fusion_concepts):
-                if c in value_classes:
-                    aligned_value[i] = value_proba[value_classes.index(c)]
+            for i, c in enumerate(fusion_concepts):
+                index = (self._value_class_index or {}).get(c)
+                if index is not None:
+                    aligned_value[i] = value_proba[index]
         aligned_header, aligned_value = dampen_code_like_false_counts(
             aligned_header,
             aligned_value,
-            self._fusion_concepts,
+            fusion_concepts,
             raw_name=raw_name,
             norm_name=norm_name,
         )
@@ -248,7 +338,7 @@ class ColumnClassifier:
         )
         value_max, value_margin, value_entropy = branch_confidence_stats(aligned_value)
         agree, value_stat_count, header_stat_count = top_concept_flags(
-            aligned_header, aligned_value, self._fusion_concepts
+            aligned_header, aligned_value, fusion_concepts
         )
         anonymous = 1.0 if is_anonymous else 0.0
         code_like_header = is_code_like_header(raw_name, norm_name)
@@ -353,9 +443,9 @@ class ColumnClassifier:
 
         try:
             X = np.array(features, dtype=float).reshape(1, -1)
-            proba = self._fusion_model.predict_proba(X)[0]
+            proba = fusion_model.predict_proba(X)[0]
             idx = np.argmax(proba)
-            concept = self._fusion_model.classes_[idx]
+            concept = fusion_model.classes_[idx]
             confidence = float(proba[idx])
             return concept, confidence
         except Exception as e:

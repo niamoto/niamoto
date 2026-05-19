@@ -104,8 +104,11 @@ class AutoConfigService:
             file_path, max_rows=self.MAX_SAMPLE_ROWS
         )
         sample_data = sample_rows[: self.ANALYSIS_SAMPLE_ROWS]
+        enable_semantic_ml = not self._has_auxiliary_stats_columns(columns)
 
-        analysis = ColumnDetector.analyze_file_columns(columns, sample_data)
+        analysis = ColumnDetector.analyze_file_columns(
+            columns, sample_data, enable_semantic_ml=enable_semantic_ml
+        )
         analysis["filename"] = file_path.name
         analysis["filepath"] = str(file_path)
         analysis["row_count"] = row_count
@@ -678,8 +681,11 @@ class AutoConfigService:
         return columns, rows, row_count
 
     def _is_auxiliary_stats_candidate(self, analysis: Dict[str, Any]) -> bool:
-        columns = {column.lower() for column in analysis.get("columns", [])}
-        return CLASS_OBJECT_REQUIRED_COLUMNS.issubset(columns)
+        return self._has_auxiliary_stats_columns(analysis.get("columns", []))
+
+    def _has_auxiliary_stats_columns(self, columns: List[str]) -> bool:
+        normalized_columns = {column.lower() for column in columns}
+        return CLASS_OBJECT_REQUIRED_COLUMNS.issubset(normalized_columns)
 
     def _build_auxiliary_source_config(
         self,
