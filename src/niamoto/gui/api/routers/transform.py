@@ -483,13 +483,30 @@ async def get_transform_config_endpoint():
 
         if isinstance(config, list):
             # If config is a list of transform groups
+            widget_name_counts: Dict[str, int] = {}
+            for group in config:
+                if not isinstance(group, dict):
+                    continue
+                widgets_data = group.get("widgets_data", {})
+                if isinstance(widgets_data, dict):
+                    for widget_name in widgets_data:
+                        widget_name_counts[widget_name] = (
+                            widget_name_counts.get(widget_name, 0) + 1
+                        )
+
             for group in config:
                 if isinstance(group, dict):
+                    group_name = group.get("group_by", "default")
                     widgets_data = group.get("widgets_data", {})
                     if isinstance(widgets_data, dict):
-                        all_widgets_data.update(widgets_data)
                         total_widgets += len(widgets_data)
-                        for widget_config in widgets_data.values():
+                        for widget_name, widget_config in widgets_data.items():
+                            response_key = (
+                                f"{group_name}:{widget_name}"
+                                if widget_name_counts.get(widget_name, 0) > 1
+                                else widget_name
+                            )
+                            all_widgets_data[response_key] = widget_config
                             if isinstance(widget_config, dict):
                                 plugin_type = widget_config.get("plugin", "unknown")
                                 widget_types[plugin_type] = (
