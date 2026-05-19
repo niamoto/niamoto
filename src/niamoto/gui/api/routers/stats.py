@@ -1880,12 +1880,17 @@ def _resolve_spatial_reference_tables(
         seen_tables.add(table_name)
 
         columns_info = db.get_columns(table_name)
-        geo_column, is_native = _find_geometry_column(columns_info)
+        detected_geo_column, detected_is_native = _find_geometry_column(columns_info)
         column_names = [col["name"] for col in columns_info]
         columns_by_lower = {c.lower(): c for c in column_names}
-        schema = (
-            ref_cfg.get("schema", {}) if isinstance(ref_cfg.get("schema"), dict) else {}
+        schema = _dict_config(ref_cfg.get("schema"))
+        configured_geo_column = _find_configured_geometry_column(
+            ref_cfg, columns_by_lower
         )
+        geo_column = configured_geo_column or detected_geo_column
+        is_native = detected_is_native
+        if geo_column and geo_column != detected_geo_column:
+            is_native = _is_native_geometry_column(columns_info, geo_column)
 
         id_column = _pick_first_existing(
             columns_by_lower,
@@ -1901,6 +1906,7 @@ def _resolve_spatial_reference_tables(
             _pick_first_existing(
                 columns_by_lower,
                 [
+                    schema.get("name_field"),
                     "name",
                     "full_name",
                     "label",

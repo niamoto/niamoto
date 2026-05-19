@@ -306,6 +306,42 @@ def test_resolve_spatial_reference_tables_from_config_without_keywords():
     assert resolved[0]["name_column"] == "label"
 
 
+def test_resolve_spatial_reference_tables_uses_configured_geometry_field():
+    table_names = ["entity_admin_areas", "dataset_observations"]
+    references = {
+        "admin_areas": {
+            "kind": "spatial",
+            "schema": {
+                "id_field": "area_id",
+                "name_field": "area_name",
+                "geometry_field": "shape_body",
+            },
+        }
+    }
+    inspector = _DummyInspector(
+        {
+            "entity_admin_areas": [
+                {"name": "area_id", "type": "INTEGER"},
+                {"name": "area_name", "type": "VARCHAR"},
+                {"name": "shape_body", "type": "VARCHAR"},
+            ]
+        }
+    )
+    db = _DummyDatabase(inspector.columns_by_table)
+
+    resolved = _resolve_spatial_reference_tables(
+        db, table_names, inspector, references, occurrence_table="dataset_observations"
+    )
+
+    assert len(resolved) == 1
+    assert resolved[0]["table_name"] == "entity_admin_areas"
+    assert resolved[0]["has_geometry"] is True
+    assert resolved[0]["geo_column"] == "shape_body"
+    assert resolved[0]["is_native"] is False
+    assert resolved[0]["id_column"] == "area_id"
+    assert resolved[0]["name_column"] == "area_name"
+
+
 def test_resolve_spatial_reference_tables_fallback_geometry_scan():
     """When config is missing, fallback should detect any geometry table."""
     table_names = ["zones_polygons", "dataset_observations"]
