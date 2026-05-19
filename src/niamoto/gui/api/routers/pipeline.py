@@ -710,12 +710,21 @@ async def get_pipeline_status(http_request: Request):
             export_dt = file_dt
             last_export_at = file_dt.isoformat()
 
-    # Publication is stale if groups were recalculated after last build
+    site_config_dt = None
+    if site_config_path.exists():
+        try:
+            site_config_dt = datetime.fromtimestamp(site_config_path.stat().st_mtime)
+        except OSError:
+            site_config_dt = None
+
+    # Publication is stale if groups were recalculated or site config changed after last build
     pub_stale = False
     if export_dt and last_group_run:
         last_group_dt = _iso(last_group_run)
         if last_group_dt and last_group_dt > export_dt:
             pub_stale = True
+    if export_dt and site_config_dt and site_config_dt > export_dt:
+        pub_stale = True
 
     if running and running.get("type") == "export":
         pub_status_val = "running"
