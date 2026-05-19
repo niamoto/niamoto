@@ -145,9 +145,11 @@ class DataProfiler:
         if data is None:
             raise ValueError(f"Could not load data from {file_path}")
 
-        # total_count = actual rows loaded (no sampling in _load_data for non-CSV)
-        # For the standalone profile() path, total_count = len(data)
-        return self.profile_dataframe(data, file_path)
+        total_count = None
+        if file_path.suffix.lower() in (".csv", ".tsv", ".txt"):
+            total_count = self._count_csv_like_rows(str(file_path))
+
+        return self.profile_dataframe(data, file_path, total_count=total_count)
 
     def profile_dataframe(
         self,
@@ -233,6 +235,46 @@ class DataProfiler:
         self, file_path: str, nrows: Optional[int] = None
     ) -> pd.DataFrame:
         """Load CSV/TSV/TXT with delimiter sniffing and encoding fallback."""
+        sep = self._sniff_csv_like_separator(file_path)
+
+        # Try UTF-8 first, fallback to latin-1
+        try:
+            return pd.read_csv(file_path, sep=sep, low_memory=False, nrows=nrows)
+        except UnicodeDecodeError:
+            return pd.read_csv(
+                file_path, sep=sep, low_memory=False, encoding="latin-1", nrows=nrows
+            )
+
+    def _count_csv_like_rows(self, file_path: str) -> int:
+        """Count all rows in a CSV/TSV/TXT file while profile analysis samples."""
+        sep = self._sniff_csv_like_separator(file_path)
+
+        try:
+            return sum(
+                len(chunk)
+                for chunk in pd.read_csv(
+                    file_path,
+                    sep=sep,
+                    low_memory=False,
+                    chunksize=100_000,
+                    usecols=[0],
+                )
+            )
+        except UnicodeDecodeError:
+            return sum(
+                len(chunk)
+                for chunk in pd.read_csv(
+                    file_path,
+                    sep=sep,
+                    low_memory=False,
+                    encoding="latin-1",
+                    chunksize=100_000,
+                    usecols=[0],
+                )
+            )
+
+    def _sniff_csv_like_separator(self, file_path: str) -> str:
+        """Detect the delimiter for CSV-like files."""
         import csv as csv_module
 
         # Sniff delimiter from first 8KB
@@ -252,13 +294,7 @@ class DataProfiler:
             except Exception:
                 pass
 
-        # Try UTF-8 first, fallback to latin-1
-        try:
-            return pd.read_csv(file_path, sep=sep, low_memory=False, nrows=nrows)
-        except UnicodeDecodeError:
-            return pd.read_csv(
-                file_path, sep=sep, low_memory=False, encoding="latin-1", nrows=nrows
-            )
+        return sep
 
     def _profile_column(self, series: pd.Series, col_name: str) -> ColumnProfile:
         """Profile a single column."""
