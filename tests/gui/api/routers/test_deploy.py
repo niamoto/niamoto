@@ -39,6 +39,22 @@ def test_save_credential_returns_500_when_keyring_write_fails(monkeypatch):
     assert response.json()["detail"] == "Failed to save credential to keyring"
 
 
+def test_delete_credential_returns_500_when_keyring_delete_fails(monkeypatch):
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.deploy._check_platform", lambda _: None
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.deploy.CredentialService.delete",
+        lambda platform, key: False,
+    )
+
+    client = TestClient(create_app())
+    response = client.delete("/api/deploy/credentials/cloudflare/api_token")
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Failed to delete credential from keyring"
+
+
 def test_save_credential_requires_desktop_auth_when_configured(monkeypatch):
     saved_calls = []
 

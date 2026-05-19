@@ -543,6 +543,57 @@ def test_completeness_endpoint_uses_duckdb_fixture_without_reflection_errors(
     assert columns["locality"]["completeness"] == 1.0
 
 
+def test_completeness_endpoint_reports_partial_column_completeness(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_project,
+):
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE completeness_partial (
+                id INTEGER,
+                nullable_label VARCHAR,
+                nullable_value INTEGER
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO completeness_partial VALUES
+                (1, 'alpha', 10),
+                (2, NULL, NULL),
+                (3, 'beta', NULL)
+            """
+        )
+    finally:
+        conn.close()
+
+    response = gui_duckdb_client.get("/api/stats/completeness/completeness_partial")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    columns = {column["column"]: column for column in payload["columns"]}
+
+    assert columns["id"]["null_count"] == 0
+    assert columns["id"]["non_null_count"] == 3
+    assert columns["id"]["unique_count"] == 3
+    assert columns["id"]["completeness"] == 1.0
+
+    assert columns["nullable_label"]["null_count"] == 1
+    assert columns["nullable_label"]["non_null_count"] == 2
+    assert columns["nullable_label"]["unique_count"] == 2
+    assert columns["nullable_label"]["completeness"] == pytest.approx(2 / 3)
+
+    assert columns["nullable_value"]["null_count"] == 2
+    assert columns["nullable_value"]["non_null_count"] == 1
+    assert columns["nullable_value"]["unique_count"] == 1
+    assert columns["nullable_value"]["completeness"] == pytest.approx(1 / 3)
+
+    assert payload["overall_completeness"] == pytest.approx(2 / 3)
+
+
 def test_completeness_endpoint_returns_404_for_unknown_entity(
     gui_duckdb_client: TestClient,
 ):
@@ -1254,6 +1305,20 @@ def test_value_validation_histogram_includes_max_boundary(
     assert histogram[-1]["count"] == 1
 
 
+def test_value_validation_rejects_requested_non_numeric_column(
+    gui_duckdb_client: TestClient,
+):
+    response = gui_duckdb_client.get(
+        "/api/stats/value-validation/dataset_occurrences",
+        params={"columns": "locality"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Column 'locality' is not numeric and cannot be validated"
+    )
+
+
 def test_value_validation_preserves_zero_median(
     gui_duckdb_client: TestClient,
     gui_duckdb_project,
@@ -1317,6 +1382,50 @@ def test_export_outliers_csv_escapes_spreadsheet_formulas(
     assert outlier[headers.index("value")] == "100"
     assert outlier[headers.index("note")] == "'=1+1"
     assert outlier[headers.index("spaced_note")] == "'  @cmd"
+
+
+def test_export_outliers_csv_generator_yields_rows_incrementally(
+    gui_duckdb_project,
+):
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE streaming_outlier_values (
+                value INTEGER,
+                note VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO streaming_outlier_values VALUES
+                (1, 'normal'),
+                (100, '=one'),
+                (200, '+two')
+            """
+        )
+    finally:
+        conn.close()
+
+    chunks = list(
+        stats_router._iter_outlier_csv_rows(
+            db_path,
+            "streaming_outlier_values",
+            "value",
+            ["value", "note"],
+            10,
+            50,
+        )
+    )
+
+    assert chunks == [
+        "value,note\r\n",
+        "1,normal\r\n",
+        "100,'=one\r\n",
+        "200,'+two\r\n",
+    ]
 
 
 def test_export_outliers_csv_rejects_invalid_percentile_threshold(

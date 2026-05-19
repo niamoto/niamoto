@@ -180,6 +180,63 @@ class TestTemplatesEndpoints:
         assert data["total_suggestions"] == len(data["suggestions"])
         assert data["total_suggestions"] > 0
 
+    def test_get_suggestions_applies_max_suggestions_after_all_sources(
+        self, client, monkeypatch
+    ):
+        """Reserved suggestion sources must not bypass the caller's final cap."""
+
+        def suggestion(template_id: str, confidence: float):
+            return {
+                "template_id": template_id,
+                "name": template_id,
+                "description": template_id,
+                "plugin": "field_aggregator",
+                "category": "summary",
+                "icon": "info",
+                "confidence": confidence,
+                "source": "template",
+                "source_name": "taxons",
+                "is_recommended": True,
+                "config": {},
+            }
+
+        monkeypatch.setattr(
+            "niamoto.gui.api.routers.templates.generate_navigation_suggestion",
+            lambda reference_name: suggestion("navigation", 0.95),
+        )
+        monkeypatch.setattr(
+            "niamoto.gui.api.routers.templates.generate_general_info_suggestion",
+            lambda reference_name: suggestion("general_info", 0.90),
+        )
+        monkeypatch.setattr(
+            "niamoto.gui.api.routers.templates.get_reference_enrichment_suggestions",
+            lambda reference_name: [suggestion("enrichment", 0.85)],
+        )
+        monkeypatch.setattr(
+            "niamoto.gui.api.routers.templates.get_entity_map_suggestions",
+            lambda reference_name: [],
+        )
+        monkeypatch.setattr(
+            "niamoto.gui.api.routers.templates.get_reference_field_suggestions",
+            lambda reference_name: [suggestion("reference_field", 0.80)],
+        )
+        monkeypatch.setattr(
+            "niamoto.gui.api.routers.templates.get_class_object_suggestions",
+            lambda reference_name: [suggestion("class_object", 0.75)],
+        )
+        monkeypatch.setattr(
+            "niamoto.gui.api.routers.templates.get_database_path",
+            lambda: None,
+        )
+
+        response = client.get("/api/templates/taxons/suggestions?max_suggestions=1")
+
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["total_suggestions"] == 1
+        assert len(data["suggestions"]) == 1
+        assert data["suggestions"][0]["template_id"] == "navigation"
+
     def test_get_configured_widgets(self, client):
         """Test GET /api/templates/{group_by}/configured."""
         response = client.get("/api/templates/taxons/configured")
@@ -503,6 +560,27 @@ class TestTemplatesEndpoints:
         assert transform_path.read_text(encoding="utf-8") == original_transform
         assert export_path.read_text(encoding="utf-8") == original_export
 
+    def test_save_config_rejects_non_list_transform_config(self, client, test_work_dir):
+        config_dir = Path(test_work_dir) / "config"
+        transform_path = config_dir / "transform.yml"
+        transform_path.write_text(
+            yaml.safe_dump({"groups": {"taxons": {"widgets_data": {}}}}),
+            encoding="utf-8",
+        )
+
+        response = client.post(
+            "/api/templates/save-config",
+            json={
+                "group_by": "taxons",
+                "sources": [],
+                "widgets_data": {},
+                "mode": "merge",
+            },
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "transform.yml must be a list of groups"
+
     def test_preview_template_returns_html(self, client):
         """Test GET /api/preview/{template_id} returns HTML."""
         preview_engine = FakePreviewEngine()
@@ -518,10 +596,60 @@ class TestTemplatesEndpoints:
         assert preview_engine.requests[0].template_id == "test_template"
         assert preview_engine.requests[0].group_by == "taxons"
 
-    def test_widget_suggestions_requires_group_by(self, client):
+    def test_widget_suggestions_returns_class_object_contract(
+        self, client, test_work_dir
+    ):
         """Test GET /api/templates/widget-suggestions/{group_by}."""
+        work_dir = Path(test_work_dir)
+        imports_dir = work_dir / "imports"
+        imports_dir.mkdir(exist_ok=True)
+        stats_path = imports_dir / "taxon_stats.csv"
+        stats_path.write_text(
+            "\n".join(
+                [
+                    "id,class_object,class_name,class_value",
+                    "1,cover_forest,Forest,0.75",
+                    "2,cover_forest,Open,0.25",
+                    "3,elevation_max,,1622",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        transform_path = work_dir / "config" / "transform.yml"
+        transform_config = yaml.safe_load(transform_path.read_text(encoding="utf-8"))
+        transform_config[0]["sources"] = [
+            {
+                "name": "taxon_stats",
+                "data": "imports/taxon_stats.csv",
+                "grouping": "taxons",
+                "relation": {"plugin": "direct_reference", "key": "id"},
+            }
+        ]
+        transform_path.write_text(
+            yaml.safe_dump(transform_config, sort_keys=False),
+            encoding="utf-8",
+        )
+
         response = client.get("/api/templates/widget-suggestions/taxons")
-        assert response.status_code in [200, 404]
+
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["source_name"] == "taxon_stats"
+        assert payload["source_path"] == "imports/taxon_stats.csv"
+        assert payload["categories_summary"]["binary"] == 1
+        assert payload["categories_summary"]["scalar"] == 1
+
+        class_objects = {item["name"]: item for item in payload["class_objects"]}
+        assert class_objects["cover_forest"]["suggested_plugin"] == (
+            "class_object_binary_aggregator"
+        )
+        assert class_objects["elevation_max"]["suggested_plugin"] == (
+            "class_object_field_aggregator"
+        )
+        assert "class_object_binary_aggregator" in payload["plugin_schemas"]
+        assert "class_object_field_aggregator" in payload["plugin_schemas"]
 
     def test_widget_suggestions_requires_working_directory(self):
         """Missing working directory should return a controlled API error."""

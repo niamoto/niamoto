@@ -1,5 +1,6 @@
 """Tests for GUI command."""
 
+import importlib
 import os
 from contextlib import contextmanager
 from pathlib import Path
@@ -76,6 +77,31 @@ class TestGuiCommand:
                 assert call_kwargs["reload"] is False
 
                 assert "Starting Niamoto GUI" in result.output
+
+    def test_gui_runtime_imports_are_patchable_at_command_module_boundary(self):
+        """Test GUI runtime dependencies are resolved through patched modules."""
+        runner = CliRunner()
+        mock_uvicorn = MagicMock()
+        mock_uvicorn.run.side_effect = KeyboardInterrupt()
+
+        gui_module = importlib.import_module("niamoto.cli.commands.gui")
+
+        with mocked_gui_runtime(mock_uvicorn) as (
+            fake_app_module,
+            fake_context_module,
+        ):
+            reloaded_gui_module = importlib.reload(gui_module)
+            mock_app = MagicMock()
+            fake_app_module.create_app.return_value = mock_app
+
+            with patch.object(reloaded_gui_module, "Timer"):
+                result = runner.invoke(reloaded_gui_module.gui, ["--no-browser"])
+
+            assert result.exit_code == 0
+            fake_app_module.create_app.assert_called_once()
+            fake_context_module.resolve_explicit_working_directory.assert_called_once()
+            mock_uvicorn.run.assert_called_once()
+            assert mock_uvicorn.run.call_args[0][0] is mock_app
 
     def test_gui_does_not_invent_niamoto_home_without_selected_project(
         self, monkeypatch

@@ -202,6 +202,42 @@ class TestDatabaseAggregatorPlugin:
             30,
         )
 
+    def test_transform_rejects_malicious_template_param_before_execution(self):
+        """Test final SQL validation after template formatting."""
+        plugin = DatabaseAggregatorPlugin()
+        plugin.db = Mock()
+        mock_session = Mock()
+        plugin.db.get_session.return_value.__enter__ = Mock(return_value=mock_session)
+        plugin.db.get_session.return_value.__exit__ = Mock(return_value=None)
+
+        config = {
+            "plugin": "database_aggregator",
+            "params": {
+                "queries": {
+                    "species_by_rank": {
+                        "template": "count_by_field",
+                        "template_params": {
+                            "field": "rank_name",
+                            "table": "taxon_ref; DROP TABLE occurrences; --",
+                        },
+                        "format": "table",
+                    }
+                },
+                "templates": {
+                    "count_by_field": {
+                        "sql": "SELECT {field}, COUNT(*) as count FROM {table} GROUP BY {field}",
+                        "params": ["field", "table"],
+                    }
+                },
+            },
+        }
+
+        with pytest.raises(DataValidationError, match="Database aggregation failed"):
+            plugin.transform(None, config)
+
+        plugin.db.get_session.assert_not_called()
+        mock_session.execute.assert_not_called()
+
     def test_execute_template_missing_params(self):
         """Test template execution with missing parameters."""
         plugin = DatabaseAggregatorPlugin()

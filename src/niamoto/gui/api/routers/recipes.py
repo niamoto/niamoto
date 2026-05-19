@@ -982,7 +982,19 @@ async def get_source_columns(group_by: str, source_name: str):
     db_path = get_database_path()
 
     if not db_path or not Path(db_path).exists():
-        raise HTTPException(status_code=404, detail="Database not found")
+        sources = _get_all_sources(work_dir, group_by, None)
+        source_info = next((s for s in sources if s.name == source_name), None)
+        if not source_info:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Source '{source_name}' not found for group '{group_by}'",
+            )
+
+        return SourceColumnsResponse(
+            source_name=source_name,
+            table_name=source_info.table_name,
+            columns=_build_column_tree(None, source_info),
+        )
 
     try:
         with open_database(db_path, read_only=True) as db:

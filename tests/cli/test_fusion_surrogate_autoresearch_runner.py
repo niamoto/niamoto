@@ -1,9 +1,11 @@
 import subprocess
 
+from ml.scripts.research import ablation_run
 from ml.scripts.research import run_fusion_surrogate_autoresearch as runner
 from ml.scripts.research.run_fusion_surrogate_autoresearch import (
     DEFAULT_ALLOWED_PATHS,
     build_codex_prompt,
+    evaluate_metric,
     restore_paths,
     summarize_recent_iterations,
 )
@@ -73,6 +75,39 @@ def test_summarize_recent_iterations_reports_recent_rejects(tmp_path):
     assert "iter 2: no_candidate, note=No file changes produced by Codex" in summary
     assert "55.5192" in summary
     assert "55.5850" in summary
+
+
+def test_evaluate_metric_uses_current_python_executable(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(args, **_kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, stdout="12.5\n", stderr="")
+
+    monkeypatch.setattr(runner, "_run", fake_run)
+    monkeypatch.setattr(runner.sys, "executable", "/custom/python")
+
+    score = evaluate_metric("fast", model="fusion", splits=2, cache_dir=tmp_path)
+
+    assert score == 12.5
+    assert calls[0][0] == "/custom/python"
+    assert str(runner.ROOT / ".venv" / "bin" / "python") not in calls[0]
+
+
+def test_ablation_run_uses_uv_python_commands(monkeypatch):
+    calls = []
+
+    def fake_run(command, env):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="F1 1.0\n", stderr="")
+
+    monkeypatch.setattr(ablation_run.sys, "argv", ["ablation_run.py", "baseline"])
+    monkeypatch.setattr(ablation_run, "_run", fake_run)
+
+    assert ablation_run.main() == 0
+    assert len(calls) == 4
+    assert all(command[:3] == ["uv", "run", "python"] for command in calls)
+    assert all(".venv" not in " ".join(command) for command in calls)
 
 
 def test_restore_paths_removes_untracked_files_and_directories(

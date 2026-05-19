@@ -44,7 +44,7 @@ def make_profile(
         semantic_type=semantic_type,
         unique_ratio=unique_ratio,
         null_ratio=null_ratio,
-        sample_values=sample_values or [1.0, 2.0, 3.0],
+        sample_values=[1.0, 2.0, 3.0] if sample_values is None else sample_values,
         confidence=confidence,
         data_category=data_category,
         field_purpose=field_purpose,
@@ -64,6 +64,12 @@ class TestWidgetGeneratorByCategory:
     @pytest.fixture
     def gen(self):
         return WidgetGenerator()
+
+    def test_make_profile_preserves_explicit_empty_samples(self):
+        """The profile helper must not replace an explicit empty sample list."""
+        profile = make_profile(sample_values=[])
+
+        assert profile.sample_values == []
 
     def test_numeric_continuous_suggests_distribution(self, gen):
         """NUMERIC_CONTINUOUS → at least 1 suggestion with binned_distribution."""
@@ -145,7 +151,9 @@ class TestWidgetGeneratorByCategory:
             data_category=DataCategory.IDENTIFIER,
             field_purpose=FieldPurpose.PRIMARY_KEY,
             dtype="int64",
+            sample_values=[],
         )
+        assert profile.sample_values == []
         suggestions = gen.generate_for_columns([profile])
         assert len(suggestions) == 0
 
@@ -168,6 +176,7 @@ class TestWidgetGeneratorByCategory:
             cardinality=0,
             sample_values=[],
         )
+        assert profile.sample_values == []
         suggestions = gen.generate_for_columns([profile])
         assert len(suggestions) == 0
 

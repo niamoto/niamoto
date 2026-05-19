@@ -364,3 +364,55 @@ taxonomy:
     assert captured["kwargs"] == {}
     assert response["success"] is True
     assert response["api_enrichment"] == {"status": "previewed"}
+
+
+def test_preview_enrichment_route_reads_config_and_returns_preview(
+    monkeypatch,
+    tmp_path: Path,
+):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "import.yml").write_text(
+        """
+taxonomy:
+  api_enrichment:
+    plugin: api_taxonomy_enricher
+    api_url: https://example.test/taxon
+    query_field: full_name
+    query_param_name: q
+    response_mapping: {}
+""",
+        encoding="utf-8",
+    )
+
+    async def fake_run_in_threadpool(func, *args, **kwargs):
+        assert func.__name__ == "load_data"
+        assert args[0] == {"full_name": "Araucaria columnaris"}
+        return {"api_enrichment": {"canonical_name": "Araucaria columnaris"}}
+
+    monkeypatch.setattr(
+        data_explorer_router,
+        "get_working_directory",
+        lambda: tmp_path,
+    )
+    monkeypatch.setattr(
+        data_explorer_router,
+        "run_in_threadpool",
+        fake_run_in_threadpool,
+    )
+
+    response = TestClient(create_app()).post(
+        "/api/data/enrichment/preview",
+        json={"taxon_name": "Araucaria columnaris"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "success": True,
+        "taxon_name": "Araucaria columnaris",
+        "api_enrichment": {"canonical_name": "Araucaria columnaris"},
+        "config_used": {
+            "api_url": "https://example.test/taxon",
+            "query_field": "full_name",
+        },
+    }

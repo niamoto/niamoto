@@ -178,6 +178,72 @@ def test_update_dataset_config_rejects_malformed_entities_without_writing(
     assert not (config_dir / "backups").exists()
 
 
+def test_get_dataset_config_returns_named_dataset(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "datasets": {
+                        "observations": {
+                            "connector": {
+                                "type": "file",
+                                "format": "csv",
+                                "path": "imports/observations.csv",
+                            }
+                        }
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    response = TestClient(create_app()).get("/api/config/datasets/observations/config")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "name": "observations",
+        "config": {
+            "connector": {
+                "type": "file",
+                "format": "csv",
+                "path": "imports/observations.csv",
+            }
+        },
+    }
+
+
+def test_get_dataset_config_rejects_missing_dataset(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump({"entities": {"datasets": {"observations": {}}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    response = TestClient(create_app()).get("/api/config/datasets/missing/config")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Dataset 'missing' not found in import.yml"
+
+
+def test_get_dataset_config_rejects_missing_import_config(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    (work_dir / "config").mkdir(parents=True)
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    response = TestClient(create_app()).get("/api/config/datasets/observations/config")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "import.yml not found"
+
+
 def test_update_config_preserves_existing_file_when_yaml_write_fails(
     monkeypatch,
     tmp_path,
@@ -369,3 +435,86 @@ def test_get_datasets_counts_registry_table_names_requiring_quotes(
         ],
         "total": 1,
     }
+
+
+def test_get_references_counts_and_detects_hierarchy_for_quoted_table_names(
+    monkeypatch,
+    tmp_path,
+):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    db_dir = work_dir / "db"
+    config_dir.mkdir(parents=True)
+    db_dir.mkdir()
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "references": {
+                        "plots": {
+                            "kind": "hierarchical",
+                            "description": "Plot hierarchy",
+                        }
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    conn = duckdb.connect(str(db_dir / "niamoto.duckdb"))
+    try:
+        conn.execute(
+            'CREATE TABLE "reference-plots" (id INTEGER, name TEXT, lft INTEGER, rght INTEGER)'
+        )
+        conn.execute("INSERT INTO \"reference-plots\" VALUES (1, 'Root', 1, 2)")
+        conn.execute(
+            """
+            CREATE TABLE niamoto_metadata_entities (
+                name TEXT PRIMARY KEY,
+                kind TEXT NOT NULL,
+                table_name TEXT NOT NULL,
+                config TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO niamoto_metadata_entities (name, kind, table_name, config)
+            VALUES (?, ?, ?, ?)
+            """,
+            [
+                "plots",
+                "reference",
+                "reference-plots",
+                json.dumps({}),
+            ],
+        )
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    client = TestClient(create_app())
+    response = client.get("/api/config/references")
+
+    assert response.status_code == 200, response.text
+    reference = response.json()["references"][0]
+    assert reference["table_name"] == "reference-plots"
+    assert reference["entity_count"] == 1
+    assert reference["is_hierarchical"] is True
+    assert reference["hierarchy_fields"]["has_nested_set"] is True
+
+
+def test_get_transform_widget_treats_null_widgets_data_as_empty(monkeypatch):
+    monkeypatch.setattr(
+        config_router,
+        "_load_transform_config",
+        lambda: [{"group_by": "plots", "widgets_data": None}],
+    )
+
+    client = TestClient(create_app())
+    response = client.get("/api/config/transform/plots/widgets/missing")
+
+    assert response.status_code == 404
+    assert "Widget 'missing' not found" in response.json()["detail"]

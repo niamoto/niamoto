@@ -237,11 +237,7 @@ class TestBinnedDistribution(unittest.TestCase):
         self.assertEqual(result, expected_result)
 
     def test_transform_with_percentages_all_zero(self):
-        """Test percentage calculation when all data is filtered out.
-
-        Note: When data is empty, percentages are not included in the result
-        because the early return happens before percentage calculation.
-        """
+        """Test percentage calculation when all data is filtered out."""
         nan_data = pd.DataFrame({"value": [np.nan, None, "text"]})
         config = {
             "plugin": "binned_distribution",
@@ -253,11 +249,10 @@ class TestBinnedDistribution(unittest.TestCase):
             },
         }
 
-        # When data is empty after filtering, percentages are not calculated
-        # The early return at line 184-191 happens before percentage logic
         expected_result = {
             "bins": [0.0, 50.0, 100.0],
             "counts": [0, 0],
+            "percentages": [0, 0],
         }
 
         result = self.plugin.transform(nan_data, config)
@@ -321,8 +316,9 @@ class TestBinnedDistribution(unittest.TestCase):
             },
         }
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValueError) as cm:
             self.plugin.transform(SAMPLE_DATA.copy(), config)
+        self.assertIn("non_existent_field", str(cm.exception))
 
     def test_transform_with_single_bin_edge(self):
         """Test transform with only one bin edge (edge case)."""

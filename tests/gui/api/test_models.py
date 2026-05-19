@@ -11,6 +11,8 @@ from niamoto.gui.api.models import (
     NiamotoConfig,
     ValidationResponse,
     GenerateResponse,
+    EnrichmentFieldCatalogItem,
+    EnrichmentSourceCatalogResponse,
 )
 
 
@@ -21,6 +23,25 @@ class TestConfigSection:
         """Test creating a ConfigSection instance."""
         section = ConfigSection()
         assert isinstance(section, ConfigSection)
+
+
+def test_template_enrichment_catalog_models_are_public_exports():
+    field = EnrichmentFieldCatalogItem(
+        source_id="api",
+        source_label="API",
+        path="image",
+        label="Image",
+        format="image",
+        section_hint="media",
+    )
+    source = EnrichmentSourceCatalogResponse(
+        id="api",
+        label="API",
+        field_count=1,
+        fields=[field],
+    )
+
+    assert source.fields[0].path == "image"
 
 
 class TestImportConfig:

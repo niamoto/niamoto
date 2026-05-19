@@ -365,6 +365,7 @@ async def get_reference_suggestions(
     # Sort by confidence but keep navigation at top
     # Navigation has confidence 0.95, so it will stay near top naturally
     all_suggestions.sort(key=lambda s: -s.get("confidence", 0))
+    all_suggestions = all_suggestions[:max_suggestions]
 
     # If no suggestions at all, return helpful error
     if not all_suggestions:

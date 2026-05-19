@@ -163,10 +163,11 @@ class TestJsonApiExporter:
         assert len(filtered) == 1
         assert filtered[0]["rank"] == "species"
 
-        # Filter by nested field
-        filters = {"metadata.endemic": True}
-        # Note: Current implementation doesn't support nested filters
-        # This would need enhancement
+    def test_apply_filters_nested_fields_are_not_supported(self, exporter, sample_data):
+        """Document that filter keys are matched literally, not as nested paths."""
+        filtered = exporter._apply_filters(sample_data, {"metadata.endemic": True})
+
+        assert filtered == []
 
     def test_should_parse_json_string(self, exporter):
         """JSON parsing heuristic should skip plain text values."""

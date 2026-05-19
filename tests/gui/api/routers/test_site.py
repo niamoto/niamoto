@@ -106,6 +106,49 @@ def test_import_bibtex_rejects_oversized_upload(monkeypatch):
     )
 
 
+def test_import_bibtex_reports_incomplete_entries():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/site/import-bibtex",
+        files={
+            "file": (
+                "references.bib",
+                b"@article{missing_title,\n  author = {Doe, Jane},\n  year = {2024}\n}",
+                "application/x-bibtex",
+            )
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "success": False,
+        "data": [],
+        "count": 0,
+        "errors": ["Entry 'missing_title' is missing a title"],
+    }
+
+
+def test_import_bibtex_reports_malformed_entries():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/site/import-bibtex",
+        files={
+            "file": (
+                "references.bib",
+                b"@article{broken,\n  title = {Incomplete",
+                "application/x-bibtex",
+            )
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["success"] is False
+    assert response.json()["count"] == 0
+    assert response.json()["errors"] == ["Could not parse BibTeX entry 'entry_1'"]
+
+
 def test_site_create_backup_preserves_rapid_successive_backups(monkeypatch, tmp_path):
     export_path = tmp_path / "export.yml"
     export_path.write_text("first\n", encoding="utf-8")
@@ -140,6 +183,33 @@ def test_import_csv_rejects_duplicate_normalized_headers():
     assert response.json()["detail"] == (
         "Duplicate CSV headers after normalization: name"
     )
+
+
+@pytest.mark.parametrize("delimiter", ["", "::"])
+def test_import_csv_rejects_invalid_delimiters(delimiter):
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/site/import-csv",
+        params={"delimiter": delimiter},
+        files={"file": ("data.csv", b"name\nplot\n", "text/csv")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CSV delimiter must be exactly one character"
+
+
+def test_import_csv_accepts_single_character_delimiter():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/site/import-csv",
+        params={"delimiter": ";"},
+        files={"file": ("data.csv", b"name;count\nplot;2\n", "text/csv")},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["data"] == [{"name": "plot", "count": "2"}]
 
 
 def test_import_csv_rejects_oversized_upload(monkeypatch):
@@ -1038,6 +1108,84 @@ class TestSiteGroups:
             )
             assert not (upload_dir / "too_big.md").exists()
             assert not list(upload_dir.glob("*.tmp"))
+
+    def test_templates_excludes_nested_partials(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            templates_dir = project / "templates"
+            (templates_dir / "pages").mkdir(parents=True)
+            (templates_dir / "pages" / "page.html").write_text("page", encoding="utf-8")
+            (templates_dir / "pages" / "_partial.html").write_text(
+                "partial", encoding="utf-8"
+            )
+            (templates_dir / "_layouts").mkdir()
+            (templates_dir / "_layouts" / "base.html").write_text(
+                "layout", encoding="utf-8"
+            )
+            (templates_dir / "_root_partial.html").write_text(
+                "root partial", encoding="utf-8"
+            )
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                response = client.get("/api/site/templates")
+
+            assert response.status_code == 200, response.text
+            project_templates = response.json()["project_templates"]
+            assert "pages/page.html" in project_templates
+            assert "pages/_partial.html" not in project_templates
+            assert "_layouts/base.html" not in project_templates
+            assert "_root_partial.html" not in project_templates
+
+    def test_data_content_rejects_non_array_json(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            data_dir = project / "data"
+            data_dir.mkdir(parents=True)
+            (data_dir / "items.json").write_text("{}", encoding="utf-8")
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                response = client.get(
+                    "/api/site/data-content", params={"path": "data/items.json"}
+                )
+
+            assert response.status_code == 400
+            assert response.json()["detail"] == "JSON file must contain an array"
+
+    def test_file_content_put_accepts_readable_text_extensions(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            files_dir = project / "files"
+            files_dir.mkdir(parents=True)
+            file_path = files_dir / "settings.yml"
+            file_path.write_text("title: old\n", encoding="utf-8")
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                get_response = client.get(
+                    "/api/site/file-content", params={"path": "files/settings.yml"}
+                )
+                put_response = client.put(
+                    "/api/site/file-content",
+                    json={"path": "files/settings.yml", "content": "title: new\n"},
+                )
+
+            assert get_response.status_code == 200, get_response.text
+            assert put_response.status_code == 200, put_response.text
+            assert file_path.read_text(encoding="utf-8") == "title: new\n"
 
     def test_files_serves_svg_as_attachment_with_defensive_headers(self):
         with tempfile.TemporaryDirectory() as temp_dir:

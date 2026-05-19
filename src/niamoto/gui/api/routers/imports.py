@@ -4,7 +4,7 @@ import logging
 import os
 import traceback
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Form, Request
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Form, Query, Request
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 import uuid
@@ -439,7 +439,9 @@ async def get_job_status(job_id: str) -> Dict[str, Any]:
 
 @router.get("/jobs")
 async def list_import_jobs(
-    limit: int = 10, offset: int = 0, status: Optional[str] = None
+    limit: int = Query(default=10, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    status: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List all import jobs with optional filtering."""
 

@@ -10,6 +10,33 @@ from niamoto.gui.api.routers import enrichment as enrichment_router
 from niamoto.gui.api.services.enrichment_service import PreviewResponse
 
 
+def _job_payload(
+    *,
+    reference_name: str = "taxons",
+    source_id: str | None = None,
+    strategy: str = "resume",
+):
+    return {
+        "id": "job-1",
+        "reference_name": reference_name,
+        "mode": "single" if source_id else "all",
+        "strategy": strategy,
+        "status": "running",
+        "total": 0,
+        "processed": 0,
+        "successful": 0,
+        "failed": 0,
+        "already_completed": 0,
+        "pending_total": 0,
+        "pending_processed": 0,
+        "started_at": "2026-04-22T14:10:00",
+        "updated_at": "2026-04-22T14:10:00",
+        "source_ids": [source_id] if source_id else [],
+        "source_id": source_id,
+        "source_label": "Endemia" if source_id else None,
+    }
+
+
 def test_get_reference_enrichment_config_returns_source_list(
     gui_duckdb_project, gui_duckdb_client
 ):
@@ -212,25 +239,9 @@ def test_restart_reference_route_forwards_selected_source(
     def fake_restart_reference_enrichment(reference_name: str, source_id: str):
         captured["reference_name"] = reference_name
         captured["source_id"] = source_id
-        return {
-            "id": "job-1",
-            "reference_name": reference_name,
-            "mode": "single",
-            "strategy": "reset",
-            "status": "running",
-            "total": 0,
-            "processed": 0,
-            "successful": 0,
-            "failed": 0,
-            "already_completed": 0,
-            "pending_total": 0,
-            "pending_processed": 0,
-            "started_at": "2026-04-22T14:10:00",
-            "updated_at": "2026-04-22T14:10:00",
-            "source_ids": [source_id],
-            "source_id": source_id,
-            "source_label": "Endemia",
-        }
+        return _job_payload(
+            reference_name=reference_name, source_id=source_id, strategy="reset"
+        )
 
     monkeypatch.setattr(
         enrichment_router,
@@ -243,6 +254,278 @@ def test_restart_reference_route_forwards_selected_source(
     assert response.status_code == 200
     assert captured == {"reference_name": "taxons", "source_id": "endemia"}
     assert response.json()["strategy"] == "reset"
+
+
+def test_start_reference_route_forwards_selected_source(monkeypatch, gui_duckdb_client):
+    captured = {}
+
+    def fake_start_reference_enrichment(
+        reference_name: str, source_id: str | None = None
+    ):
+        captured["reference_name"] = reference_name
+        captured["source_id"] = source_id
+        return _job_payload(reference_name=reference_name, source_id=source_id)
+
+    monkeypatch.setattr(
+        enrichment_router,
+        "start_reference_enrichment",
+        fake_start_reference_enrichment,
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/start/taxons/endemia")
+
+    assert response.status_code == 200
+    assert captured == {"reference_name": "taxons", "source_id": "endemia"}
+    assert response.json()["source_id"] == "endemia"
+
+
+def test_start_legacy_route_calls_default_service(monkeypatch, gui_duckdb_client):
+    calls = []
+    monkeypatch.setattr(
+        enrichment_router,
+        "start_default_enrichment",
+        lambda: calls.append(True) or _job_payload(reference_name="taxons"),
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/start")
+
+    assert response.status_code == 200
+    assert response.json()["reference_name"] == "taxons"
+    assert calls == [True]
+
+
+def test_start_reference_route_forwards_reference_name(monkeypatch, gui_duckdb_client):
+    captured = {}
+
+    def fake_start_reference(reference_name: str, source_id: str | None = None):
+        captured["reference_name"] = reference_name
+        captured["source_id"] = source_id
+        return _job_payload(reference_name=reference_name)
+
+    monkeypatch.setattr(
+        enrichment_router,
+        "start_reference_enrichment",
+        fake_start_reference,
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/start/taxons")
+
+    assert response.status_code == 200
+    assert captured == {"reference_name": "taxons", "source_id": None}
+    assert response.json()["mode"] == "all"
+
+
+def test_start_reference_route_maps_already_active_error(
+    monkeypatch, gui_duckdb_client
+):
+    def fake_start_reference(reference_name: str, source_id: str | None = None):
+        raise ValueError("Enrichment job already active")
+
+    monkeypatch.setattr(
+        enrichment_router,
+        "start_reference_enrichment",
+        fake_start_reference,
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/start/taxons")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Enrichment job already active"
+
+
+def test_pause_default_route_calls_default_service(monkeypatch, gui_duckdb_client):
+    calls = []
+    monkeypatch.setattr(
+        enrichment_router,
+        "pause_default_enrichment",
+        lambda: calls.append(True) or {"status": "paused"},
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/pause")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "paused"}
+    assert calls == [True]
+
+
+def test_pause_reference_route_forwards_selected_source(monkeypatch, gui_duckdb_client):
+    captured = {}
+
+    def fake_pause_reference(reference_name: str, source_id: str | None = None):
+        captured["reference_name"] = reference_name
+        captured["source_id"] = source_id
+        return {"status": "paused"}
+
+    monkeypatch.setattr(
+        enrichment_router, "pause_reference_enrichment", fake_pause_reference
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/pause/taxons/endemia")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "paused"}
+    assert captured == {"reference_name": "taxons", "source_id": "endemia"}
+
+
+def test_pause_reference_route_maps_value_errors(monkeypatch, gui_duckdb_client):
+    def fake_pause_reference(reference_name: str, source_id: str | None = None):
+        raise ValueError("No matching enrichment job found")
+
+    monkeypatch.setattr(
+        enrichment_router, "pause_reference_enrichment", fake_pause_reference
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/pause/taxons")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "No matching enrichment job found"
+
+
+def test_resume_reference_route_forwards_reference_name(monkeypatch, gui_duckdb_client):
+    captured = {}
+
+    def fake_resume_reference(reference_name: str, source_id: str | None = None):
+        captured["reference_name"] = reference_name
+        captured["source_id"] = source_id
+        return {"status": "running"}
+
+    monkeypatch.setattr(
+        enrichment_router, "resume_reference_enrichment", fake_resume_reference
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/resume/taxons")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "running"}
+    assert captured == {"reference_name": "taxons", "source_id": None}
+
+
+def test_resume_reference_route_forwards_selected_source(
+    monkeypatch, gui_duckdb_client
+):
+    captured = {}
+
+    def fake_resume_reference(reference_name: str, source_id: str | None = None):
+        captured["reference_name"] = reference_name
+        captured["source_id"] = source_id
+        return {"status": "running"}
+
+    monkeypatch.setattr(
+        enrichment_router, "resume_reference_enrichment", fake_resume_reference
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/resume/taxons/endemia")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "running"}
+    assert captured == {"reference_name": "taxons", "source_id": "endemia"}
+
+
+def test_resume_reference_route_maps_missing_config(monkeypatch, gui_duckdb_client):
+    def fake_resume_reference(reference_name: str, source_id: str | None = None):
+        raise ValueError("No enrichment configuration found for reference 'taxons'")
+
+    monkeypatch.setattr(
+        enrichment_router, "resume_reference_enrichment", fake_resume_reference
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/resume/taxons")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == (
+        "No enrichment configuration found for reference 'taxons'"
+    )
+
+
+def test_cancel_reference_route_forwards_selected_source(
+    monkeypatch, gui_duckdb_client
+):
+    captured = {}
+
+    def fake_cancel_reference(reference_name: str, source_id: str | None = None):
+        captured["reference_name"] = reference_name
+        captured["source_id"] = source_id
+        return {"status": "cancelled"}
+
+    monkeypatch.setattr(
+        enrichment_router, "cancel_reference_enrichment", fake_cancel_reference
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/cancel/taxons/endemia")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "cancelled"}
+    assert captured == {"reference_name": "taxons", "source_id": "endemia"}
+
+
+def test_cancel_reference_route_forwards_reference_name(monkeypatch, gui_duckdb_client):
+    captured = {}
+
+    def fake_cancel_reference(reference_name: str, source_id: str | None = None):
+        captured["reference_name"] = reference_name
+        captured["source_id"] = source_id
+        return {"status": "cancelled"}
+
+    monkeypatch.setattr(
+        enrichment_router, "cancel_reference_enrichment", fake_cancel_reference
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/cancel/taxons")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "cancelled"}
+    assert captured == {"reference_name": "taxons", "source_id": None}
+
+
+def test_cancel_reference_route_maps_service_errors(monkeypatch, gui_duckdb_client):
+    def fake_cancel_reference(reference_name: str, source_id: str | None = None):
+        raise ValueError("No matching enrichment job found")
+
+    monkeypatch.setattr(
+        enrichment_router, "cancel_reference_enrichment", fake_cancel_reference
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/cancel/taxons")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "No matching enrichment job found"
+
+
+def test_get_enrichment_stats_uses_worker_thread(monkeypatch):
+    captured = {}
+
+    def fake_get_stats():
+        captured["service_called"] = True
+        return {
+            "reference_name": None,
+            "entity_total": 10,
+            "source_total": 2,
+            "total": 20,
+            "enriched": 7,
+            "pending": 13,
+            "sources": [],
+        }
+
+    async def fake_to_thread(func, *args, **kwargs):
+        captured["thread_func"] = func
+        captured["thread_args"] = args
+        captured["thread_kwargs"] = kwargs
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(
+        enrichment_router, "get_default_enrichment_stats", fake_get_stats
+    )
+    monkeypatch.setattr(enrichment_router.asyncio, "to_thread", fake_to_thread)
+
+    response = asyncio.run(enrichment_router.get_enrichment_stats())
+
+    assert response["total"] == 20
+    assert captured == {
+        "thread_func": fake_get_stats,
+        "thread_args": (),
+        "thread_kwargs": {},
+        "service_called": True,
+    }
 
 
 def test_get_results_for_reference_uses_worker_thread(monkeypatch):

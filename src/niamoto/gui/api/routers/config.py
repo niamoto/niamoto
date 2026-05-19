@@ -552,7 +552,9 @@ async def get_references():
         if db_path.exists():
             try:
                 from niamoto.common.database import Database
+                from niamoto.common.table_resolver import quote_identifier
                 from niamoto.core.imports.registry import EntityRegistry
+                import pandas as pd
 
                 db = Database(str(db_path), read_only=True)
                 try:
@@ -568,10 +570,9 @@ async def get_references():
                             ref_name, f"reference_{ref_name}"
                         )
                         if db.has_table(actual_table):
-                            import pandas as pd
-
+                            quoted_table = quote_identifier(db, actual_table)
                             result = pd.read_sql(
-                                f"SELECT COUNT(*) as cnt FROM {actual_table}",
+                                f"SELECT COUNT(*) as cnt FROM {quoted_table}",
                                 db.engine,
                             )
                             entity_counts[ref_name] = int(result.iloc[0]["cnt"])
@@ -613,13 +614,16 @@ async def get_references():
             if db_path and db_path.exists():
                 try:
                     from niamoto.common.database import Database
+                    from niamoto.common.table_resolver import quote_identifier
+                    import pandas as pd
 
                     db = Database(str(db_path), read_only=True)
                     try:
                         if db.has_table(actual_table_name):
+                            quoted_table = quote_identifier(db, actual_table_name)
                             # Get column names from the table
                             columns_df = pd.read_sql(
-                                f"SELECT * FROM {actual_table_name} LIMIT 0",
+                                f"SELECT * FROM {quoted_table} LIMIT 0",
                                 db.engine,
                             )
                             columns = set(columns_df.columns.tolist())
@@ -1007,7 +1011,7 @@ async def get_config(config_name: str):
         # Return empty config structure based on type
         default_configs = {
             "import": {},  # Will be populated with taxonomy, plots, occurrences, shapes as needed
-            "transform": {"groups": {}},
+            "transform": [],
             "export": {"exports": [], "static_pages": []},
             "config": {
                 "project": {"name": "niamoto-project", "version": "1.0.0"},
@@ -1086,9 +1090,9 @@ async def validate_config(
     """
     validation_result = {"valid": True, "errors": [], "warnings": []}
 
-    try:
-        _validate_config_name(config_name)
+    _validate_config_name(config_name)
 
+    try:
         if config_name == "transform" and isinstance(content, list):
             return _validate_config_update_content(config_name, content)
 
@@ -1545,7 +1549,11 @@ async def list_transform_widgets(group_by: str) -> List[WidgetSummary]:
         if not group:
             return []
 
-        widgets_data = group.get("widgets_data", {})
+        widgets_data = group.get("widgets_data") or {}
+        if not isinstance(widgets_data, dict):
+            raise HTTPException(
+                status_code=400, detail="widgets_data must be an object"
+            )
         widgets = []
 
         for widget_id, widget_config in widgets_data.items():
@@ -1559,6 +1567,8 @@ async def list_transform_widgets(group_by: str) -> List[WidgetSummary]:
 
         return widgets
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing widgets: {str(e)}")
 
@@ -1582,7 +1592,11 @@ async def get_transform_widget(group_by: str, widget_id: str) -> WidgetSummary:
         if not group:
             raise HTTPException(status_code=404, detail=f"Group '{group_by}' not found")
 
-        widgets_data = group.get("widgets_data", {})
+        widgets_data = group.get("widgets_data") or {}
+        if not isinstance(widgets_data, dict):
+            raise HTTPException(
+                status_code=400, detail="widgets_data must be an object"
+            )
         if widget_id not in widgets_data:
             raise HTTPException(
                 status_code=404,

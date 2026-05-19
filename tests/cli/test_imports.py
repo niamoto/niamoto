@@ -45,6 +45,10 @@ class TestImportRun:
 
             assert result.exit_code == 0
             assert "Successfully imported all entities" in result.output
+            mock_importer.assert_called_once_with("/path/to/db.duckdb")
+            importer_instance.import_all.assert_called_once_with(
+                mock_imports_config, reset_table=False
+            )
 
     def test_import_run_with_reset(self, runner):
         """Test import run with reset table option."""
@@ -104,6 +108,12 @@ class TestImportReference:
 
             assert result.exit_code == 0
             assert "Successfully imported reference: species" in result.output
+            mock_importer.assert_called_once_with("/path/to/db.duckdb")
+            importer_instance.import_reference.assert_called_once_with(
+                "species",
+                mock_entities.references["species"],
+                reset_table=False,
+            )
 
     def test_import_reference_not_found(self, runner):
         """Test error when reference not found."""
@@ -160,6 +170,12 @@ class TestImportDataset:
 
             assert result.exit_code == 0
             assert "Successfully imported dataset: observations" in result.output
+            mock_importer.assert_called_once_with("/path/to/db.duckdb")
+            importer_instance.import_dataset.assert_called_once_with(
+                "observations",
+                mock_entities.datasets["observations"],
+                reset_table=False,
+            )
 
 
 class TestImportList:

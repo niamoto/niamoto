@@ -41,6 +41,91 @@ class TestHealthCheckEndpoint:
         assert "x-niamoto-desktop-token" not in probe_response.headers
 
 
+class TestDiagnosticEndpoint:
+    """Test `/api/health/diagnostic` diagnostics."""
+
+    def test_disposes_database_engine_when_inspection_fails(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        db_path = tmp_path / "db.sqlite"
+        db_path.write_text("", encoding="utf-8")
+        disposed = []
+
+        class FakeEngine:
+            def dispose(self):
+                disposed.append(True)
+
+        def fail_inspect(engine):
+            raise RuntimeError("inspection failed")
+
+        monkeypatch.setattr(health, "get_working_directory", lambda: tmp_path)
+        monkeypatch.setattr(health, "get_database_path", lambda: db_path)
+        monkeypatch.setattr("sqlalchemy.create_engine", lambda url: FakeEngine())
+        monkeypatch.setattr("sqlalchemy.inspect", fail_inspect)
+
+        response = create_test_client().get("/api/health/diagnostic")
+
+        assert response.status_code == 200, response.text
+        assert response.json()["database"]["tables"] == [
+            "Error reading tables: inspection failed"
+        ]
+        assert disposed == [True]
+
+
+class TestConnectivityEndpoint:
+    """Test `/api/health/connectivity` external connectivity probe."""
+
+    def test_connectivity_reports_online_status(self, monkeypatch: pytest.MonkeyPatch):
+        class FakeResponse:
+            status_code = 200
+
+        class FakeAsyncClient:
+            def __init__(self, timeout: float):
+                self.timeout = timeout
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return None
+
+            async def head(self, url: str):
+                assert url == "https://dns.google"
+                assert self.timeout == 3.0
+                return FakeResponse()
+
+        monkeypatch.setattr("httpx.AsyncClient", FakeAsyncClient)
+
+        response = create_test_client().get("/api/health/connectivity")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["online"] is True
+        assert isinstance(payload["latency_ms"], int)
+
+    def test_connectivity_reports_offline_on_exception(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        class FailingAsyncClient:
+            def __init__(self, timeout: float):
+                pass
+
+            async def __aenter__(self):
+                raise TimeoutError("network unavailable")
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return None
+
+        monkeypatch.setattr("httpx.AsyncClient", FailingAsyncClient)
+
+        response = create_test_client().get("/api/health/connectivity")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["online"] is False
+        assert isinstance(payload["latency_ms"], int)
+
+
 class TestReloadProjectEndpoint:
     """Test `/api/health/reload-project` contract."""
 

@@ -91,6 +91,7 @@ def setup_logging(
         # Remove any existing handlers
         for handler in logger.handlers[:]:
             logger.removeHandler(handler)
+            handler.close()
 
         handlers = []
 

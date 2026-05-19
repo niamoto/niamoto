@@ -1382,10 +1382,20 @@ document.addEventListener('DOMContentLoaded', function() {{
                     )
                 elif quoted_parent:
                     descendant_query = (
-                        f"SELECT {quoted_id} as id, {quoted_name} as name, "
-                        f"{quoted_geom} as geom FROM {quoted_table} "
-                        f"WHERE {quoted_parent} = :entity_id "
-                        f"AND {quoted_geom} IS NOT NULL "
+                        "WITH RECURSIVE descendants(id, name, geom) AS ("
+                        f"SELECT {quoted_id}, {quoted_name}, {quoted_geom} "
+                        f"FROM {quoted_table} "
+                        f"WHERE CAST({quoted_parent} AS VARCHAR) = :entity_id "
+                        "UNION ALL "
+                        f"SELECT child.{quoted_id}, child.{quoted_name}, "
+                        f"child.{quoted_geom} "
+                        f"FROM {quoted_table} child "
+                        "JOIN descendants parent "
+                        f"ON CAST(child.{quoted_parent} AS VARCHAR) = "
+                        "CAST(parent.id AS VARCHAR)"
+                        ") "
+                        "SELECT id, name, geom FROM descendants "
+                        "WHERE geom IS NOT NULL "
                         f"LIMIT 500"
                     )
 

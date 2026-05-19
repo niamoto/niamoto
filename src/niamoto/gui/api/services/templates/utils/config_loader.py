@@ -38,6 +38,29 @@ def load_import_config(work_dir: Path) -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 
+def _normalize_transform_groups(transform_config: Any) -> list[Dict[str, Any]]:
+    """Return transform groups from current list and legacy dict formats."""
+    if isinstance(transform_config, list):
+        return [group for group in transform_config if isinstance(group, dict)]
+
+    if not isinstance(transform_config, dict):
+        return []
+
+    groups = transform_config.get("groups", {})
+    if isinstance(groups, list):
+        return [group for group in groups if isinstance(group, dict)]
+    if isinstance(groups, dict):
+        normalized = []
+        for group_by, group_config in groups.items():
+            if isinstance(group_config, dict):
+                group = dict(group_config)
+                group.setdefault("group_by", group_by)
+                normalized.append(group)
+        return normalized
+
+    return []
+
+
 def build_reference_info(
     ref_name: str, ref_config: Dict[str, Any], import_config: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -152,7 +175,9 @@ def get_hierarchy_info(
             if transform_path.exists():
                 try:
                     with open(transform_path, "r", encoding="utf-8") as f:
-                        transform_config = yaml.safe_load(f) or []
+                        transform_config = _normalize_transform_groups(
+                            yaml.safe_load(f) or []
+                        )
 
                     # Find the group matching the reference_name
                     for group in transform_config:

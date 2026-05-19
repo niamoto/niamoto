@@ -11,7 +11,7 @@ from typing import Any
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from starlette.concurrency import run_in_threadpool
 
 from niamoto.gui.api.services.preview_engine import (
@@ -51,6 +51,12 @@ class InlinePreviewBody(BaseModel):
     mode: PreviewMode = "full"
     inline: InlineConfig | None = None
 
+    @model_validator(mode="after")
+    def require_preview_selector(self) -> "InlinePreviewBody":
+        if not self.template_id and self.inline is None:
+            raise ValueError("Either template_id or inline must be provided")
+        return self
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -75,6 +81,22 @@ def _build_headers(etag: str, render_ms: float | None = None) -> dict:
         headers["Server-Timing"] = f"preview;dur={rounded}"
         headers["X-Preview-Render-Ms"] = str(rounded)
     return headers
+
+
+def _if_none_match_matches(header_value: str | None, etag: str) -> bool:
+    """Return whether an If-None-Match header matches a computed ETag."""
+    if not header_value:
+        return False
+
+    for candidate in header_value.split(","):
+        tag = candidate.strip()
+        if tag == "*":
+            return True
+        if tag.startswith("W/"):
+            tag = tag[2:].strip()
+        if tag.strip('"') == etag:
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -115,10 +137,9 @@ async def get_preview(
 
     # Vérifier ETag AVANT le rendu complet pour éviter un render inutile
     if_none_match = request.headers.get("if-none-match") if request else None
-    if if_none_match:
-        etag = engine._compute_etag(req)
-        if if_none_match.strip('"') == etag:
-            return Response(status_code=304, headers={"ETag": f'"{etag}"'})
+    etag = engine._compute_etag(req) if if_none_match else None
+    if etag and _if_none_match_matches(if_none_match, etag):
+        return Response(status_code=304, headers={"ETag": f'"{etag}"'})
 
     started_at = time.perf_counter()
     result = await run_in_threadpool(engine.render, req)

@@ -693,21 +693,20 @@ async def list_export_jobs(http_request: Request):
             }
         )
 
-    for entry in job_store.get_history(limit=10):
-        if entry.get("type") == "export":
-            jobs.append(
-                {
-                    "job_id": entry["id"],
-                    "status": entry["status"],
-                    "started_at": entry["started_at"],
-                    "completed_at": entry.get("completed_at"),
-                    "progress": entry.get("progress", 100),
-                    "message": entry.get("message", ""),
-                    "phase": entry.get("phase"),
-                    "result": entry.get("result"),
-                    "error": entry.get("error"),
-                }
-            )
+    for entry in job_store.get_history(limit=10, job_type="export"):
+        jobs.append(
+            {
+                "job_id": entry["id"],
+                "status": entry["status"],
+                "started_at": entry["started_at"],
+                "completed_at": entry.get("completed_at"),
+                "progress": entry.get("progress", 100),
+                "message": entry.get("message", ""),
+                "phase": entry.get("phase"),
+                "result": entry.get("result"),
+                "error": entry.get("error"),
+            }
+        )
 
     return {"jobs": jobs}
 

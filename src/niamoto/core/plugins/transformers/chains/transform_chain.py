@@ -101,10 +101,21 @@ class TransformChain(TransformerPlugin):
 
     config_model = TransformChainConfig
 
+    def _normalize_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize legacy top-level steps into params.steps."""
+        if "steps" not in config:
+            return config
+
+        normalized = dict(config)
+        params = dict(normalized.get("params") or {})
+        params.setdefault("steps", normalized.pop("steps"))
+        normalized["params"] = params
+        return normalized
+
     def validate_config(self, config: Dict[str, Any]) -> TransformChainConfig:
         """Validate configuration and return typed config."""
         try:
-            validated_config = self.config_model(**config)
+            validated_config = self.config_model(**self._normalize_config(config))
 
             # Validate each step plugin exists
             for step in validated_config.params.steps:

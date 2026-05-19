@@ -77,7 +77,7 @@ class StandardProfileUpdateRequest(BaseModel):
 
     enabled: bool | None = None
     standard: StandardProfileType | None = None
-    target_grain: str | None = None
+    target_grain: str | None = Field(default=None, min_length=1)
     source: StandardProfileSource | None = None
     context: StandardProfileSource | None = None
     mappings: dict[str, Any] | None = None

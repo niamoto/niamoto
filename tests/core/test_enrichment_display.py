@@ -93,6 +93,31 @@ def test_catalog_keeps_root_media_for_image_list_payload() -> None:
     assert root_field["format"] == "image"
 
 
+def test_catalog_keeps_root_media_for_compact_url_payload() -> None:
+    catalog = build_enrichment_catalog(
+        [
+            {
+                "api_enrichment": {
+                    "sources": {
+                        "custom-media": {
+                            "label": "Custom media",
+                            "data": {
+                                "url": "https://img.example/flower.jpg",
+                                "caption": "Flower",
+                            },
+                        }
+                    }
+                }
+            }
+        ]
+    )
+
+    media = next(item for item in catalog if item["id"] == "custom-media")
+    root_field = next(field for field in media["fields"] if field["path"] == ".")
+
+    assert root_field["format"] == "image"
+
+
 def test_generic_panel_prefers_collection_and_best_image_variant() -> None:
     catalog = build_enrichment_catalog(
         [

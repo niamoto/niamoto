@@ -25,7 +25,7 @@ def make_class_object(
     return ClassObjectStats(
         name=name,
         cardinality=cardinality,
-        class_names=class_names or ["Dense", "Open"],
+        class_names=["Dense", "Open"] if class_names is None else class_names,
         value_type=value_type,
         sample_values=sample_values
         if sample_values is not None
@@ -151,6 +151,8 @@ def test_field_aggregator_uses_safe_default_when_samples_are_missing():
         sample_values=[],
         suggested_plugin="field_aggregator",
     )
+    assert class_object.class_names == []
+    assert class_object.sample_values == []
 
     suggestion = suggester.suggest_for_class_object(
         class_object,

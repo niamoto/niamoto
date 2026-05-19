@@ -201,13 +201,16 @@ class TestTableViewWidget(NiamotoTestCase):
         self.assertIsInstance(result, str)
         self.assertNotIn("<p class='error'>", result)
         self.assertIn("<table", result)
+        self.assertLess(result.find("Species B"), result.find("Species A"))
+        self.assertLess(result.find("Species A"), result.find("Species D"))
+        self.assertLess(result.find("Species D"), result.find("Species C"))
 
     def test_render_with_missing_sort_columns(self):
         """Test rendering with missing sort columns."""
         df = pd.DataFrame(
             {
-                "species": ["Species A", "Species B", "Species C"],
-                "count": [100, 200, 300],
+                "species": ["Species B", "Species A", "Species B"],
+                "count": [300, 100, 200],
             }
         )
 
@@ -222,6 +225,9 @@ class TestTableViewWidget(NiamotoTestCase):
         self.assertIsInstance(result, str)
         self.assertNotIn("<p class='error'>", result)
         self.assertIn("<table", result)
+        self.assertLess(result.find("Species A"), result.find("100"))
+        self.assertLess(result.find("100"), result.find("Species B"))
+        self.assertLess(result.find("300"), result.find("200"))
 
     def test_render_with_all_missing_sort_columns(self):
         """Test rendering when all sort columns are missing."""
@@ -260,6 +266,8 @@ class TestTableViewWidget(NiamotoTestCase):
         result1 = self.widget.render(df, params1)
         self.assertIsInstance(result1, str)
         self.assertNotIn("<p class='error'>", result1)
+        self.assertLess(result1.find("Species A"), result1.find("Species B"))
+        self.assertLess(result1.find("Species B"), result1.find("Species C"))
 
         # More ascending flags than sort columns
         params2 = TableViewParams(
@@ -270,6 +278,8 @@ class TestTableViewWidget(NiamotoTestCase):
         result2 = self.widget.render(df, params2)
         self.assertIsInstance(result2, str)
         self.assertNotIn("<p class='error'>", result2)
+        self.assertLess(result2.find("Species A"), result2.find("Species B"))
+        self.assertLess(result2.find("Species B"), result2.find("Species C"))
 
     def test_render_with_no_ascending_specified(self):
         """Test rendering with sort_by but no ascending specified."""
@@ -291,6 +301,8 @@ class TestTableViewWidget(NiamotoTestCase):
         self.assertIsInstance(result, str)
         self.assertNotIn("<p class='error'>", result)
         self.assertIn("<table", result)
+        self.assertLess(result.find("Species A"), result.find("Species B"))
+        self.assertLess(result.find("Species B"), result.find("Species C"))
 
     def test_render_with_max_rows_limit(self):
         """Test rendering with max rows limit."""

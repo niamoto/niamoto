@@ -272,10 +272,12 @@ class TestExtractRasterData:
         self, plugin, temp_raster, simple_polygon
     ):
         """Test raster data extraction with scale factor and offset."""
+        raw_params = {"band": 1, "scale_factor": 1.0, "offset": 0.0}
         params = {"band": 1, "scale_factor": 2.0, "offset": 10.0}
+        raw_data = plugin._extract_raster_data(temp_raster, simple_polygon, raw_params)
         data = plugin._extract_raster_data(temp_raster, simple_polygon, params)
-        # Values should be scaled and offset
         assert len(data) > 0
+        np.testing.assert_allclose(data, raw_data * 2.0 + 10.0)
 
     def test_extract_raster_data_multiband(
         self, plugin, temp_multiband_raster, simple_polygon

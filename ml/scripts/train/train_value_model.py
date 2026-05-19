@@ -65,14 +65,16 @@ def build_model(**kwargs):
     """Build HistGradientBoosting classifier."""
     from sklearn.ensemble import HistGradientBoostingClassifier
 
-    return HistGradientBoostingClassifier(
-        max_iter=500,
-        max_depth=10,
-        learning_rate=0.05,
-        min_samples_leaf=3,
-        random_state=42,
-        class_weight="balanced",
-    )
+    defaults = {
+        "max_iter": 500,
+        "max_depth": 10,
+        "learning_rate": 0.05,
+        "min_samples_leaf": 3,
+        "random_state": 42,
+        "class_weight": "balanced",
+    }
+    defaults.update(kwargs)
+    return HistGradientBoostingClassifier(**defaults)
 
 
 def evaluate_kfold(

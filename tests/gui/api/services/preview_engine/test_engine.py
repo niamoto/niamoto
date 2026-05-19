@@ -648,7 +648,9 @@ def test_render_entity_map_falls_back_to_descendants_when_parent_has_no_geometry
         ),
         patch(
             "niamoto.gui.api.services.preview_engine.engine.parse_wkt_to_geojson",
-            return_value={"type": "Polygon", "coordinates": []},
+            side_effect=lambda value: None
+            if value == "None"
+            else {"type": "Polygon", "coordinates": []},
         ),
         patch(
             "niamoto.gui.api.services.map_renderer.MapRenderer.render",
@@ -662,6 +664,67 @@ def test_render_entity_map_falls_back_to_descendants_when_parent_has_no_geometry
             [],
         )
 
+    assert result == "<div>map</div>"
+    mock_render.assert_called_once()
+
+
+def test_render_entity_map_parent_id_fallback_searches_deep_descendants():
+    engine = _make_engine()
+    db = MagicMock()
+
+    parent_df = pd.DataFrame([{"id": 1, "name": "Province", "geom": None}])
+    descendant_df = pd.DataFrame(
+        [
+            {
+                "id": 3,
+                "name": "Grandchild",
+                "geom": "POLYGON ((0 0, 1 0, 1 1, 0 0))",
+            }
+        ]
+    )
+
+    with (
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine.resolve_reference_table",
+            return_value="entity_shapes",
+        ),
+        patch.object(
+            engine,
+            "_get_column_names",
+            return_value=["id", "name", "location", "parent_id"],
+        ),
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine._pick_identifier_column",
+            return_value="id",
+        ),
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine._pick_name_column",
+            return_value="name",
+        ),
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine.pd.read_sql",
+            side_effect=[parent_df, descendant_df],
+        ) as read_sql,
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine.parse_wkt_to_geojson",
+            side_effect=lambda value: None
+            if value == "None"
+            else {"type": "Polygon", "coordinates": []},
+        ),
+        patch(
+            "niamoto.gui.api.services.map_renderer.MapRenderer.render",
+            return_value="<div>map</div>",
+        ) as mock_render,
+    ):
+        result = engine._render_entity_map(
+            "shapes_location_entity_map",
+            "1",
+            db,
+            [],
+        )
+
+    descendant_query = str(read_sql.call_args_list[1].args[0])
+    assert "WITH RECURSIVE descendants" in descendant_query
     assert result == "<div>map</div>"
     mock_render.assert_called_once()
 

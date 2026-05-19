@@ -150,7 +150,7 @@ def evaluate_metric(
     cache_dir: Path | None = None,
 ) -> float:
     cmd = [
-        str(ROOT / ".venv" / "bin" / "python"),
+        sys.executable,
         "-m",
         "ml.scripts.eval.evaluate",
         "--model",

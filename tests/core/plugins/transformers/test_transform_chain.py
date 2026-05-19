@@ -60,15 +60,13 @@ class TestTransformChain:
         """Test configuration validation with legacy format (steps at top level)."""
         config = {
             "plugin": "transform_chain",
-            "params": {
-                "steps": [
-                    {
-                        "plugin": "count_transformer",
-                        "params": {"field": "id", "distinct": True},
-                        "output_key": "count_result",
-                    }
-                ],
-            },
+            "steps": [
+                {
+                    "plugin": "count_transformer",
+                    "params": {"field": "id", "distinct": True},
+                    "output_key": "count_result",
+                }
+            ],
         }
 
         with patch.object(PluginRegistry, "has_plugin", return_value=True):
@@ -285,6 +283,10 @@ class TestTransformChain:
                 # The first argument should be the filtered DataFrame
                 assert isinstance(count_call_args[0], pd.DataFrame)
                 assert len(count_call_args[0]) == 2  # Filtered to 2 rows
+                pd.testing.assert_frame_equal(
+                    count_call_args[1]["params"]["data"],
+                    mock_filter_transformer.transform.return_value,
+                )
 
     def test_transform_resolves_indexed_and_functional_references(
         self, transform_chain, sample_dataframe

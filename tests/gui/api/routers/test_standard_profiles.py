@@ -40,6 +40,34 @@ def test_create_standard_profile_persists_under_standard_profiles(
     assert saved["standard_profiles"][0]["validation_status"] == "invalid"
 
 
+def test_update_standard_profile_rejects_empty_target_grain(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    original = yaml.safe_dump(
+        {
+            "standard_profiles": [
+                {
+                    "name": "dwc_occurrences",
+                    "standard": "darwin_core_occurrence",
+                    "target_grain": "occurrence",
+                    "source": {"type": "dataset", "name": "occurrences"},
+                }
+            ]
+        },
+        sort_keys=False,
+    )
+    export_path.write_text(original, encoding="utf-8")
+
+    response = gui_duckdb_client.patch(
+        "/api/standard-profiles/dwc_occurrences",
+        json={"target_grain": ""},
+    )
+
+    assert response.status_code == 422
+    assert export_path.read_text(encoding="utf-8") == original
+
+
 def test_list_standard_profiles_includes_legacy_hints(
     gui_duckdb_client, gui_duckdb_context
 ):

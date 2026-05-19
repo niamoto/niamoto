@@ -73,6 +73,16 @@ class MockTransformerExtraFields(TransformerPlugin):
         return {}
 
 
+class MockTransformerIncompatibleStructure(TransformerPlugin):
+    """Mock transformer whose output shares no fields with registered widgets."""
+
+    type = PluginType.TRANSFORMER
+    output_structure = {"geometry": "dict", "features": "list"}
+
+    def transform(self, data: Any, params: Any) -> Any:
+        return {}
+
+
 # Mock widget classes for testing
 class MockWidgetExactMatch(WidgetPlugin):
     """Widget expecting exact structure match."""
@@ -214,13 +224,11 @@ class TestPatternMatching:
 
     def test_no_match_incompatible(self, matcher):
         """Test incompatible structures return no suggestions."""
-        # minimal widget should not match because it's superset (needs only bins+counts)
-        # but MockTransformerMinimal has exactly bins+counts, so it's exact match
-        suggestions = matcher.find_compatible_widgets(MockTransformerMinimal)
+        suggestions = matcher.find_compatible_widgets(
+            MockTransformerIncompatibleStructure
+        )
 
-        minimal_matches = [s for s in suggestions if s.widget_name == "minimal"]
-        assert len(minimal_matches) == 1
-        assert minimal_matches[0].score == 1.0  # Exact match
+        assert suggestions == []
 
     def test_multiple_pattern_matching(self, matcher):
         """Test widget with multiple patterns finds best match."""

@@ -364,7 +364,7 @@ def test_export_dry_run_with_group(mock_config, mock_path, mock_exporter):
 
     assert result.exit_code == 0
     assert "taxon" in result.output
-    # Should not show "plot" group since we filtered to "taxon"
+    assert "plot" not in result.output
 
 
 def test_export_dry_run_group_not_found(mock_config, mock_path, mock_exporter):
@@ -660,6 +660,7 @@ def test_show_dry_run_specific_target():
         # Should only show the specified target
         info_calls = [call[0][0] for call in mock_print_info.call_args_list]
         assert any("web_pages" in call for call in info_calls)
+        assert not any("other_target" in call for call in info_calls)
 
 
 def test_show_dry_run_target_not_found():
@@ -696,7 +697,9 @@ def test_show_dry_run_with_group_filter():
         _show_dry_run(mock_service, "web_pages", "taxon")
 
         # Should show info about the filtered group
-        assert mock_print_info.call_count >= 1
+        info_calls = [call[0][0] for call in mock_print_info.call_args_list]
+        assert any("taxon" in call for call in info_calls)
+        assert not any("plot" in call for call in info_calls)
 
 
 def test_show_dry_run_group_not_found():

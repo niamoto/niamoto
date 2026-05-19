@@ -358,6 +358,9 @@ async def upload_precalc_source(
 
     # Analyze the CSV
     try:
+        if file_path.stat().st_size == 0:
+            raise HTTPException(status_code=400, detail="CSV file is empty")
+
         analyzer = ClassObjectAnalyzer(file_path)
         analysis = analyzer.analyze()
 
@@ -387,6 +390,10 @@ async def upload_precalc_source(
             validation_errors=analysis.validation_errors,
         )
 
+    except HTTPException:
+        if file_path.exists():
+            file_path.unlink()
+        raise
     except Exception as e:
         # Clean up file on error
         if file_path.exists():

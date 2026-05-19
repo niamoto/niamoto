@@ -81,6 +81,25 @@ class TestGetPreview:
         )
         assert response.status_code == 304
 
+    @pytest.mark.parametrize(
+        "if_none_match",
+        [
+            'W/"test-etag-123"',
+            '"old-etag", "test-etag-123"',
+            "*",
+        ],
+    )
+    def test_etag_304_accepts_weak_multi_value_and_wildcard(
+        self, client, mock_engine, if_none_match
+    ):
+        response = client.get(
+            "/api/preview/test_widget",
+            headers={"If-None-Match": if_none_match},
+        )
+
+        assert response.status_code == 304
+        mock_engine.render.assert_not_called()
+
     def test_etag_mismatch(self, client, mock_engine):
         """Si l'ETag ne matche pas, retour 200 avec le contenu."""
         response = client.get(
@@ -125,6 +144,12 @@ class TestPostPreview:
         assert req.template_id == "test_widget"
         assert req.mode == "thumbnail"
         assert req.inline is None
+
+    def test_empty_body_is_rejected_before_render(self, client, mock_engine):
+        response = client.post("/api/preview", json={})
+
+        assert response.status_code == 422
+        mock_engine.render.assert_not_called()
 
 
 class TestEngineUnavailable:

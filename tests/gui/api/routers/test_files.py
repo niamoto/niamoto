@@ -249,6 +249,18 @@ def test_read_export_file_rejects_symlink_outside_exports(monkeypatch, tmp_path)
     }
 
 
+def test_browse_missing_path_returns_not_found(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    work_dir.mkdir()
+    monkeypatch.setattr(files_router, "get_working_directory", lambda: work_dir)
+
+    client = TestClient(create_app())
+    response = client.get("/api/files/browse", params={"path": "missing"})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Path not found"
+
+
 def test_read_export_file_rejects_intermediate_symlink(monkeypatch, tmp_path):
     work_dir = tmp_path / "project"
     exports_dir = work_dir / "exports"

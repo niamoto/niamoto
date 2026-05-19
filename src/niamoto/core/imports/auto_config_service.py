@@ -81,14 +81,19 @@ class AutoConfigService:
             raise ValueError(f"Invalid path outside project: {filepath}") from exc
         return resolved_path
 
-    def analyze_file(self, filepath: str) -> Dict[str, Any]:
+    def analyze_file(
+        self, filepath: str, entity_name: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Analyze a supported file from the working directory."""
         file_path = self._resolve_project_path(filepath)
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {filepath}")
         if file_path.suffix.lower() != ".csv":
             raise ValueError(f"Unsupported file type: {file_path.suffix}")
-        return self.analyze_csv_file(file_path)
+        analysis = self.analyze_csv_file(file_path)
+        if entity_name:
+            analysis["entity_name_hint"] = entity_name
+        return analysis
 
     def analyze_csv_file(self, file_path: Path) -> Dict[str, Any]:
         """Analyze a CSV file without exposing internal sample rows."""

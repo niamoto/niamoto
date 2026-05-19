@@ -1,7 +1,7 @@
 """Entities API endpoints for accessing entity data with transformations and EntityRegistry."""
 
 import html
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import urlsplit
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -120,7 +120,7 @@ def _resolve_entity_id_column(table_name: str, columns: List[Dict[str, Any]]) ->
 
 @router.get("/available", response_model=EntityListResponse)
 async def get_available_entities(
-    kind: Optional[str] = Query(
+    kind: Optional[Literal["dataset", "reference"]] = Query(
         None, description="Filter by kind: 'dataset' or 'reference'"
     ),
 ):
@@ -169,9 +169,9 @@ async def get_available_entities(
 
         # Apply filter if requested
         if kind:
-            if kind.lower() == "dataset":
+            if kind == "dataset":
                 references = []
-            elif kind.lower() == "reference":
+            elif kind == "reference":
                 datasets = []
 
         return EntityListResponse(

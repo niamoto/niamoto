@@ -31,12 +31,28 @@ MAX_CSV_IMPORT_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024
 CSV_IMPORT_UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
 MAX_SITE_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
 SITE_UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
+SITE_CONTENT_TEXT_EXTENSIONS = {
+    ".md",
+    ".markdown",
+    ".txt",
+    ".html",
+    ".css",
+    ".js",
+    ".json",
+    ".yml",
+    ".yaml",
+}
 
 
 def _normalize_output_alias(output_file: str | None) -> str | None:
     if not output_file:
         return None
     return output_file.strip().lstrip("/")
+
+
+def _is_selectable_template_path(path: Path) -> bool:
+    """Return whether a template path should be user-selectable."""
+    return not any(part.startswith("_") for part in path.parts)
 
 
 def _is_root_index_page(page: dict[str, Any]) -> bool:
@@ -856,7 +872,7 @@ async def list_templates():
                 # Get relative path from templates dir
                 rel_path = f.relative_to(templates_dir)
                 # Skip partials and layouts (files starting with _)
-                if not str(rel_path).startswith("_"):
+                if _is_selectable_template_path(rel_path):
                     project_templates.append(str(rel_path))
 
     # Default templates from Niamoto package
@@ -868,7 +884,7 @@ async def list_templates():
             if default_templates_dir.exists():
                 for f in default_templates_dir.rglob("*.html"):
                     rel_path = f.relative_to(default_templates_dir)
-                    if not str(rel_path).startswith("_"):
+                    if _is_selectable_template_path(rel_path):
                         default_templates.append(str(rel_path))
     except (ImportError, AttributeError, TypeError):
         # Fallback: try to find templates relative to niamoto package
@@ -881,7 +897,7 @@ async def list_templates():
                 if default_templates_dir.exists():
                     for f in default_templates_dir.rglob("*.html"):
                         rel_path = f.relative_to(default_templates_dir)
-                        if not str(rel_path).startswith("_"):
+                        if _is_selectable_template_path(rel_path):
                             default_templates.append(str(rel_path))
         except (ImportError, AttributeError, TypeError):
             pass
@@ -2164,22 +2180,13 @@ async def get_file_content(path: str):
     if not file_path.is_file():
         raise HTTPException(status_code=400, detail="Path is not a file")
 
-    # Only allow text files
-    allowed_extensions = {
-        ".md",
-        ".markdown",
-        ".txt",
-        ".html",
-        ".css",
-        ".js",
-        ".json",
-        ".yml",
-        ".yaml",
-    }
-    if file_path.suffix.lower() not in allowed_extensions:
+    if file_path.suffix.lower() not in SITE_CONTENT_TEXT_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"File type not supported for reading. Allowed: {', '.join(sorted(allowed_extensions))}",
+            detail=(
+                "File type not supported for reading. Allowed: "
+                + ", ".join(sorted(SITE_CONTENT_TEXT_EXTENSIONS))
+            ),
         )
 
     try:
@@ -2251,6 +2258,8 @@ async def get_data_content(path: str):
         return DataFileResponse(data=data, path=path, count=len(data))
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {str(e)}")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
 
@@ -2334,12 +2343,13 @@ async def update_file_content(update: FileContentUpdate):
     file_path = _resolve_project_file_path(work_dir, update.path)
     _ensure_site_content_file_path(work_dir, file_path)
 
-    # Only allow writing to text files (markdown, txt, json)
-    allowed_extensions = {".md", ".markdown", ".txt", ".json"}
-    if file_path.suffix.lower() not in allowed_extensions:
+    if file_path.suffix.lower() not in SITE_CONTENT_TEXT_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"File type not supported for writing. Allowed: {', '.join(sorted(allowed_extensions))}",
+            detail=(
+                "File type not supported for writing. Allowed: "
+                + ", ".join(sorted(SITE_CONTENT_TEXT_EXTENSIONS))
+            ),
         )
 
     # Create backup before writing
@@ -2674,14 +2684,17 @@ async def import_bibtex(file: UploadFile = File(...)):
             entry_text = text[start:end]
 
             # Try to parse the entry
+            key_match = re.match(r"@\w+\s*\{\s*([^,]+)", entry_text)
+            key = key_match.group(1) if key_match else f"entry_{i + 1}"
             try:
                 ref = _parse_bibtex_entry(entry_text)
                 if ref and ref.get("title"):  # Valid entry with title
                     entries.append(ref)
+                elif ref:
+                    errors.append(f"Entry '{key}' is missing a title")
+                else:
+                    errors.append(f"Could not parse BibTeX entry '{key}'")
             except Exception as e:
-                # Extract entry key for error reporting
-                key_match = re.match(r"@\w+\s*\{\s*([^,]+)", entry_text)
-                key = key_match.group(1) if key_match else f"entry_{i + 1}"
                 errors.append(f"Error parsing '{key}': {str(e)}")
 
         return ImportResponse(
@@ -2843,6 +2856,10 @@ async def import_csv(
         raise HTTPException(
             status_code=400,
             detail=f"Invalid file type. Expected one of: {', '.join(valid_extensions)}",
+        )
+    if len(delimiter) != 1:
+        raise HTTPException(
+            status_code=400, detail="CSV delimiter must be exactly one character"
         )
 
     try:

@@ -168,6 +168,50 @@ def test_recipes_source_columns_fall_back_to_registry_source_outside_group(
     assert payload["table_name"] == "dataset_occurrences"
 
 
+def test_recipes_source_columns_returns_csv_columns_without_database(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    imports_dir = work_dir / "imports"
+    config_dir.mkdir(parents=True)
+    imports_dir.mkdir()
+    (config_dir / "transform.yml").write_text(
+        """
+- group_by: taxons
+  sources:
+    - name: plot_stats
+      data: imports/plot_stats.csv
+      grouping: taxons
+      relation:
+        plugin: direct_reference
+        key: taxon_id
+""",
+        encoding="utf-8",
+    )
+    (imports_dir / "plot_stats.csv").write_text(
+        "taxon_id;class_object;class_name;class_value\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(recipes, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(recipes, "get_database_path", lambda: None)
+
+    response = TestClient(create_app()).get(
+        "/api/recipes/sources/taxons/plot_stats/columns"
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["source_name"] == "plot_stats"
+    assert payload["table_name"] is None
+    assert [column["name"] for column in payload["columns"]] == [
+        "taxon_id",
+        "class_object",
+        "class_name",
+        "class_value",
+    ]
+
+
 def test_recipes_widgets_lists_all_core_widget_modules():
     PluginRegistry.clear()
     client = TestClient(create_app())
@@ -202,6 +246,46 @@ def test_recipes_widget_schema_loads_discovered_widget_module():
     assert payload["name"] == "table_view"
     assert "columns" in payload["params"]
     assert "max_rows" in payload["params"]
+
+
+def test_recipes_list_transformers_returns_registered_plugins():
+    PluginRegistry.clear()
+    client = TestClient(create_app())
+
+    try:
+        response = client.get("/api/recipes/transformers")
+    finally:
+        recipes._ensure_plugins_loaded()
+
+    assert response.status_code == 200, response.text
+    transformer_names = set(response.json())
+    assert {
+        "field_aggregator",
+        "time_series_analysis",
+        "geospatial_extractor",
+    }.issubset(transformer_names)
+
+
+def test_recipes_transformer_schema_route_returns_plugin_params():
+    client = TestClient(create_app())
+
+    response = client.get("/api/recipes/transformer-schema/time_series_analysis")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["name"] == "time_series_analysis"
+    assert {"source", "field", "fields", "time_field", "labels"}.issubset(
+        payload["params"]
+    )
+
+
+def test_recipes_transformer_schema_route_rejects_unknown_plugin():
+    response = TestClient(create_app()).get(
+        "/api/recipes/transformer-schema/unknown_transformer"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Transformer 'unknown_transformer' not found"
 
 
 def test_save_recipe_rejects_missing_required_plugin_params(monkeypatch, tmp_path):
