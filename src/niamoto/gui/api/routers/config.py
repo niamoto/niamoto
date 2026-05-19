@@ -1531,6 +1531,15 @@ def _resolve_export_widget_id(group_by: str, widget: Dict[str, Any]) -> Optional
     return None
 
 
+def _normalize_widgets_data(widgets_data: Any) -> Dict[str, Any]:
+    """Return a safe widget mapping from transform.yml group data."""
+    if widgets_data is None:
+        return {}
+    if not isinstance(widgets_data, dict):
+        raise HTTPException(status_code=400, detail="widgets_data must be an object")
+    return widgets_data
+
+
 @router.get("/transform/{group_by}/widgets")
 async def list_transform_widgets(group_by: str) -> List[WidgetSummary]:
     """
@@ -1543,17 +1552,18 @@ async def list_transform_widgets(group_by: str) -> List[WidgetSummary]:
         List of widget summaries
     """
     try:
-        groups = _load_transform_config()
+        try:
+            groups = _load_transform_config()
+        except (ValueError, ValidationError) as exc:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid transform configuration: {exc}"
+            ) from exc
         group = _find_transform_group(groups, group_by)
 
         if not group:
             return []
 
-        widgets_data = group.get("widgets_data") or {}
-        if not isinstance(widgets_data, dict):
-            raise HTTPException(
-                status_code=400, detail="widgets_data must be an object"
-            )
+        widgets_data = _normalize_widgets_data(group.get("widgets_data"))
         widgets = []
 
         for widget_id, widget_config in widgets_data.items():
@@ -1586,17 +1596,18 @@ async def get_transform_widget(group_by: str, widget_id: str) -> WidgetSummary:
         Widget summary
     """
     try:
-        groups = _load_transform_config()
+        try:
+            groups = _load_transform_config()
+        except (ValueError, ValidationError) as exc:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid transform configuration: {exc}"
+            ) from exc
         group = _find_transform_group(groups, group_by)
 
         if not group:
             raise HTTPException(status_code=404, detail=f"Group '{group_by}' not found")
 
-        widgets_data = group.get("widgets_data") or {}
-        if not isinstance(widgets_data, dict):
-            raise HTTPException(
-                status_code=400, detail="widgets_data must be an object"
-            )
+        widgets_data = _normalize_widgets_data(group.get("widgets_data"))
         if widget_id not in widgets_data:
             raise HTTPException(
                 status_code=404,
@@ -1689,7 +1700,7 @@ async def delete_transform_widget(group_by: str, widget_id: str) -> Dict[str, bo
                     status_code=404, detail=f"Group '{group_by}' not found"
                 )
 
-            widgets_data = group.get("widgets_data", {})
+            widgets_data = _normalize_widgets_data(group.get("widgets_data"))
             if widget_id not in widgets_data:
                 raise HTTPException(
                     status_code=404,

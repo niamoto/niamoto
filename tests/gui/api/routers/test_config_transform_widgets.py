@@ -130,6 +130,79 @@ def test_delete_transform_widget_removes_widget(monkeypatch, tmp_path):
     assert transform_config[0]["widgets_data"] == {}
 
 
+def test_get_transform_widget_returns_not_found_for_null_widgets(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    _write_transform_config(work_dir, [{"group_by": "taxons", "widgets_data": None}])
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    response = TestClient(create_app()).get(
+        "/api/config/transform/taxons/widgets/richness"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Widget 'richness' not found in group 'taxons'"
+
+
+def test_get_transform_widget_normalizes_stubbed_null_widgets(monkeypatch):
+    monkeypatch.setattr(
+        config_router,
+        "_load_transform_config",
+        lambda: [{"group_by": "plots", "widgets_data": None}],
+    )
+
+    response = TestClient(create_app()).get("/api/config/transform/plots/widgets/foo")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Widget 'foo' not found in group 'plots'"
+
+
+def test_get_transform_widget_rejects_non_object_widgets(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    _write_transform_config(work_dir, [{"group_by": "taxons", "widgets_data": []}])
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    response = TestClient(create_app()).get(
+        "/api/config/transform/taxons/widgets/richness"
+    )
+
+    assert response.status_code == 400
+    assert "widgets_data" in response.json()["detail"]
+    assert "valid dictionary" in response.json()["detail"]
+
+
+def test_delete_transform_widget_returns_not_found_for_missing_group(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path / "project"
+    _write_transform_config(work_dir, [{"group_by": "plots", "widgets_data": {}}])
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    response = TestClient(create_app()).delete(
+        "/api/config/transform/taxons/widgets/richness"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Group 'taxons' not found"
+
+
+def test_delete_transform_widget_returns_not_found_for_missing_widget(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path / "project"
+    _write_transform_config(
+        work_dir,
+        [{"group_by": "taxons", "widgets_data": {"height": {"plugin": "summary"}}}],
+    )
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    response = TestClient(create_app()).delete(
+        "/api/config/transform/taxons/widgets/richness"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Widget 'richness' not found in group 'taxons'"
+
+
 def test_delete_export_widget_removes_data_source(monkeypatch, tmp_path):
     work_dir = tmp_path / "project"
     _write_export_config(
@@ -158,3 +231,74 @@ def test_delete_export_widget_removes_data_source(monkeypatch, tmp_path):
     assert [
         w["data_source"] for w in export_config["exports"][0]["groups"][0]["widgets"]
     ] == ["height"]
+
+
+def test_delete_export_widget_removes_synthetic_hierarchical_nav_widget(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path / "project"
+    _write_export_config(
+        work_dir,
+        [
+            {
+                "group_by": "taxons",
+                "widgets": [
+                    {"plugin": "hierarchical_nav_widget", "params": {}},
+                    {"plugin": "info_grid", "data_source": "richness"},
+                ],
+            }
+        ],
+    )
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    response = TestClient(create_app()).delete(
+        "/api/config/export/taxons/widgets/taxons_hierarchical_nav_widget"
+    )
+
+    assert response.status_code == 200, response.text
+    export_config = yaml.safe_load(
+        (work_dir / "config" / "export.yml").read_text(encoding="utf-8")
+    )
+    widgets = export_config["exports"][0]["groups"][0]["widgets"]
+    assert widgets == [{"plugin": "info_grid", "data_source": "richness"}]
+
+
+def test_delete_export_widget_returns_not_found_for_missing_group(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path / "project"
+    _write_export_config(
+        work_dir,
+        [{"group_by": "plots", "widgets": [{"plugin": "info_grid"}]}],
+    )
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    response = TestClient(create_app()).delete(
+        "/api/config/export/taxons/widgets/richness"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Group 'taxons' not found in export config"
+
+
+def test_delete_export_widget_returns_not_found_for_missing_widget(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path / "project"
+    _write_export_config(
+        work_dir,
+        [
+            {
+                "group_by": "taxons",
+                "widgets": [{"plugin": "info_grid", "data_source": "height"}],
+            }
+        ],
+    )
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    response = TestClient(create_app()).delete(
+        "/api/config/export/taxons/widgets/richness"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Widget 'richness' not found in group 'taxons'"

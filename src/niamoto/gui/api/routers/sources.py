@@ -495,12 +495,24 @@ async def save_source_config(
 
     # Build source configuration
     # Get CSV columns for smart detection
-    with open(csv_path, "r", encoding="utf-8") as f:
-        first_line = f.readline()
-        delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
-        f.seek(0)
-        reader = csv.reader(f, delimiter=delimiter)
-        csv_columns = [c.strip() for c in next(reader)]
+    try:
+        with open(csv_path, "r", encoding="utf-8") as f:
+            first_line = f.readline()
+            if not first_line:
+                raise HTTPException(status_code=400, detail="CSV file is empty")
+            delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
+            f.seek(0)
+            reader = csv.reader(f, delimiter=delimiter)
+            csv_columns = [c.strip() for c in next(reader)]
+    except HTTPException:
+        raise
+    except (OSError, StopIteration, UnicodeDecodeError, csv.Error) as exc:
+        raise HTTPException(
+            status_code=400, detail=f"Failed to read CSV header: {exc}"
+        ) from exc
+
+    if not any(csv_columns):
+        raise HTTPException(status_code=400, detail="CSV file has no header columns")
 
     selected_entity_column = None
     for column in csv_columns:

@@ -141,6 +141,48 @@ def test_save_source_uses_selected_entity_column_and_reference_key(
     assert source["relation"]["match_field"] == "taxon_id"
 
 
+def test_save_source_rejects_empty_csv(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    imports_dir = gui_duckdb_context / "imports"
+    imports_dir.mkdir(exist_ok=True)
+    (imports_dir / "raw_empty_stats.csv").write_text("", encoding="utf-8")
+
+    response = gui_duckdb_client.post(
+        "/api/sources/taxons/save",
+        json={
+            "source_name": "empty_stats",
+            "file_path": "imports/raw_empty_stats.csv",
+            "entity_id_column": "taxon_id",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CSV file is empty"
+
+
+def test_save_source_rejects_header_without_columns(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    imports_dir = gui_duckdb_context / "imports"
+    imports_dir.mkdir(exist_ok=True)
+    (imports_dir / "raw_blank_header_stats.csv").write_text("\n1,2\n", encoding="utf-8")
+
+    response = gui_duckdb_client.post(
+        "/api/sources/taxons/save",
+        json={
+            "source_name": "blank_header_stats",
+            "file_path": "imports/raw_blank_header_stats.csv",
+            "entity_id_column": "taxon_id",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CSV file has no header columns"
+
+
 def test_save_source_rejects_paths_outside_imports(
     gui_duckdb_client: TestClient,
     gui_duckdb_context: Path,
