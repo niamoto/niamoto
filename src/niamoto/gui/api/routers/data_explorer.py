@@ -3,6 +3,7 @@
 import re
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 import yaml
@@ -676,8 +677,12 @@ async def preview_enrichment(request: EnrichmentPreviewRequest):
             api_enrichment.get("query_field", "full_name"): request.taxon_name
         }
 
-        # Call plugin
-        result = enricher.load_data(taxon_data, plugin_config)
+        # Call plugin without blocking the FastAPI event loop.
+        result = await run_in_threadpool(
+            enricher.load_data,
+            taxon_data,
+            plugin_config,
+        )
 
         # Return enriched data
         return {
