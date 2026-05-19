@@ -2246,7 +2246,7 @@ def test_preview_reference_enrichment_uses_entity_row_for_spatial_sources(monkey
         def load_data(self, payload, config):
             assert payload["id_plot"] == 42
             assert payload["geo_pt"] == "POINT (166.45 -22.27)"
-            assert payload["geometry"] == "Alphitonia neocaledonica"
+            assert payload["geometry"] == "POINT (166.45 -22.27)"
             assert config["params"]["profile"] == "openmeteo_elevation_v1"
             return {
                 "api_enrichment": {"elevation": {"value_m": 412}},
@@ -2260,6 +2260,11 @@ def test_preview_reference_enrichment_uses_entity_row_for_spatial_sources(monkey
     )
     monkeypatch.setattr(
         enrichment_service, "_reference_has_geometry", lambda _reference_name: True
+    )
+    monkeypatch.setattr(
+        enrichment_service,
+        "_reference_geometry_fields",
+        lambda _reference_name: ["geo_pt"],
     )
     monkeypatch.setattr(
         enrichment_service,
