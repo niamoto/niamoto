@@ -94,7 +94,9 @@ def load_all_plugins():
             pass
 
 
-def get_plugin_info_from_class(name: str, plugin_class: type) -> PluginInfo:
+def get_plugin_info_from_class(
+    name: str, plugin_class: type, plugin_type: Optional[PluginType] = None
+) -> PluginInfo:
     """
     Extract plugin information from a plugin class.
 
@@ -139,7 +141,7 @@ def get_plugin_info_from_class(name: str, plugin_class: type) -> PluginInfo:
         category = "visualization"
 
     # Get plugin type
-    plugin_type = getattr(plugin_class, "type", PluginType.TRANSFORMER)
+    plugin_type = plugin_type or getattr(plugin_class, "type", PluginType.TRANSFORMER)
 
     # Try to extract parameters from param_schema (new standard) or config_model
     parameters_schema = []
@@ -261,7 +263,9 @@ async def list_plugins(
             for plugin_name in plugin_names:
                 try:
                     plugin_class = PluginRegistry.get_plugin(plugin_name, plugin_type)
-                    plugin_info = get_plugin_info_from_class(plugin_name, plugin_class)
+                    plugin_info = get_plugin_info_from_class(
+                        plugin_name, plugin_class, plugin_type
+                    )
 
                     # Filter by category if specified
                     if category and plugin_info.category != category:
@@ -307,7 +311,7 @@ async def get_plugin(plugin_id: str):
         for plugin_type in PluginType:
             if PluginRegistry.has_plugin(plugin_id, plugin_type):
                 plugin_class = PluginRegistry.get_plugin(plugin_id, plugin_type)
-                return get_plugin_info_from_class(plugin_id, plugin_class)
+                return get_plugin_info_from_class(plugin_id, plugin_class, plugin_type)
 
         raise HTTPException(status_code=404, detail=f"Plugin '{plugin_id}' not found")
 
@@ -339,7 +343,9 @@ async def list_categories():
             for plugin_name in plugin_names:
                 try:
                     plugin_class = PluginRegistry.get_plugin(plugin_name, plugin_type)
-                    plugin_info = get_plugin_info_from_class(plugin_name, plugin_class)
+                    plugin_info = get_plugin_info_from_class(
+                        plugin_name, plugin_class, plugin_type
+                    )
                     if plugin_info.category:
                         categories.add(plugin_info.category)
                 except Exception:
@@ -384,7 +390,9 @@ async def check_compatibility(check: CompatibilityCheck):
         for plugin_type in PluginType:
             if PluginRegistry.has_plugin(check.plugin_id, plugin_type):
                 plugin_class = PluginRegistry.get_plugin(check.plugin_id, plugin_type)
-                plugin_info = get_plugin_info_from_class(check.plugin_id, plugin_class)
+                plugin_info = get_plugin_info_from_class(
+                    check.plugin_id, plugin_class, plugin_type
+                )
                 break
 
         if plugin_info is None:
