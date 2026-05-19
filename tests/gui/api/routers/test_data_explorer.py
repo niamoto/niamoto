@@ -1,5 +1,6 @@
 """Unit tests for data explorer query helpers."""
 
+import asyncio
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
@@ -12,6 +13,7 @@ from sqlalchemy import create_engine
 
 from niamoto.gui.api import context
 from niamoto.gui.api.app import create_app
+from niamoto.gui.api.routers import data_explorer as data_explorer_router
 from niamoto.gui.api.routers.data_explorer import (
     MAX_QUERY_LIMIT,
     _build_where_clause,
@@ -296,3 +298,69 @@ def test_query_table_opens_database_in_read_only_mode(
 
     assert response.status_code == 200, response.text
     assert captured["read_only"] is True
+
+
+def test_preview_enrichment_runs_loader_in_threadpool(monkeypatch, tmp_path: Path):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "import.yml").write_text(
+        """
+taxonomy:
+  api_enrichment:
+    plugin: api_taxonomy_enricher
+    api_url: https://example.test/taxon
+    query_field: full_name
+    query_param_name: q
+    response_mapping: {}
+""",
+        encoding="utf-8",
+    )
+    captured: dict[str, object] = {}
+
+    async def fake_run_in_threadpool(func, *args, **kwargs):
+        captured["func"] = func
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return {"api_enrichment": {"status": "previewed"}}
+
+    monkeypatch.setattr(
+        data_explorer_router,
+        "get_working_directory",
+        lambda: tmp_path,
+    )
+    monkeypatch.setattr(
+        data_explorer_router,
+        "run_in_threadpool",
+        fake_run_in_threadpool,
+    )
+
+    response = asyncio.run(
+        data_explorer_router.preview_enrichment(
+            data_explorer_router.EnrichmentPreviewRequest(
+                taxon_name="Araucaria columnaris"
+            )
+        )
+    )
+
+    assert captured["func"].__name__ == "load_data"
+    assert captured["args"] == (
+        {"full_name": "Araucaria columnaris"},
+        {
+            "plugin": "api_taxonomy_enricher",
+            "params": {
+                "api_url": "https://example.test/taxon",
+                "query_field": "full_name",
+                "query_param_name": "q",
+                "response_mapping": {},
+                "rate_limit": 1.0,
+                "cache_results": False,
+                "auth_method": "none",
+                "auth_params": {},
+                "query_params": {},
+                "chained_endpoints": [],
+            },
+        },
+    )
+    assert captured["kwargs"] == {}
+    assert response["success"] is True
+    assert response["api_enrichment"] == {"status": "previewed"}
