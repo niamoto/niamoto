@@ -14,6 +14,8 @@ from niamoto.core.plugins.transformers.aggregation.field_aggregator import (
     FieldAggregatorConfig,
     FieldConfig,
 )
+from niamoto.core.plugins.base import PluginType
+from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.common.exceptions import DatabaseError
 from niamoto.common.database import Database
 
@@ -57,17 +59,14 @@ class TestFieldAggregator:
         if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
 
-    # def test_plugin_registration_and_type(self):
-    #     """Test plugin registration and type."""
-    #     # Temporarily disable this test until register() is found/fixed
-    #     # assert self.plugin.name == "field_aggregator"
-    #     # assert self.plugin.type == PluginType.TRANSFORMER
-    #     plugin_instance = PluginRegistry.get_plugin("field_aggregator")
-    #     assert isinstance(plugin_instance, FieldAggregator)
-    #     # Check if the registered plugin has the correct type if available
-    #     # registered_type = getattr(plugin_instance, 'type', None)
-    #     # if registered_type:
-    #     #    assert registered_type == PluginType.TRANSFORMER
+    def test_plugin_registration_and_type(self):
+        """Test plugin registration and type."""
+        plugin_class = PluginRegistry.get_plugin(
+            "field_aggregator", PluginType.TRANSFORMER
+        )
+
+        assert plugin_class is FieldAggregator
+        assert plugin_class.type == PluginType.TRANSFORMER
 
     def test_config_model(self):
         """Test the config model validation."""
