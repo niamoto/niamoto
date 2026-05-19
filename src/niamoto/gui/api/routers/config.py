@@ -7,7 +7,7 @@ import tempfile
 import threading
 from typing import Dict, Any, Literal, Optional, List, Union
 from fastapi import APIRouter, HTTPException, Body
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 import re
 import yaml
 import shutil
@@ -1310,6 +1310,24 @@ class ImportConfigSaveResponse(BaseModel):
     backup_path: Optional[str] = None
 
 
+def _format_import_validation_errors(exc: ValidationError) -> Dict[str, list]:
+    """Group GenericImportConfig validation errors by UI entity key."""
+    errors: Dict[str, list] = {}
+
+    for error in exc.errors():
+        loc = list(error.get("loc", ()))
+        message = str(error.get("msg", "Invalid value"))
+        key = "_global"
+        if len(loc) >= 3 and loc[0] == "entities" and loc[1] == "datasets":
+            key = f"dataset.{loc[2]}"
+        elif len(loc) >= 3 and loc[0] == "entities" and loc[1] == "references":
+            key = f"reference.{loc[2]}"
+
+        errors.setdefault(key, []).append(message)
+
+    return errors
+
+
 @router.post("/import/v2/validate", response_model=ImportConfigValidateResponse)
 async def validate_import_v2(request: ImportConfigValidateRequest):
     """
@@ -1354,154 +1372,31 @@ async def validate_import_v2(request: ImportConfigValidateRequest):
                 warnings={},
             )
 
-        errors = {}
-        warnings = {}
-
-        # Check version
-        if "version" not in config_dict:
-            errors["_global"] = errors.get("_global", [])
-            errors["_global"].append("Missing 'version' field")
-
-        # Check entities structure
         if "entities" not in config_dict:
-            errors["_global"] = errors.get("_global", [])
-            errors["_global"].append("Missing 'entities' section")
             return ImportConfigValidateResponse(
-                valid=False, errors=errors, warnings=warnings
+                valid=False,
+                errors={"_global": ["Missing 'entities' section"]},
+                warnings={},
             )
 
-        entities_section = config_dict["entities"]
-        if not isinstance(entities_section, dict):
-            errors["_global"] = errors.get("_global", [])
-            errors["_global"].append("'entities' must be an object")
+        try:
+            parsed_config = GenericImportConfig.model_validate(config_dict)
+        except ValidationError as e:
             return ImportConfigValidateResponse(
-                valid=False, errors=errors, warnings=warnings
+                valid=False,
+                errors=_format_import_validation_errors(e),
+                warnings={},
             )
 
-        # Validate datasets
-        datasets = entities_section.get("datasets", {})
-        if not isinstance(datasets, dict):
-            errors["_datasets"] = ["'datasets' must be an object"]
-        else:
-            for entity_name, entity_config in datasets.items():
-                entity_errors = []
-                entity_warnings = []
-
-                # Validate entity name format
-                if not entity_name or not isinstance(entity_name, str):
-                    entity_errors.append("Entity name is required")
-                elif not entity_name.replace("_", "").replace("-", "").isalnum():
-                    entity_errors.append(
-                        "Entity name must be alphanumeric with underscores/hyphens"
-                    )
-
-                # Validate connector
-                if not isinstance(entity_config, dict):
-                    entity_errors.append("Entity configuration must be an object")
-                elif "connector" not in entity_config:
-                    entity_errors.append("Missing 'connector' field")
-                else:
-                    connector = entity_config["connector"]
-                    if "type" not in connector:
-                        entity_errors.append("Missing connector type")
-                    elif connector["type"] == "file":
-                        if "format" not in connector:
-                            entity_errors.append("Missing file format")
-                        if "path" not in connector:
-                            entity_warnings.append("No file path specified")
-
-                # Validate schema
-                if "schema" not in entity_config:
-                    entity_warnings.append("Missing schema configuration")
-                elif not isinstance(entity_config["schema"], dict):
-                    entity_errors.append("Schema must be an object")
-
-                if entity_errors:
-                    errors[f"dataset.{entity_name}"] = entity_errors
-                if entity_warnings:
-                    warnings[f"dataset.{entity_name}"] = entity_warnings
-
-        # Validate references
-        references = entities_section.get("references", {})
-        if not isinstance(references, dict):
-            errors["_references"] = ["'references' must be an object"]
-        else:
-            for entity_name, entity_config in references.items():
-                entity_errors = []
-                entity_warnings = []
-
-                # Validate entity name format
-                if not entity_name or not isinstance(entity_name, str):
-                    entity_errors.append("Entity name is required")
-                elif not entity_name.replace("_", "").replace("-", "").isalnum():
-                    entity_errors.append(
-                        "Entity name must be alphanumeric with underscores/hyphens"
-                    )
-
-                if not isinstance(entity_config, dict):
-                    entity_errors.append("Entity configuration must be an object")
-                else:
-                    # Validate kind
-                    if "kind" not in entity_config:
-                        entity_errors.append("Missing 'kind' field for reference")
-                    elif entity_config["kind"] not in [
-                        "hierarchical",
-                        "spatial",
-                        "generic",
-                    ]:
-                        entity_errors.append(
-                            "Kind must be 'hierarchical', 'spatial', or 'generic'"
-                        )
-
-                    # Validate hierarchical specific
-                    if entity_config.get("kind") == "hierarchical":
-                        if "hierarchy" not in entity_config:
-                            entity_errors.append(
-                                "Missing 'hierarchy' configuration for hierarchical reference"
-                            )
-                        elif not isinstance(entity_config["hierarchy"], dict):
-                            entity_errors.append(
-                                "Hierarchy configuration must be an object"
-                            )
-                        else:
-                            hierarchy = entity_config["hierarchy"]
-                            if "levels" not in hierarchy:
-                                entity_errors.append(
-                                    "Missing 'levels' in hierarchy configuration"
-                                )
-                            elif not isinstance(hierarchy["levels"], list):
-                                entity_errors.append("Hierarchy levels must be a list")
-                            elif len(hierarchy["levels"]) < 2:
-                                entity_warnings.append(
-                                    "Hierarchy should have at least 2 levels"
-                                )
-
-                    # Validate spatial specific
-                    if entity_config.get("kind") == "spatial":
-                        if "connector" in entity_config:
-                            connector = entity_config["connector"]
-                            if connector.get("type") != "file_multi_feature":
-                                entity_errors.append(
-                                    "Spatial references must use 'file_multi_feature' connector"
-                                )
-
-                    # Validate connector
-                    if "connector" not in entity_config:
-                        entity_errors.append("Missing 'connector' field")
-
-                if entity_errors:
-                    errors[f"reference.{entity_name}"] = entity_errors
-                if entity_warnings:
-                    warnings[f"reference.{entity_name}"] = entity_warnings
-
-        # Global validation
-        if not datasets and not references:
+        warnings: Dict[str, list] = {}
+        if (
+            not parsed_config.entities.datasets
+            and not parsed_config.entities.references
+        ):
             warnings["_global"] = warnings.get("_global", [])
             warnings["_global"].append("No datasets or references configured")
 
-        return ImportConfigValidateResponse(
-            valid=len(errors) == 0, errors=errors, warnings=warnings
-        )
+        return ImportConfigValidateResponse(valid=True, errors={}, warnings=warnings)
 
     except Exception as e:
         return ImportConfigValidateResponse(
