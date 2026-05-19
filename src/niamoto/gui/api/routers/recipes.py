@@ -12,6 +12,7 @@ A "widget recipe" combines: Source → Transformer → Widget
 import importlib
 import logging
 import pkgutil
+import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Optional
@@ -41,8 +42,53 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/recipes", tags=["recipes"])
 
+CORE_TRANSFORMER_MODULES = [
+    "niamoto.core.plugins.transformers.distribution.binned_distribution",
+    "niamoto.core.plugins.transformers.distribution.categorical_distribution",
+    "niamoto.core.plugins.transformers.distribution.time_series_analysis",
+    "niamoto.core.plugins.transformers.aggregation.statistical_summary",
+    "niamoto.core.plugins.transformers.aggregation.field_aggregator",
+    "niamoto.core.plugins.transformers.aggregation.binary_counter",
+    "niamoto.core.plugins.transformers.aggregation.reference_enrichment_profile",
+    "niamoto.core.plugins.transformers.aggregation.top_ranking",
+    "niamoto.core.plugins.transformers.extraction.geospatial_extractor",
+    "niamoto.core.plugins.transformers.class_objects.field_aggregator",
+    "niamoto.core.plugins.transformers.class_objects.binary_aggregator",
+    "niamoto.core.plugins.transformers.class_objects.series_extractor",
+    "niamoto.core.plugins.transformers.class_objects.categories_extractor",
+    "niamoto.core.plugins.transformers.class_objects.series_ratio_aggregator",
+    "niamoto.core.plugins.transformers.class_objects.categories_mapper",
+    "niamoto.core.plugins.transformers.class_objects.series_matrix_extractor",
+    "niamoto.core.plugins.transformers.class_objects.series_by_axis_extractor",
+]
 
-def _import_plugin_modules(package: ModuleType) -> None:
+CORE_WIDGET_SENTINELS = {
+    "diverging_bar_plot",
+    "hierarchical_nav_widget",
+    "raw_data_widget",
+    "summary_stats",
+    "table_view",
+}
+
+CORE_TRANSFORMER_SENTINELS = {
+    "field_aggregator",
+    "geospatial_extractor",
+    "statistical_summary",
+}
+
+
+def _import_plugin_module(module_name: str, *, reload_existing: bool) -> None:
+    """Import or reload a plugin module so its registration decorator runs."""
+    try:
+        if reload_existing and module_name in sys.modules:
+            importlib.reload(sys.modules[module_name])
+        else:
+            importlib.import_module(module_name)
+    except Exception:
+        logger.exception("Could not import plugin module %s", module_name)
+
+
+def _import_plugin_modules(package: ModuleType, *, reload_existing: bool) -> None:
     """Import all plugin modules from a package so decorators register them."""
     for module_info in pkgutil.walk_packages(
         package.__path__,
@@ -52,45 +98,26 @@ def _import_plugin_modules(package: ModuleType) -> None:
         module_name = module_info.name.rsplit(".", 1)[-1]
         if module_name.startswith("_"):
             continue
-        try:
-            importlib.import_module(module_info.name)
-        except Exception:
-            logger.exception("Could not import plugin module %s", module_info.name)
+        _import_plugin_module(module_info.name, reload_existing=reload_existing)
 
 
-def _ensure_plugins_loaded():
+def _ensure_plugins_loaded() -> None:
     """Ensure all transformer and widget plugins are loaded and registered."""
-    # Import transformer plugins
-    from niamoto.core.plugins.transformers.distribution import (  # noqa: F401
-        binned_distribution,
-        categorical_distribution,
-        time_series_analysis,
+    registered_transformers = set(
+        PluginRegistry.get_plugins_by_type(PluginType.TRANSFORMER)
     )
-    from niamoto.core.plugins.transformers.aggregation import (  # noqa: F401
-        statistical_summary,
-        field_aggregator,
-        binary_counter,
-        reference_enrichment_profile,
-        top_ranking,
-    )
-    from niamoto.core.plugins.transformers.extraction import (  # noqa: F401
-        geospatial_extractor,
-    )
-    from niamoto.core.plugins.transformers.class_objects import (  # noqa: F401
-        field_aggregator as co_field_aggregator,
-        binary_aggregator,
-        series_extractor,
-        categories_extractor,
-        series_ratio_aggregator,
-        categories_mapper,
-        series_matrix_extractor,
-        series_by_axis_extractor,
+    registered_widgets = set(PluginRegistry.get_plugins_by_type(PluginType.WIDGET))
+    reload_existing = not (
+        CORE_TRANSFORMER_SENTINELS.issubset(registered_transformers)
+        and CORE_WIDGET_SENTINELS.issubset(registered_widgets)
     )
 
-    # Import widget plugins
+    for module_name in CORE_TRANSFORMER_MODULES:
+        _import_plugin_module(module_name, reload_existing=reload_existing)
+
     from niamoto.core.plugins import widgets as widget_package
 
-    _import_plugin_modules(widget_package)
+    _import_plugin_modules(widget_package, reload_existing=reload_existing)
 
 
 # Ensure plugins are loaded at module import
@@ -606,6 +633,7 @@ def _find_params_model(plugin_class: type) -> Optional[type]:
 
 def _get_transformer_schema(plugin_name: str) -> Optional[TransformerSchema]:
     """Get schema for a transformer plugin."""
+    _ensure_plugins_loaded()
     try:
         plugin_class = PluginRegistry.get_plugin(plugin_name, PluginType.TRANSFORMER)
     except Exception:
@@ -799,6 +827,7 @@ def _extract_param_schema(
 
 def _get_widget_schema(plugin_name: str) -> Optional[WidgetSchema]:
     """Get schema for a widget plugin."""
+    _ensure_plugins_loaded()
     try:
         plugin_class = PluginRegistry.get_plugin(plugin_name, PluginType.WIDGET)
     except Exception:
@@ -1121,6 +1150,7 @@ async def get_transformer_schema(plugin_name: str):
 async def list_transformers():
     """List all available transformer plugins."""
     try:
+        _ensure_plugins_loaded()
         plugins = PluginRegistry.get_plugins_by_type(PluginType.TRANSFORMER)
         return list(plugins.keys())
     except Exception as e:
@@ -1173,6 +1203,7 @@ def _extract_widget_description(name: str, plugin_class: type) -> str:
 async def list_widgets():
     """List all available widget plugins with labels and descriptions."""
     try:
+        _ensure_plugins_loaded()
         plugins = PluginRegistry.get_plugins_by_type(PluginType.WIDGET)
         result = []
         for name, plugin_class in sorted(plugins.items()):

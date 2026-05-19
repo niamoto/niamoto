@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
 from niamoto.core.plugins.base import PluginType
+from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers import recipes
 from niamoto.gui.api.routers.recipes import SourceInfo
@@ -168,9 +169,13 @@ def test_recipes_source_columns_fall_back_to_registry_source_outside_group(
 
 
 def test_recipes_widgets_lists_all_core_widget_modules():
+    PluginRegistry.clear()
     client = TestClient(create_app())
 
-    response = client.get("/api/recipes/widgets")
+    try:
+        response = client.get("/api/recipes/widgets")
+    finally:
+        recipes._ensure_plugins_loaded()
 
     assert response.status_code == 200, response.text
     widget_names = {widget["name"] for widget in response.json()}
@@ -184,9 +189,13 @@ def test_recipes_widgets_lists_all_core_widget_modules():
 
 
 def test_recipes_widget_schema_loads_discovered_widget_module():
+    PluginRegistry.clear()
     client = TestClient(create_app())
 
-    response = client.get("/api/recipes/widget-schema/table_view")
+    try:
+        response = client.get("/api/recipes/widget-schema/table_view")
+    finally:
+        recipes._ensure_plugins_loaded()
 
     assert response.status_code == 200, response.text
     payload = response.json()

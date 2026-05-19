@@ -67,6 +67,17 @@ def _open_regular_file_under_root(
         )
 
     parts = requested_path.parts
+    if ".." in parts:
+        try:
+            (root_dir / relative_path).resolve(strict=False).relative_to(
+                root_dir.resolve()
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: file outside exports directory",
+            ) from exc
+
     if not parts or any(part in {"", ".", ".."} for part in parts):
         raise HTTPException(status_code=400, detail="Invalid path")
 
