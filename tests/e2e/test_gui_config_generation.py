@@ -56,6 +56,87 @@ EXPORT_ONLY_PLUGINS = {
 }
 
 
+def _resolve_schema_node(schema: dict[str, Any], root_schema: dict[str, Any]) -> dict:
+    """Résout un noeud JSON Schema local quand il utilise $ref."""
+    ref = schema.get("$ref")
+    if not isinstance(ref, str) or not ref.startswith("#/"):
+        return schema
+
+    node: Any = root_schema
+    for part in ref.removeprefix("#/").split("/"):
+        if not isinstance(node, dict):
+            return schema
+        node = node.get(part)
+    return node if isinstance(node, dict) else schema
+
+
+def _collect_schema_property_names(
+    schema: dict[str, Any], root_schema: dict[str, Any] | None = None
+) -> set[str]:
+    """Retourne les propriétés explicitement déclarées dans un noeud de schema."""
+    root_schema = root_schema or schema
+    schema = _resolve_schema_node(schema, root_schema)
+
+    property_names: set[str] = set()
+    properties = schema.get("properties", {})
+    if isinstance(properties, dict):
+        property_names.update(properties.keys())
+
+    items = schema.get("items")
+    if isinstance(items, dict):
+        property_names.update(_collect_schema_property_names(items, root_schema))
+
+    for composite_key in ("allOf", "anyOf", "oneOf"):
+        variants = schema.get(composite_key, [])
+        if isinstance(variants, list):
+            for variant in variants:
+                if isinstance(variant, dict):
+                    property_names.update(
+                        _collect_schema_property_names(variant, root_schema)
+                    )
+
+    return property_names
+
+
+def _schema_param_property_names(schema: dict[str, Any]) -> set[str]:
+    """Retourne les champs explicites utilisables pour les params GUI."""
+    property_names = _collect_schema_property_names(schema)
+    properties = _resolve_schema_node(schema, schema).get("properties", {})
+    params_schema = properties.get("params") if isinstance(properties, dict) else None
+    if isinstance(params_schema, dict):
+        property_names.update(_collect_schema_property_names(params_schema, schema))
+    return property_names
+
+
+def _plugin_schema_property_names(
+    test_client: TestClient, plugin_name: str
+) -> set[str]:
+    """Retourne les propriétés explicites exposées par l'API schema d'un plugin."""
+    response = test_client.get(f"/api/plugins/{plugin_name}/schema")
+    if response.status_code != 200:
+        return set()
+
+    data = response.json()
+    if not data.get("has_params"):
+        return set()
+
+    return _schema_param_property_names(data["schema"])
+
+
+def _widget_schema_property_names(
+    test_client: TestClient, widget_name: str, transformer_plugin: str
+) -> set[str]:
+    """Retourne les champs du widget associé à une entrée widgets_data."""
+    from niamoto.gui.api.services.templates.utils.widget_utils import (
+        map_transformer_to_widget,
+    )
+
+    widget_plugin = map_transformer_to_widget(transformer_plugin, widget_name)
+    if widget_plugin == transformer_plugin:
+        return set()
+    return _plugin_schema_property_names(test_client, widget_plugin)
+
+
 def _strip_export_only(widgets_data: dict) -> dict:
     """Retourne widgets_data sans les plugins export-only."""
     return {
@@ -337,16 +418,28 @@ class TestConfigSaveLoadRoundTrip:
 class TestSchemaCoversReferenceParams:
     """Vérifie que le JSON Schema de chaque plugin couvre ses params."""
 
+    def test_schema_param_property_names_ignores_additional_properties(self):
+        """Un champ absent doit rester absent même si additionalProperties est permis."""
+        schema = {
+            "type": "object",
+            "additionalProperties": True,
+            "properties": {
+                "params": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "properties": {"declared": {"type": "string"}},
+                }
+            },
+        }
+
+        assert _schema_param_property_names(schema) == {"params", "declared"}
+        assert "missing" not in _schema_param_property_names(schema)
+
     @pytest.mark.parametrize("group", ["taxons", "plots", "shapes"])
     def test_schema_has_fields_for_all_params(
         self, test_client, group, reference_transform
     ):
-        """Le JSON Schema doit avoir un champ pour chaque param utilisé.
-
-        Note: BasePluginParams a extra="allow", donc certains params (ex: title)
-        sont acceptés sans être dans le schema. Le test tolère ces params quand
-        le schema autorise additionalProperties.
-        """
+        """Le JSON Schema doit avoir un champ explicite pour chaque param utilisé."""
         ref_config = reference_transform[group]
         issues = []
 
@@ -366,28 +459,15 @@ class TestSchemaCoversReferenceParams:
                 continue
 
             schema = data["schema"]
-            schema_properties = set()
-
-            # Extraire les propriétés du schema (avec résolution $defs)
-            if "properties" in schema:
-                schema_properties = set(schema["properties"].keys())
-
-            # Si le schema autorise additionalProperties (extra="allow"),
-            # les params non déclarés sont acceptés → pas d'erreur
-            allows_extra = schema.get("additionalProperties", True) is not False
+            schema_properties = _schema_param_property_names(schema)
+            schema_properties.update(
+                _widget_schema_property_names(test_client, widget_name, plugin_name)
+            )
 
             # Vérifier que chaque param de la référence a un champ dans le schema
             params = widget_config.get("params", {})
             for param_name in params:
                 if param_name not in schema_properties:
-                    # Vérifier dans les propriétés héritées (PluginConfig a plugin, params)
-                    # Pour les config_model, les params sont wrappés
-                    if "params" in schema_properties:
-                        # C'est un config_model wrapper, les params sont dans params
-                        continue
-                    if allows_extra:
-                        # Le schema autorise les champs supplémentaires
-                        continue
                     issues.append(
                         f"{widget_name} ({plugin_name}): "
                         f"param '{param_name}' absent du schema"
