@@ -386,6 +386,9 @@ async def get_transform_status(job_id: str, http_request: Request):
     if not job:
         raise HTTPException(status_code=404, detail=f"Transform job {job_id} not found")
 
+    if job.get("type") != "transform":
+        raise HTTPException(status_code=404, detail=f"Transform job {job_id} not found")
+
     return TransformStatus(**_job_to_status(job))
 
 
