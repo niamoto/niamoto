@@ -1,4 +1,5 @@
 import asyncio
+import time
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -657,6 +658,85 @@ exports:
 
     response = asyncio.run(pipeline_router.get_pipeline_status(request))
     assert response.site.status == "fresh"
+
+
+def test_pipeline_publication_is_stale_when_export_config_changes_after_export(
+    tmp_path, monkeypatch
+):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    db_dir = work_dir / "db"
+    config_dir.mkdir(parents=True)
+    db_dir.mkdir(parents=True)
+
+    (config_dir / "transform.yml").write_text("[]\n")
+    export_config_path = config_dir / "export.yml"
+    export_config_path.write_text(
+        """
+exports:
+  - name: web_pages
+    enabled: true
+    exporter: html_page_exporter
+    params:
+      template_dir: templates/
+      output_dir: exports/web
+      site:
+        title: Test
+        lang: fr
+      navigation:
+        - text: Home
+          url: /index.html
+    static_pages:
+      - name: home
+        template: index.html
+        output_file: index.html
+    groups: []
+""".strip()
+    )
+    time.sleep(0.01)
+    config_mtime = time.time()
+    export_config_path.touch()
+
+    monkeypatch.setattr(pipeline_router, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(
+        pipeline_router, "get_database_path", lambda: db_dir / "niamoto.duckdb"
+    )
+
+    class DummyStore:
+        def get_running_job(self):
+            return None
+
+        def get_last_run(self, job_type, *args, **kwargs):
+            if job_type == "export":
+                return {
+                    "type": "export",
+                    "status": "completed",
+                    "completed_at": "2020-01-01T00:00:00",
+                }
+            return None
+
+    app = FastAPI()
+    app.state.job_store = DummyStore()
+    app.state.job_store_work_dir = work_dir
+    monkeypatch.setattr(
+        pipeline_router, "resolve_job_store", lambda app: app.state.job_store
+    )
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/pipeline/status",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = asyncio.run(pipeline_router.get_pipeline_status(request))
+
+    assert export_config_path.stat().st_mtime >= config_mtime
+    assert response.site.status == "fresh"
+    assert response.publication.status == "stale"
 
 
 def test_pipeline_site_summary_counts_legacy_placeholder_as_zero_pages(
