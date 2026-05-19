@@ -60,6 +60,30 @@ def test_get_reference_enrichment_config_returns_source_list(
     assert [source["label"] for source in payload["sources"]] == ["Endemia", "GBIF"]
 
 
+def test_get_reference_enrichment_config_translates_missing_reference(
+    monkeypatch, gui_duckdb_client
+):
+    """Unknown reference config errors should become a client-facing 404."""
+
+    def fake_get_reference_enrichment_config(reference_name: str):
+        raise ValueError(
+            f"No enrichment configuration found for reference '{reference_name}'"
+        )
+
+    monkeypatch.setattr(
+        enrichment_router,
+        "get_reference_enrichment_config",
+        fake_get_reference_enrichment_config,
+    )
+
+    response = gui_duckdb_client.get("/api/enrichment/config/unknown_ref")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == (
+        "No enrichment configuration found for reference 'unknown_ref'"
+    )
+
+
 def test_preview_legacy_route_forwards_source_id(monkeypatch, gui_duckdb_client):
     """Legacy preview endpoint must keep the optional source scope."""
 
