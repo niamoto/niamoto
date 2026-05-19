@@ -125,7 +125,7 @@ def get_valid_optional_working_directory() -> Optional[Path]:
     return None
 
 
-def get_database_path() -> Optional[Path]:
+def get_database_path(work_dir: Optional[Path] = None) -> Optional[Path]:
     """Return the analytics database path (DuckDB by default).
 
     Search order:
@@ -135,7 +135,8 @@ def get_database_path() -> Optional[Path]:
     4. data/niamoto.duckdb
     5. Legacy SQLite fallbacks (db/niamoto.db, niamoto.db, data/niamoto.db)
     """
-    work_dir = get_working_directory()
+    if work_dir is None:
+        work_dir = get_working_directory()
 
     # First check config for database path
     config_path = work_dir / "config" / "config.yml"

@@ -676,11 +676,11 @@ class VectorOverlay(TransformerPlugin):
 
             # Union the geometries to avoid double counting
             overlay_geoms = overlay_gdf.geometry.tolist()
-            union_geom = unary_union(overlay_geoms)
+            union_geom = self._union_geometries(overlay_geoms)
 
             # Union the main geometries as well
             main_geoms = main_gdf.geometry.tolist()
-            main_union = unary_union(main_geoms)
+            main_union = self._union_geometries(main_geoms)
 
             # Calculate the intersection
             intersection = main_union.intersection(union_geom)
@@ -718,6 +718,10 @@ class VectorOverlay(TransformerPlugin):
 
         except Exception as e:
             raise DataTransformError(f"Error during coverage operation: {str(e)}")
+
+    def _union_geometries(self, geometries: List[Any]) -> Any:
+        """Merge geometries for coverage calculations."""
+        return unary_union(geometries)
 
     def _perform_aggregate_operation(
         self,

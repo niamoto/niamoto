@@ -1678,9 +1678,10 @@ def _generate_mock_items(
 def _load_preview_index_items(
     group_name: str,
     index_config: Dict[str, Any],
+    work_dir: Optional[Path] = None,
 ) -> Optional[List[Dict[str, Any]]]:
     """Load real transformed items for the group index preview when available."""
-    db_path = get_database_path()
+    db_path = get_database_path(work_dir)
     if not db_path or not db_path.exists():
         return None
 
@@ -1846,6 +1847,7 @@ async def preview_group_index(
                 "enabled": True,
                 "template": template_name,
             },
+            work_dir=work_dir,
         )
         if items_data is None:
             items_data = _generate_mock_items(

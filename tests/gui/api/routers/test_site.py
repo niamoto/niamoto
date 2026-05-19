@@ -10,6 +10,7 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
+from niamoto.gui.api import context
 from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers.site import (
     _candidate_exported_preview_path,
@@ -1486,7 +1487,7 @@ class TestSiteGroups:
             monkeypatch.setattr(
                 site_router,
                 "_load_preview_index_items",
-                lambda group_name, index_config: [
+                lambda group_name, index_config, work_dir=None: [
                     {
                         "plots_id": "1",
                         "display_title": "Actual selected title",
@@ -1506,6 +1507,71 @@ class TestSiteGroups:
             html = response.json()["html"]
             assert "Actual selected title" in html
             assert "Plot 1" not in html
+
+    def test_preview_group_index_does_not_read_database_from_other_project(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(
+                config_dir / "export.yml",
+                {
+                    "exports": [
+                        {
+                            "name": "web_pages",
+                            "enabled": True,
+                            "exporter": "html_page_exporter",
+                            "params": {
+                                "site": {
+                                    "title": "Niamoto",
+                                    "lang": "fr",
+                                },
+                                "navigation": [],
+                            },
+                            "groups": [
+                                {
+                                    "group_by": "plots",
+                                    "index_generator": {
+                                        "enabled": True,
+                                        "template": "_group_index.html",
+                                        "page_config": {"title": "Plots"},
+                                        "filters": [],
+                                        "display_fields": [
+                                            {
+                                                "name": "label",
+                                                "source": "label",
+                                                "type": "text",
+                                                "label": "Label",
+                                                "is_title": True,
+                                            }
+                                        ],
+                                        "views": [{"type": "grid", "default": True}],
+                                    },
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
+
+            monkeypatch.setattr(
+                context,
+                "_working_directory",
+                (Path.cwd() / "test-instance" / "niamoto-nc").resolve(),
+            )
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                response = client.post("/api/site/preview-group-index/plots", json={})
+                assert response.status_code == 200, response.text
+
+            html = response.json()["html"]
+            assert "Plot 1" in html
 
     def test_preview_exported_site_falls_back_to_legacy_home_output(self):
         with tempfile.TemporaryDirectory() as temp_dir:
