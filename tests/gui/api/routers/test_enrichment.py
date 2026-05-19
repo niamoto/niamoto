@@ -294,6 +294,40 @@ def test_start_legacy_route_calls_default_service(monkeypatch, gui_duckdb_client
     assert calls == [True]
 
 
+def test_start_legacy_route_maps_value_errors(monkeypatch, gui_duckdb_client):
+    def fake_start_default():
+        raise ValueError("Enrichment job already active")
+
+    monkeypatch.setattr(
+        enrichment_router,
+        "start_default_enrichment",
+        fake_start_default,
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/start")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Enrichment job already active"
+
+
+def test_start_legacy_route_maps_missing_config(monkeypatch, gui_duckdb_client):
+    def fake_start_default():
+        raise ValueError("No enrichment configuration found for default reference")
+
+    monkeypatch.setattr(
+        enrichment_router,
+        "start_default_enrichment",
+        fake_start_default,
+    )
+
+    response = gui_duckdb_client.post("/api/enrichment/start")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == (
+        "No enrichment configuration found for default reference"
+    )
+
+
 def test_start_reference_route_forwards_reference_name(monkeypatch, gui_duckdb_client):
     captured = {}
 

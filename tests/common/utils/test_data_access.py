@@ -5,6 +5,7 @@ Tests for the data access utilities module.
 import unittest
 import pandas as pd
 
+from niamoto.common.utils import data_access as data_access_module
 from niamoto.common.utils.data_access import (
     get_nested_data,
     convert_to_dataframe,
@@ -209,14 +210,20 @@ class TestEdgeCasesAndErrorHandling(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(len(result), 2)
 
-        # Test with completely invalid input for list of dicts case
-        class BadData:
-            def __iter__(self):
-                raise ValueError("Iterator error")
+    def test_convert_list_of_dicts_actual_dataframe_exception(self):
+        """Test convert_to_dataframe returns None when DataFrame construction fails."""
+        original_dataframe = data_access_module.pd.DataFrame
 
-        bad_data = BadData()
-        result = convert_to_dataframe(bad_data, "x", "y")
-        self.assertIsNone(result)
+        class FailingDataFrame:
+            def __init__(self, *args, **kwargs):
+                raise ValueError("DataFrame construction failed")
+
+        try:
+            data_access_module.pd.DataFrame = FailingDataFrame
+            result = convert_to_dataframe([{"x": 1, "y": 2}], "x", "y")
+            self.assertIsNone(result)
+        finally:
+            data_access_module.pd.DataFrame = original_dataframe
 
     def test_get_nested_data_with_int_keys(self):
         """Test get_nested_data with integer keys in path."""

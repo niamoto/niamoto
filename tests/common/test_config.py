@@ -1,16 +1,21 @@
 """Test module for the Config class."""
 
 import os
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 import shutil
 import tempfile
 import yaml
+from fastapi.testclient import TestClient
+
 from niamoto.common.config import Config
 from niamoto.common.exceptions import (
     ConfigurationError,
     EnvironmentSetupError,
 )
+from niamoto.gui.api.app import create_app
+from niamoto.gui.api.routers import config as config_router
 from tests.common.base_test import NiamotoTestCase
 
 
@@ -81,6 +86,48 @@ class TestConfig(NiamotoTestCase):
         exports = config.get_export_config
         self.assertEqual(exports["web"], "exports/web")
         self.assertEqual(exports["api"], "exports/api")
+
+    def test_transform_widget_route_handles_null_widgets_data(self):
+        """Test transform widget route returns not found for null widgets_data."""
+        project_dir = os.path.join(self.test_dir, "project")
+        config_dir = os.path.join(project_dir, "config")
+        os.makedirs(config_dir, exist_ok=True)
+        with open(os.path.join(config_dir, "transform.yml"), "w") as f:
+            yaml.safe_dump(
+                [{"group_by": "plots", "widgets_data": None}],
+                f,
+                sort_keys=False,
+            )
+
+        with patch.object(
+            config_router, "get_working_directory", return_value=Path(project_dir)
+        ):
+            response = TestClient(create_app()).get(
+                "/api/config/transform/plots/widgets/foo"
+            )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.json()["detail"],
+            "Widget 'foo' not found in group 'plots'",
+        )
+
+    def test_transform_widget_route_handles_stubbed_null_widgets_data(self):
+        """Test transform widget route normalizes null widgets_data from config."""
+        with patch.object(
+            config_router,
+            "_load_transform_config",
+            return_value=[{"group_by": "plots", "widgets_data": None}],
+        ):
+            response = TestClient(create_app()).get(
+                "/api/config/transform/plots/widgets/foo"
+            )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.json()["detail"],
+            "Widget 'foo' not found in group 'plots'",
+        )
 
     def test_get_imports_config(self):
         """Test getting imports configuration with new schema."""

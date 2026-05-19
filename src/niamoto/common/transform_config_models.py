@@ -46,7 +46,7 @@ class TransformGroupConfig(BaseModel):
 
     group_by: str
     sources: List[TransformSourceConfig] = Field(default_factory=list)
-    widgets_data: Dict[str, TransformWidgetConfig] = Field(default_factory=dict)
+    widgets_data: Optional[Dict[str, TransformWidgetConfig]] = None
 
     model_config = ConfigDict(extra="allow")
 
