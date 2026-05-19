@@ -31,6 +31,11 @@ class BasePluginParams(BaseModel):
         extra="allow"
     )  # Allow unspecified fields in params, or change to 'forbid'
 
+    title: Optional[str] = Field(
+        default=None,
+        description="Optional display title for generated outputs or previews",
+    )
+
 
 class PluginConfig(BaseModel):
     """

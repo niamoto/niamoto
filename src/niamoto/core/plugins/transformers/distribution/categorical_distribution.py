@@ -3,16 +3,16 @@ Plugin for creating categorical distributions.
 """
 
 from typing import Dict, Any, List, Union
-from pydantic import BaseModel, field_validator, Field, ValidationInfo
+from pydantic import field_validator, Field, ValidationInfo
 
 import pandas as pd
 
-from niamoto.core.plugins.models import PluginConfig
+from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.core.imports.registry import EntityRegistry
 
 
-class CategoricalDistributionParams(BaseModel):
+class CategoricalDistributionParams(BasePluginParams):
     """Parameters for categorical distribution plugin"""
 
     source: str = Field(
@@ -74,6 +74,7 @@ class CategoricalDistribution(TransformerPlugin):
     """Plugin for creating categorical distributions"""
 
     config_model = CategoricalDistributionConfig
+    param_schema = CategoricalDistributionParams
 
     # Output structure for pattern matching
     output_structure = {
