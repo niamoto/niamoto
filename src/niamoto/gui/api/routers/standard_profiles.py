@@ -321,7 +321,10 @@ async def get_standard_profile_compatibility(
         profile = store.get_profile(profile_name)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return _compatibility_service().evaluate(profile)
+    try:
+        return _compatibility_service().evaluate(profile)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get(
