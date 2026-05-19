@@ -166,6 +166,22 @@ class TopRankingParams(BasePluginParams):
         },
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def infer_legacy_mode(cls, values: Any) -> Any:
+        """Infer mode for legacy configs that predate the explicit mode field."""
+
+        if not isinstance(values, dict) or values.get("mode"):
+            return values
+
+        if values.get("join_table"):
+            return {**values, "mode": "join"}
+
+        if values.get("hierarchy_table") or values.get("target_ranks"):
+            return {**values, "mode": "hierarchical"}
+
+        return values
+
     @model_validator(mode="after")
     def validate_aggregate_field_requirement(self) -> "TopRankingParams":
         """Ensure aggregate_field is provided and valid when required."""
