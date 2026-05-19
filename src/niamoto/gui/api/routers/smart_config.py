@@ -607,7 +607,7 @@ async def auto_configure(request: AutoConfigureRequest) -> AutoConfigureResponse
             raise HTTPException(status_code=400, detail="Working directory not set")
 
         service = AutoConfigService(Path(work_dir_str))
-        result = service.auto_configure(request.files)
+        result = await asyncio.to_thread(service.auto_configure, request.files)
         return AutoConfigureResponse(**result)
 
     except HTTPException:
