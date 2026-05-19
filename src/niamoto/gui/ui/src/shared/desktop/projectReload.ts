@@ -1,4 +1,5 @@
 import { hasDesktopBridge, invokeDesktop } from './bridge'
+import { apiFetch } from '@/shared/lib/api/fetch'
 
 export type ReloadProjectState = 'loaded' | 'welcome' | 'invalid-project'
 
@@ -72,7 +73,7 @@ export async function reloadDesktopProject(
 }
 
 async function fetchReloadProject(): Promise<unknown> {
-  const response = await fetch('/api/health/reload-project', {
+  const response = await apiFetch('/api/health/reload-project', {
     method: 'POST',
   })
 

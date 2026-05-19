@@ -66,6 +66,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { apiClient } from '@/shared/lib/api/client'
+import { apiFetch } from '@/shared/lib/api/fetch'
 import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
 import {
   getProjectName,
@@ -256,7 +257,7 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
         }
       }
 
-      const response = await fetch('/api/deploy/execute', {
+      const response = await apiFetch('/api/deploy/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -405,7 +406,7 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
     }
 
     try {
-      const response = await fetch('/api/deploy/unpublish', {
+      const response = await apiFetch('/api/deploy/unpublish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

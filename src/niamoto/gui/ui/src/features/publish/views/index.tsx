@@ -67,6 +67,7 @@ import { usePipelineStatus } from '@/hooks/usePipelineStatus'
 import { executeExportAndWait } from '@/features/publish/api/export'
 import { getBuildGate } from '@/features/publish/lib/buildGate'
 import { apiClient } from '@/shared/lib/api/client'
+import { apiFetch } from '@/shared/lib/api/fetch'
 import { getApiErrorMessage } from '@/shared/lib/api/errors'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
 import PublishDeployContent from '@/features/publish/views/deploy'
@@ -599,7 +600,7 @@ export default function PublishOverview() {
         }
       }
 
-      const response = await fetch('/api/deploy/execute', {
+      const response = await apiFetch('/api/deploy/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

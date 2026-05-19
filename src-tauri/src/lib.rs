@@ -276,6 +276,15 @@ fn reload_desktop_project(state: State<ServerState>) -> Result<serde_json::Value
         .map_err(|e| format!("Received an invalid reload-project response: {e}"))
 }
 
+#[tauri::command]
+fn get_desktop_api_auth_token(state: State<ServerState>) -> Result<Option<String>, String> {
+    state
+        .desktop_auth_token
+        .lock()
+        .map_err(|e| e.to_string())
+        .map(|token| token.clone())
+}
+
 fn terminate_child_process(process: &mut Child) {
     let pid = process.id();
 
@@ -592,6 +601,7 @@ pub fn run() {
             commands::browse_folder,
             commands::open_external_url,
             reload_desktop_project,
+            get_desktop_api_auth_token,
         ])
         .setup(|app| {
             println!("Starting Niamoto Desktop Application...");
