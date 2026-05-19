@@ -249,7 +249,16 @@ class TestTransformBasic:
         assert "bin_edges" in result
         assert "area_unit" in result
         assert result["area_unit"] == "ha"
-        assert len(result["class_name"]) == 5  # 5 bins
+        assert result["class_name"] == [
+            "0-200",
+            "200-400",
+            "400-600",
+            "600-800",
+            "800-1000",
+        ]
+        assert result["bin_edges"] == [0.0, 200.0, 400.0, 600.0, 800.0, 1000.0]
+        assert result["pixel_count"] == [20, 20, 20, 20, 20]
+        assert result["area"] == pytest.approx([0.00002] * 5)
 
     def test_transform_with_custom_bins(self, plugin, simple_polygon_gdf, temp_dem):
         """Test elevation profile with custom bins."""
@@ -310,10 +319,12 @@ class TestTransformBasic:
         assert result_ha["area_unit"] == "ha"
         assert result_km2["area_unit"] == "km2"
         assert result_m2["area_unit"] == "m2"
-
-        # m2 should have largest values
-        assert sum(result_m2["area"]) > sum(result_ha["area"])
-        assert sum(result_m2["area"]) > sum(result_km2["area"])
+        assert result_ha["pixel_count"] == [20, 20, 20, 20, 20]
+        assert result_km2["pixel_count"] == [20, 20, 20, 20, 20]
+        assert result_m2["pixel_count"] == [20, 20, 20, 20, 20]
+        assert result_ha["area"] == pytest.approx([0.00002] * 5)
+        assert result_km2["area"] == pytest.approx([0.0000002] * 5)
+        assert result_m2["area"] == pytest.approx([0.2] * 5)
 
     def test_transform_with_nodata_handling(
         self, plugin, simple_polygon_gdf, temp_dem_with_nodata
@@ -433,7 +444,10 @@ class TestForestDistribution:
         assert "forest_percentage" in forest_dist
         assert "forest_pixels" in forest_dist
         assert "total_pixels" in forest_dist
-        assert len(forest_dist["forest_area"]) == 5  # 5 bins
+        assert forest_dist["total_pixels"] == [20, 20, 20, 20, 20]
+        assert forest_dist["forest_pixels"] == [10, 10, 10, 10, 10]
+        assert forest_dist["forest_area"] == pytest.approx([0.00001] * 5)
+        assert forest_dist["forest_percentage"] == pytest.approx([50.0] * 5)
 
     def test_calculate_forest_distribution_empty_forest(
         self, plugin, simple_polygon, temp_dem
