@@ -43,14 +43,19 @@ router = APIRouter(prefix="/recipes", tags=["recipes"])
 
 
 def _import_plugin_modules(package: ModuleType) -> None:
-    """Import all direct plugin modules from a package so decorators register them."""
-    for module_info in pkgutil.iter_modules(package.__path__, f"{package.__name__}."):
-        if module_info.ispkg:
-            continue
+    """Import all plugin modules from a package so decorators register them."""
+    for module_info in pkgutil.walk_packages(
+        package.__path__,
+        f"{package.__name__}.",
+        onerror=lambda _name: None,
+    ):
         module_name = module_info.name.rsplit(".", 1)[-1]
         if module_name.startswith("_"):
             continue
-        importlib.import_module(module_info.name)
+        try:
+            importlib.import_module(module_info.name)
+        except Exception:
+            logger.exception("Could not import plugin module %s", module_info.name)
 
 
 def _ensure_plugins_loaded():
