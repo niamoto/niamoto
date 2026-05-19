@@ -10,7 +10,6 @@ import { useState } from 'react'
 import {
   usePipelineStatus,
   type EntityStatus,
-  type RunningJob,
 } from '@/hooks/usePipelineStatus'
 import { useConfiguredWidgets } from '@/components/widgets'
 import { useApiExportTargets } from '@/features/collections/hooks/useApiExportConfigs'
@@ -18,7 +17,7 @@ import type { ReferenceInfo } from '@/hooks/useReferences'
 import type { CollectionsSelection } from './CollectionsTree'
 import { useNotificationStore } from '@/stores/notificationStore'
 import {
-  getTransformJobGroups,
+  getTransformActivityByGroup,
   useStartTransformJob,
 } from '@/features/collections/hooks/useCollectionTransforms'
 import {
@@ -331,12 +330,9 @@ export function CollectionsOverview({
     trackedJobs.some((job) => job.jobType === 'transform' || job.jobType === 'export')
     || runningJob?.type === 'transform'
     || runningJob?.type === 'export'
-  const trackedTransformGroups = trackedJobs
-    .filter((job) => job.jobType === 'transform')
-    .flatMap((job) => getTransformJobGroups(job))
-  const activityStateByGroup = getTransformActivityStateByGroup({
+  const activityByGroup = getTransformActivityByGroup({
     runningJob: isTransformRunning ? runningJob : null,
-    trackedGroups: trackedTransformGroups,
+    trackedJobs,
     pendingGroups,
   })
   const startTransform = async (groups: string[], successCount: number) => {
@@ -454,7 +450,7 @@ export function CollectionsOverview({
       )}
       <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {displayItems.map((ref) => {
-          const activityState = activityStateByGroup.get(ref.name)
+          const activityState = activityByGroup.get(ref.name)?.state
           return (
           <CollectionCard
             key={ref.name}
@@ -491,57 +487,4 @@ function formatRelativeTime(isoDate: string, t: (key: string, options?: Record<s
   if (hours < 24) return t('collectionPanel.relativeTime.hoursAgo', { count: hours })
   const days = Math.floor(hours / 24)
   return t('collectionPanel.relativeTime.daysAgo', { count: days })
-}
-
-function getCurrentBatchGroup(message?: string | null): string | null {
-  if (!message) return null
-  const match = message.match(/^Processing\s+(.+?)\s+·/)
-  return match?.[1]?.trim() || null
-}
-
-function getTransformActivityStateByGroup({
-  runningJob,
-  trackedGroups,
-  pendingGroups,
-}: {
-  runningJob: Pick<RunningJob, 'message' | 'group_by' | 'group_bys'> | null
-  trackedGroups: string[]
-  pendingGroups: string[]
-}): Map<string, 'running' | 'completed'> {
-  const states = new Map<string, 'running' | 'completed'>()
-
-  if (runningJob) {
-    const jobGroups = getTransformJobGroups(runningJob)
-    if (jobGroups.length > 0) {
-      const currentGroup = getCurrentBatchGroup(runningJob.message)
-      if (jobGroups.length > 1 && currentGroup && jobGroups.includes(currentGroup)) {
-        for (const groupName of jobGroups) {
-          if (groupName === currentGroup) {
-            states.set(groupName, 'running')
-            break
-          }
-          states.set(groupName, 'completed')
-        }
-        return states
-      }
-
-      for (const groupName of jobGroups) {
-        states.set(groupName, 'running')
-      }
-      return states
-    }
-  }
-
-  if (pendingGroups.length > 0) {
-    for (const groupName of pendingGroups) {
-      states.set(groupName, 'running')
-    }
-    return states
-  }
-
-  for (const groupName of trackedGroups) {
-    states.set(groupName, 'running')
-  }
-
-  return states
 }
