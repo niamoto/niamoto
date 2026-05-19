@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from niamoto.common.config import Config
 from niamoto.common.exceptions import (
     ConfigurationError,
+    DatabaseQueryError,
     NiamotoError,
 )
 from niamoto.common.utils.error_handler import get_error_details
@@ -513,7 +514,50 @@ async def delete_entity(
                 detail=f"{entity_type.capitalize()} '{entity_name}' not found in configuration",
             )
 
-        # Remove entity from config
+        table_dropped = False
+        if delete_table:
+            try:
+                config_dir = str(work_dir / "config")
+                config = Config(config_dir=config_dir, create_default=False)
+                with open_database(config.database_path) as db:
+                    table_names = []
+                    try:
+                        if db.has_table(EntityRegistry.ENTITIES_TABLE):
+                            registry = EntityRegistry(db)
+                            entity_meta = registry.get(entity_name)
+                            table_names.append(entity_meta.table_name)
+                    except (DatabaseQueryError, KeyError):
+                        logger.warning(
+                            "Entity '%s' not found in registry, using table name fallbacks",
+                            entity_name,
+                        )
+
+                    table_names.extend(
+                        [
+                            entity_name,
+                            f"reference_{entity_name}",
+                            f"dataset_{entity_name}",
+                        ]
+                    )
+
+                    for table_name in dict.fromkeys(table_names):
+                        if not table_name:
+                            continue
+                        if db.has_table(table_name):
+                            quoted_table = quote_identifier(db, table_name)
+                            db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
+                            table_dropped = True
+                            break
+            except Exception as e:
+                logger.exception(
+                    "Could not drop table for entity '%s': %s", entity_name, e
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Could not drop table for entity '{entity_name}': {e}",
+                )
+
+        # Remove entity from config only after requested table cleanup succeeds
         del section[entity_name]
         entities[section_key] = section
         import_config["entities"] = entities
@@ -527,31 +571,6 @@ async def delete_entity(
                 sort_keys=False,
                 allow_unicode=True,
             )
-
-        # Optionally drop the database table
-        table_dropped = False
-        if delete_table:
-            try:
-                config_dir = str(work_dir / "config")
-                config = Config(config_dir=config_dir, create_default=False)
-                with open_database(config.database_path) as db:
-                    # Try different table naming conventions
-                    table_names = [
-                        entity_name,
-                        f"reference_{entity_name}",
-                        f"dataset_{entity_name}",
-                    ]
-                    for table_name in table_names:
-                        if db.has_table(table_name):
-                            quoted_table = quote_identifier(db, table_name)
-                            db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
-                            table_dropped = True
-                            break
-            except Exception as e:
-                # Log but don't fail - config was already updated
-                logger.warning(
-                    "Could not drop table for entity '%s': %s", entity_name, e
-                )
 
         return {
             "success": True,
