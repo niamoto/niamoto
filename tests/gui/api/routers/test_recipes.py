@@ -183,6 +183,18 @@ def test_recipes_widgets_lists_all_core_widget_modules():
     }.issubset(widget_names)
 
 
+def test_recipes_widget_schema_loads_discovered_widget_module():
+    client = TestClient(create_app())
+
+    response = client.get("/api/recipes/widget-schema/table_view")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["name"] == "table_view"
+    assert "columns" in payload["params"]
+    assert "max_rows" in payload["params"]
+
+
 def test_save_recipe_rejects_missing_required_plugin_params(monkeypatch, tmp_path):
     class RequiredTransformerParams(BaseModel):
         source: str
