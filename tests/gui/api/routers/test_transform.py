@@ -33,6 +33,26 @@ class _StatusJobStore:
     def get_job(self, job_id: str) -> dict | None:
         return self.job
 
+    def get_last_run(
+        self,
+        job_type: str,
+        group_by: str | None = None,
+        status: str | None = None,
+    ) -> dict | None:
+        if not self.job:
+            return None
+        if self.job.get("type") != job_type:
+            return None
+        if status is not None and self.job.get("status") != status:
+            return None
+        if group_by is None:
+            return self.job
+        if self.job.get("group_by") == group_by:
+            return self.job
+        if group_by in (self.job.get("group_bys") or []):
+            return self.job
+        return None
+
 
 @pytest.mark.anyio
 async def test_execute_transform_background_filters_requested_group_bys(
@@ -231,6 +251,41 @@ async def test_get_transform_status_returns_transform_job(
     assert status.job_id == "job-1"
     assert status.status == "running"
     assert status.group_by == "plots"
+
+
+@pytest.mark.anyio
+async def test_get_last_transform_run_finds_multi_group_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job = {
+        "id": "job-1",
+        "type": "transform",
+        "status": "completed",
+        "progress": 100,
+        "message": "Transform completed",
+        "phase": None,
+        "group_by": None,
+        "group_bys": ["taxons", "shapes"],
+        "started_at": "2026-04-12T09:00:00",
+        "completed_at": "2026-04-12T09:01:00",
+        "result": {"metrics": {"total_transformations": 2}},
+        "error": None,
+    }
+    monkeypatch.setattr(
+        transform_router,
+        "_get_job_store",
+        lambda _request: _StatusJobStore(job),
+    )
+
+    status = await transform_router.get_last_transform_run(
+        "taxons",
+        SimpleNamespace(app=SimpleNamespace()),
+    )
+
+    assert status["job_id"] == "job-1"
+    assert status["status"] == "completed"
+    assert status["group_by"] is None
+    assert status["group_bys"] == ["taxons", "shapes"]
 
 
 def test_get_transform_sources_reads_root_dict_group(
