@@ -81,3 +81,23 @@ def test_get_plugin_uses_registry_type_when_class_type_disagrees(monkeypatch):
         assert payload["output_format"] == "html"
     finally:
         PluginRegistry.clear()
+
+
+def test_list_plugins_uses_registry_type_when_class_type_disagrees(monkeypatch):
+    monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
+    PluginRegistry.clear()
+    try:
+        PluginRegistry.register_plugin(
+            "mislabeled_widget", MislabeledWidget, PluginType.WIDGET
+        )
+        client = TestClient(create_app())
+
+        response = client.get("/api/plugins/")
+
+        assert response.status_code == 200
+        payload = response.json()
+        plugin = next(item for item in payload if item["id"] == "mislabeled_widget")
+        assert plugin["type"] == "widget"
+        assert plugin["output_format"] == "html"
+    finally:
+        PluginRegistry.clear()
