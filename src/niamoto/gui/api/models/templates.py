@@ -227,8 +227,8 @@ class CombinedWidgetRequest(BaseModel):
     selected_fields: List[str] = Field(
         ..., description="List of field names selected by user", min_length=2
     )
-    source_name: str = Field(
-        default="occurrences", description="Name of the data source entity"
+    source_name: Optional[str] = Field(
+        default=None, description="Name of the data source entity"
     )
 
 
