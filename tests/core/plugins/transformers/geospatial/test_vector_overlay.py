@@ -505,9 +505,8 @@ class TestCoverageOperation:
         )
         params = {"area_unit": "ha"}
 
-        with patch(
-            "niamoto.core.plugins.transformers.geospatial.vector_overlay.unary_union",
-            side_effect=RuntimeError("union failed"),
+        with patch.object(
+            plugin, "_union_geometries", side_effect=RuntimeError("union failed")
         ):
             with pytest.raises(DataTransformError, match="union failed"):
                 plugin._perform_coverage_operation(gdf1, gdf2, params)
