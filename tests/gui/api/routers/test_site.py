@@ -64,6 +64,31 @@ def test_export_bibtex_handles_blank_and_null_fields():
     assert "@article{unknown0000untitled," in response.text
 
 
+def test_export_bibtex_escapes_structural_field_values():
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/site/export-bibtex",
+        json=[
+            {
+                "type": "article",
+                "authors": "Doe, Jane\nand Intruder",
+                "title": "Safe title }\n@misc{injected,",
+                "year": "2024",
+                "journal": "Journal {with braces}",
+                "url": "https://example.test/a?x={y}&z=1",
+            }
+        ],
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.text.count("\n@") == 0
+    assert "@misc{injected" not in response.text
+    assert "author    = {Doe and Jane and Intruder}," in response.text
+    assert "title     = {Safe title \\} @misc\\{injected,}," in response.text
+    assert "journal   = {Journal \\{with braces\\}}," in response.text
+    assert "url       = {https://example.test/a?x=\\{y\\}\\&z=1}," in response.text
+
+
 def test_import_bibtex_rejects_oversized_upload(monkeypatch):
     client = TestClient(create_app())
     monkeypatch.setattr(site_router, "MAX_BIBTEX_UPLOAD_SIZE_BYTES", 10)
