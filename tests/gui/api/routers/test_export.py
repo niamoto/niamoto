@@ -156,7 +156,7 @@ class TestExportHistory:
             assert len(history) == 1
             assert history[0]["type"] == "transform"
 
-    def test_cancel_export_job_marks_running_job_cancelled(self):
+    def test_cancel_export_job_marks_running_job_cancelling(self):
         with TemporaryDirectory() as temp_dir:
             work_dir = Path(temp_dir)
             store = JobFileStore(work_dir)
@@ -174,18 +174,18 @@ class TestExportHistory:
                 assert response.json() == {
                     "success": True,
                     "job_id": running_export["id"],
-                    "status": "cancelled",
-                    "message": "Export job cancelled",
+                    "status": "cancelling",
+                    "message": "Export job cancellation requested",
                 }
 
                 status_response = client.get(
                     f"/api/export/status/{running_export['id']}"
                 )
                 assert status_response.status_code == 200, status_response.text
-                assert status_response.json()["status"] == "cancelled"
+                assert status_response.json()["status"] == "cancelling"
 
             store.complete_job(running_export["id"], result={"ignored": True})
-            assert store.get_job(running_export["id"])["status"] == "cancelled"
+            assert store.get_job(running_export["id"])["status"] == "completed"
 
     def test_execute_cli_job_is_visible_to_export_job_endpoints(self, monkeypatch):
         class DummyProcess:
@@ -248,6 +248,19 @@ class _DummyJobStore:
     def fail_job(self, job_id: str, error: str, result: dict | None = None) -> None:
         self.failed_error = error
         self.failed_result = result
+
+
+class _CancellableDummyJobStore(_DummyJobStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.cancelled = False
+
+    def get_job(self, job_id: str) -> dict:
+        return {"id": job_id, "status": "cancelling" if self.cancelled else "running"}
+
+    def cancel_job(self, job_id: str, message: str = "Job cancelled") -> dict:
+        self.cancelled = True
+        return {"id": job_id, "status": "cancelled", "message": message}
 
 
 @pytest.mark.anyio
@@ -611,6 +624,80 @@ async def test_execute_export_background_waits_for_cwd_lock_off_event_loop(
     assert second_store.failed_error is None
     assert first_store.completed_result is not None
     assert second_store.completed_result is not None
+
+
+@pytest.mark.anyio
+async def test_execute_export_background_holds_cwd_lock_until_cancelled_thread_finishes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "exports" / "web"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "index.html").write_text("<html>home</html>", encoding="utf-8")
+
+    export_started = threading.Event()
+    release_export = threading.Event()
+    real_sleep = asyncio.sleep
+
+    async def fast_sleep(_delay: float) -> None:
+        await real_sleep(0)
+
+    class BlockingExporterService:
+        def __init__(self, db_path: str, config) -> None:
+            return None
+
+        def run_export(self, target_name=None):
+            export_started.set()
+            release_export.wait(timeout=5)
+            return {
+                "web_pages": {
+                    "status": "success",
+                    "files_generated": 1,
+                    "errors": 0,
+                    "output_path": str(output_dir),
+                }
+            }
+
+    monkeypatch.setattr(
+        export_router,
+        "get_export_config",
+        lambda path: {
+            "exports": [{"name": "web_pages", "exporter": "html_page_exporter"}]
+        },
+    )
+    monkeypatch.setattr(
+        export_router, "Config", lambda config_dir, create_default=False: object()
+    )
+    monkeypatch.setattr(export_router, "ExporterService", BlockingExporterService)
+    monkeypatch.setattr(export_router.asyncio, "sleep", fast_sleep)
+
+    job_store = _CancellableDummyJobStore()
+    context = export_router.ExportExecutionContext(
+        work_dir=tmp_path,
+        config_path=tmp_path / "config" / "export.yml",
+        db_path=tmp_path / "db" / "niamoto.duckdb",
+    )
+
+    task = asyncio.create_task(
+        export_router.execute_export_background(
+            "job-1",
+            job_store,
+            context,
+            None,
+            False,
+        )
+    )
+    await asyncio.to_thread(export_started.wait, 5)
+
+    job_store.cancelled = True
+    await real_sleep(0.05)
+
+    assert not task.done()
+
+    release_export.set()
+    await asyncio.wait_for(task, timeout=5)
+    assert job_store.completed_result is None
+    assert job_store.failed_error is None
 
 
 @pytest.mark.anyio

@@ -6,6 +6,8 @@ for complex aggregations and site-wide statistics that don't fit the standard
 group-by transformation patterns.
 """
 
+import ast
+import math
 import re
 import logging
 from typing import Dict, Any, List, Optional, Literal
@@ -18,6 +20,91 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.common.exceptions import DataValidationError
+
+
+SAFE_COMPUTED_FUNCTIONS = {
+    "abs": abs,
+    "round": round,
+    "min": min,
+    "max": max,
+    "sum": sum,
+    "len": len,
+    "int": int,
+    "float": float,
+    "pow": pow,
+    "sqrt": math.sqrt,
+    "ceil": math.ceil,
+    "floor": math.floor,
+}
+
+
+class _ComputedExpressionValidator(ast.NodeVisitor):
+    """Validate a restricted arithmetic expression AST before evaluation."""
+
+    ALLOWED_NODES = (
+        ast.Expression,
+        ast.Constant,
+        ast.Name,
+        ast.Load,
+        ast.BinOp,
+        ast.UnaryOp,
+        ast.BoolOp,
+        ast.Compare,
+        ast.IfExp,
+        ast.Call,
+        ast.List,
+        ast.Tuple,
+    )
+    ALLOWED_OPERATORS = (
+        ast.Add,
+        ast.Sub,
+        ast.Mult,
+        ast.Div,
+        ast.FloorDiv,
+        ast.Mod,
+        ast.Pow,
+        ast.USub,
+        ast.UAdd,
+        ast.And,
+        ast.Or,
+        ast.Not,
+        ast.Eq,
+        ast.NotEq,
+        ast.Lt,
+        ast.LtE,
+        ast.Gt,
+        ast.GtE,
+    )
+
+    def __init__(self, allowed_names: set[str]) -> None:
+        self.allowed_names = allowed_names
+
+    def generic_visit(self, node: ast.AST) -> None:
+        if not isinstance(node, self.ALLOWED_NODES + self.ALLOWED_OPERATORS):
+            raise ValueError(f"Unsupported expression syntax: {type(node).__name__}")
+        super().generic_visit(node)
+
+    def visit_Name(self, node: ast.Name) -> None:
+        if node.id.startswith("__") or node.id not in self.allowed_names:
+            raise ValueError(f"Unknown or unsafe name in expression: {node.id}")
+
+    def visit_Call(self, node: ast.Call) -> None:
+        if not isinstance(node.func, ast.Name):
+            raise ValueError("Only direct calls to approved functions are allowed")
+        if node.func.id not in SAFE_COMPUTED_FUNCTIONS:
+            raise ValueError(f"Function is not allowed: {node.func.id}")
+        if node.keywords:
+            raise ValueError("Keyword arguments are not allowed in computed fields")
+        self.generic_visit(node)
+
+
+def _safe_eval_computed_expression(expression: str, namespace: Dict[str, Any]) -> Any:
+    """Evaluate a constrained computed-field expression without Python eval access."""
+    allowed_namespace = {**SAFE_COMPUTED_FUNCTIONS, **namespace}
+    parsed = ast.parse(expression, mode="eval")
+    _ComputedExpressionValidator(set(allowed_namespace)).visit(parsed)
+    compiled = compile(parsed, "<computed_field>", "eval")
+    return eval(compiled, {"__builtins__": {}}, allowed_namespace)
 
 
 class QueryConfig(BaseModel):
@@ -397,28 +484,8 @@ class DatabaseAggregatorPlugin(TransformerPlugin):
                 value = 0
             namespace[dep] = value
 
-        # Add safe mathematical functions
-        import math
-
-        safe_functions = {
-            "abs": abs,
-            "round": round,
-            "min": min,
-            "max": max,
-            "sum": sum,
-            "len": len,
-            "int": int,
-            "float": float,
-            "pow": pow,
-            "sqrt": math.sqrt,
-            "ceil": math.ceil,
-            "floor": math.floor,
-        }
-        namespace.update(safe_functions)
-
         try:
-            # Evaluate expression in safe namespace
-            result = eval(expression, {"__builtins__": {}}, namespace)
+            result = _safe_eval_computed_expression(expression, namespace)
             return result
         except Exception as e:
             self.logger.error(

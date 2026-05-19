@@ -53,7 +53,7 @@ class ExportStatus(BaseModel):
     """Status model for export jobs."""
 
     job_id: str
-    status: str  # "running", "completed", "failed", "cancelled"
+    status: str  # "running", "cancelling", "completed", "failed", "cancelled"
     progress: int  # 0-100
     message: str
     phase: Optional[str] = None  # "transform" or "export"
@@ -112,7 +112,17 @@ def _job_is_cancelled(job_store: JobFileStore, job_id: str) -> bool:
         job = job_store.get_job(job_id)
     except AttributeError:
         return False
-    return bool(job and job.get("status") == "cancelled")
+    return bool(job and job.get("status") in {"cancelled", "cancelling"})
+
+
+async def _wait_for_cancelled_thread_export(export_task: asyncio.Task) -> None:
+    """Keep cwd lock ownership until a non-cooperative export thread exits."""
+    try:
+        await asyncio.shield(export_task)
+    except Exception:
+        logger.debug(
+            "Cancelled export thread finished with an exception", exc_info=True
+        )
 
 
 def _resolve_export_config_path(config_path: str | Path, work_dir: Path) -> Path:
@@ -510,7 +520,11 @@ async def execute_export_background(
             while not export_task.done():
                 await asyncio.sleep(5)
                 if _job_is_cancelled(job_store, job_id):
-                    export_task.cancel()
+                    await _wait_for_cancelled_thread_export(export_task)
+                    try:
+                        job_store.cancel_job(job_id, "Export job cancelled")
+                    except AttributeError:
+                        pass
                     return
                 if step_idx < len(steps) and not export_task.done():
                     pct = (
@@ -725,7 +739,12 @@ async def cancel_export_job(job_id: str, http_request: Request):
     if job.get("type") != "export":
         raise HTTPException(status_code=404, detail=f"Export job {job_id} not found")
 
-    cancelled = job_store.cancel_job(job_id, "Export job cancelled")
+    try:
+        cancelled = job_store.request_cancellation(
+            job_id, "Export job cancellation requested"
+        )
+    except AttributeError:
+        cancelled = job_store.cancel_job(job_id, "Export job cancelled")
     if not cancelled:
         latest = job_store.get_job(job_id)
         status = latest.get("status", "unknown") if latest else "unknown"
@@ -737,8 +756,8 @@ async def cancel_export_job(job_id: str, http_request: Request):
     return {
         "success": True,
         "job_id": job_id,
-        "status": "cancelled",
-        "message": "Export job cancelled",
+        "status": cancelled.get("status", "cancelling"),
+        "message": cancelled.get("message", "Export job cancellation requested"),
     }
 
 

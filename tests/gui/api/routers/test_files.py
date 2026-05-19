@@ -125,6 +125,7 @@ def test_test_api_connection_uses_requests_stack():
         params={"input_string": "Pinus"},
         timeout=10.0,
         allow_redirects=False,
+        stream=True,
     )
 
 
@@ -220,7 +221,45 @@ def test_test_api_connection_rejects_redirects_to_internal_targets():
         params={},
         timeout=10.0,
         allow_redirects=False,
+        stream=True,
     )
+
+
+def test_test_api_connection_rejects_rebound_peer_address():
+    client = TestClient(create_app())
+    mocked_response = Mock()
+    mocked_response.status_code = 200
+    mocked_response.json.return_value = {"ok": True}
+    mocked_socket = Mock()
+    mocked_socket.getpeername.return_value = ("127.0.0.1", 443)
+    mocked_response.raw._connection.sock = mocked_socket
+
+    with (
+        patch("niamoto.gui.api.routers.files.socket.getaddrinfo") as mocked_dns,
+        patch(
+            "niamoto.gui.api.routers.files.requests.get", return_value=mocked_response
+        ) as mocked_get,
+    ):
+        mocked_dns.return_value = [
+            (None, None, None, None, ("8.8.8.8", 443)),
+        ]
+        response = client.post(
+            "/api/files/test-api",
+            json={
+                "url": "https://list.worldfloraonline.org/matching_rest",
+                "headers": {},
+                "params": {},
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "success": False,
+        "data": None,
+        "error": "API URL host is not allowed",
+    }
+    mocked_get.assert_called_once()
+    mocked_response.close.assert_called_once()
 
 
 def test_read_export_file_rejects_symlink_outside_exports(monkeypatch, tmp_path):

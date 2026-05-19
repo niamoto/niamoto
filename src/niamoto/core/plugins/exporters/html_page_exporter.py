@@ -55,6 +55,36 @@ def _resolve_project_path(path_value: str) -> Path:
     return Path(Config.get_niamoto_home()) / path
 
 
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True
+
+
+def _ensure_safe_html_output_dir_for_clear(output_dir: Path) -> Path:
+    """Resolve and validate a directory before recursive HTML export clearing."""
+    resolved_output = output_dir.resolve(strict=False)
+    niamoto_home = Path(Config.get_niamoto_home()).resolve(strict=False)
+    marker = resolved_output / ".niamoto-html-export"
+
+    if resolved_output in {
+        niamoto_home,
+        niamoto_home.parent,
+        niamoto_home / "exports",
+        Path("/"),
+    }:
+        raise ProcessError(f"Refusing to clear unsafe output directory {output_dir}")
+
+    if marker.exists():
+        return resolved_output
+
+    raise ProcessError(
+        "Refusing to clear output directory without Niamoto export ownership marker"
+    )
+
+
 @register("html_page_exporter", PluginType.EXPORTER)
 class HtmlPageExporter(ExporterPlugin):
     """Generates a static HTML website based on the export configuration."""
@@ -437,6 +467,7 @@ class HtmlPageExporter(ExporterPlugin):
                 group_filter is None
             ):  # Only clear the whole directory if exporting everything
                 if output_dir.exists() and any(output_dir.iterdir()):
+                    output_dir = _ensure_safe_html_output_dir_for_clear(output_dir)
                     try:
                         shutil.rmtree(output_dir)
                     except OSError as e:
@@ -449,6 +480,7 @@ class HtmlPageExporter(ExporterPlugin):
             # Always ensure the base output directory exists
             try:
                 output_dir.mkdir(parents=True, exist_ok=True)
+                (output_dir / ".niamoto-html-export").touch(exist_ok=True)
                 logger.info(f"Output directory ensured: {output_dir}")
             except OSError as e:
                 logger.error(

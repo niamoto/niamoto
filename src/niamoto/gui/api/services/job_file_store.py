@@ -149,6 +149,22 @@ class JobFileStore:
             self._write_active(job)
             return job
 
+    def request_cancellation(
+        self, job_id: str, message: str = "Cancellation requested"
+    ) -> dict | None:
+        """Marque le job comme en cours d'annulation sans le rendre terminal."""
+        with self._lock:
+            job = self._read_active()
+            if not job or job["id"] != job_id or job["status"] in TERMINAL_STATUSES:
+                return None
+
+            job["status"] = "cancelling"
+            job["updated_at"] = datetime.now().isoformat()
+            job["message"] = message
+            job["error"] = None
+            self._write_active(job)
+            return job
+
     # --- Lecture ---
 
     def get_active_job(self, job_type: str | None = None) -> dict | None:
