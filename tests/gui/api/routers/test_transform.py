@@ -2,7 +2,9 @@
 
 import asyncio
 from pathlib import Path
+from types import SimpleNamespace
 
+from fastapi import HTTPException
 import pytest
 import yaml
 
@@ -22,6 +24,14 @@ class _DummyJobStore:
 
     def fail_job(self, job_id: str, error: str) -> None:
         self.failed_error = error
+
+
+class _StatusJobStore:
+    def __init__(self, job: dict | None) -> None:
+        self.job = job
+
+    def get_job(self, job_id: str) -> dict | None:
+        return self.job
 
 
 @pytest.mark.anyio
@@ -109,6 +119,71 @@ def test_transform_status_keeps_group_metadata() -> None:
 
     assert status.group_by is None
     assert status.group_bys == ["plots", "taxons"]
+
+
+@pytest.mark.anyio
+async def test_get_transform_status_hides_non_transform_jobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job = {
+        "id": "job-1",
+        "type": "import",
+        "status": "completed",
+        "progress": 100,
+        "message": "Import done",
+        "started_at": "2026-04-12T09:00:00",
+        "completed_at": "2026-04-12T09:01:00",
+        "result": {"secret": "import payload"},
+        "error": None,
+    }
+    monkeypatch.setattr(
+        transform_router,
+        "_get_job_store",
+        lambda _request: _StatusJobStore(job),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await transform_router.get_transform_status(
+            "job-1",
+            SimpleNamespace(app=SimpleNamespace()),
+        )
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "Transform job job-1 not found"
+
+
+@pytest.mark.anyio
+async def test_get_transform_status_returns_transform_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job = {
+        "id": "job-1",
+        "type": "transform",
+        "status": "running",
+        "progress": 40,
+        "message": "Processing plots",
+        "phase": "transforming",
+        "group_by": "plots",
+        "group_bys": None,
+        "started_at": "2026-04-12T09:00:00",
+        "completed_at": None,
+        "result": None,
+        "error": None,
+    }
+    monkeypatch.setattr(
+        transform_router,
+        "_get_job_store",
+        lambda _request: _StatusJobStore(job),
+    )
+
+    status = await transform_router.get_transform_status(
+        "job-1",
+        SimpleNamespace(app=SimpleNamespace()),
+    )
+
+    assert status.job_id == "job-1"
+    assert status.status == "running"
+    assert status.group_by == "plots"
 
 
 def test_get_transform_sources_reads_root_dict_group(
