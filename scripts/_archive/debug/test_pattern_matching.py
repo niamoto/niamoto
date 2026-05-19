@@ -22,76 +22,60 @@ from niamoto.core.plugins.transformers.distribution.binned_distribution import (
 from niamoto.core.plugins.widgets.bar_plot import BarPlotWidget  # noqa: E402
 
 
-def main():
-    """Demonstrate pattern matching."""
-    print("=" * 80)
-    print("Pattern Matching System Demo")
-    print("=" * 80)
-
-    # Show transformer output structure
-    print("\n1. Transformer Output Structure")
-    print("-" * 80)
-    print(
-        f"BinnedDistribution.output_structure = {BinnedDistribution.output_structure}"
-    )
-
-    # Show widget compatible structures
-    print("\n2. Widget Compatible Structures")
-    print("-" * 80)
-    print(
-        f"BarPlotWidget.compatible_structures = {BarPlotWidget.compatible_structures}"
-    )
-
-    # Create matcher
+def test_binned_distribution_suggests_bar_plot():
+    """Binned distribution output should match the bar plot widget."""
     matcher = SmartMatcher()
-
-    # Find compatible widgets
-    print("\n3. Finding Compatible Widgets")
-    print("-" * 80)
     suggestions = matcher.find_compatible_widgets(BinnedDistribution)
 
-    if suggestions:
-        print(f"Found {len(suggestions)} compatible widgets:\n")
-        for i, suggestion in enumerate(suggestions, 1):
-            print(f"  {i}. {suggestion.widget_name}")
-            print(f"     Score: {suggestion.score}")
-            print(f"     Reason: {suggestion.reason}")
-            print(f"     Confidence: {suggestion.confidence}")
-            print()
-    else:
-        print("No compatible widgets found.")
+    assert suggestions, "Expected at least one compatible widget"
+    top_suggestion = suggestions[0]
+    assert top_suggestion.widget_name == BarPlotWidget.name
+    assert top_suggestion.reason in {"exact_match", "superset_match", "partial_match"}
+    assert top_suggestion.score > 0
+    assert top_suggestion.confidence in {"high", "medium", "low"}
 
-    # Test matching logic
-    print("\n4. Testing Match Types")
-    print("-" * 80)
 
-    # Exact match test
-    output = {"bins": "list", "counts": "list"}
-    pattern = {"bins": "list", "counts": "list"}
-    is_exact = matcher._exact_match(output, pattern)
-    print(f"Exact match: {output} == {pattern} -> {is_exact}")
+def test_pattern_matching_exact_superset_and_partial():
+    """Pattern matching helpers should report exact, superset, and partial matches."""
+    matcher = SmartMatcher()
 
-    # Superset match test
-    output = {"bins": "list", "counts": "list", "percentages": "list"}
-    pattern = {"bins": "list", "counts": "list"}
-    is_superset = matcher._superset_match(output, pattern)
-    print(f"Superset match: {output} ⊃ {pattern} -> {is_superset}")
+    assert matcher._exact_match(
+        {"bins": "list", "counts": "list"},
+        {"bins": "list", "counts": "list"},
+    )
+    assert not matcher._exact_match(
+        {"bins": "list", "counts": "list", "percentages": "list"},
+        {"bins": "list", "counts": "list"},
+    )
 
-    # Partial match test
-    output = {"bins": "list", "counts": "list"}
-    pattern = {
-        "bins": "list",
-        "counts": "list",
-        "labels": "list",
-        "percentages": "list",
-    }
-    is_partial = matcher._partial_match(output, pattern)
-    print(f"Partial match: {output} ∩ {pattern} (50%+) -> {is_partial}")
+    assert matcher._superset_match(
+        {"bins": "list", "counts": "list", "percentages": "list"},
+        {"bins": "list", "counts": "list"},
+    )
+    assert not matcher._superset_match(
+        {"bins": "list"},
+        {"bins": "list", "counts": "list"},
+    )
 
-    print("\n" + "=" * 80)
-    print("Demo Complete")
-    print("=" * 80)
+    assert matcher._partial_match(
+        {"bins": "list", "counts": "list"},
+        {
+            "bins": "list",
+            "counts": "list",
+            "labels": "list",
+            "percentages": "list",
+        },
+    )
+    assert not matcher._partial_match(
+        {"bins": "list"},
+        {
+            "bins": "list",
+            "counts": "list",
+            "labels": "list",
+            "percentages": "list",
+        },
+    )
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit("Run this module with pytest.")
