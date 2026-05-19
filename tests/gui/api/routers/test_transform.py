@@ -256,3 +256,36 @@ def test_get_transform_sources_reads_root_dict_group(
     response = asyncio.run(transform_router.get_transform_sources(group_by="shapes"))
 
     assert response == {"sources": ["raw_shape_stats", "shape_stats"]}
+
+
+def test_get_transform_config_preserves_duplicate_widget_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transform_config = [
+        {
+            "group_by": "taxons",
+            "widgets_data": {
+                "summary": {"plugin": "statistical_summary"},
+                "richness": {"plugin": "field_aggregator"},
+            },
+        },
+        {
+            "group_by": "plots",
+            "widgets_data": {
+                "summary": {"plugin": "field_aggregator"},
+            },
+        },
+    ]
+
+    monkeypatch.setattr(
+        transform_router, "get_transform_config", lambda path: transform_config
+    )
+
+    response = asyncio.run(transform_router.get_transform_config_endpoint())
+
+    widgets_data = response["config"]["widgets_data"]
+    assert response["summary"]["total_widgets"] == 3
+    assert len(widgets_data) == 3
+    assert set(widgets_data) == {"taxons:summary", "richness", "plots:summary"}
+    assert widgets_data["taxons:summary"]["plugin"] == "statistical_summary"
+    assert widgets_data["plots:summary"]["plugin"] == "field_aggregator"
