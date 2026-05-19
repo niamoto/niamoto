@@ -7,6 +7,7 @@ de preview unifié (PreviewEngine).
 
 import inspect
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import duckdb
@@ -19,6 +20,45 @@ from niamoto.gui.api.app import create_app
 
 
 INSTANCE_DIR = Path(__file__).parents[4] / "test-instance" / "niamoto-nc"
+
+
+class FakePreviewEngine:
+    """Minimal preview engine that captures layout preview requests."""
+
+    def __init__(self):
+        self.requests = []
+
+    def render(self, request):
+        self.requests.append(request)
+        return SimpleNamespace(
+            html="<html><body><main>Layout preview</main></body></html>",
+            etag="layout-preview-etag",
+        )
+
+
+def _write_layout_export_config(work_dir: Path, widgets: list[dict]) -> None:
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "export.yml").write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "web_pages",
+                        "exporter": "html_page_exporter",
+                        "groups": [
+                            {
+                                "group_by": "taxons",
+                                "widgets": widgets,
+                            }
+                        ],
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
 
 
 def test_layout_accepts_localized_widget_metadata(
@@ -151,38 +191,83 @@ class TestLayoutPreviewDelegation:
         assert "widget_index" in params, "Missing widget_index parameter"
         assert "entity_id" in params, "Missing entity_id parameter"
 
-    def test_layout_uses_preview_engine(self):
-        """Vérifie que preview_widget utilise get_preview_engine au lieu de templates.py."""
-        from niamoto.gui.api.routers import layout
-
-        # La logique sync est extraite dans _preview_widget_sync
-        source_code = inspect.getsource(layout._preview_widget_sync)
-
-        # Doit utiliser le moteur de preview unifié
-        assert "get_preview_engine" in source_code, (
-            "preview_widget doit déléguer au moteur de preview unifié (get_preview_engine)"
+    def test_layout_uses_preview_engine(self, tmp_path):
+        """Le endpoint layout preview délègue au moteur de preview unifié."""
+        work_dir = tmp_path / "layout-project"
+        _write_layout_export_config(
+            work_dir,
+            [
+                {
+                    "plugin": "bar_plot",
+                    "data_source": "richness",
+                    "title": "Richness",
+                    "layout": {"order": 0, "colspan": 1},
+                }
+            ],
         )
-        assert "PreviewRequest" in source_code, (
-            "preview_widget doit construire un PreviewRequest"
+        preview_engine = FakePreviewEngine()
+
+        with (
+            patch(
+                "niamoto.gui.api.routers.layout.get_working_directory",
+                return_value=work_dir,
+            ),
+            patch(
+                "niamoto.gui.api.services.preview_engine.engine.get_preview_engine",
+                return_value=preview_engine,
+            ),
+        ):
+            response = TestClient(create_app()).get(
+                "/api/layout/taxons/preview/0",
+                params={"entity_id": "taxon-42"},
+            )
+
+        assert response.status_code == 200, response.text
+        assert "Layout preview" in response.text
+        assert response.headers["etag"] == '"layout-preview-etag"'
+        assert len(preview_engine.requests) == 1
+        request = preview_engine.requests[0]
+        assert request.template_id == "richness"
+        assert request.group_by == "taxons"
+        assert request.entity_id == "taxon-42"
+        assert request.mode == "full"
+
+    def test_layout_handles_navigation_widget(self, tmp_path):
+        """Les navigation widgets utilisent le template_id conventionnel."""
+        work_dir = tmp_path / "layout-project"
+        _write_layout_export_config(
+            work_dir,
+            [
+                {
+                    "plugin": "hierarchical_nav_widget",
+                    "data_source": "navigation",
+                    "title": "Navigation",
+                    "params": {"referential_data": "taxons"},
+                    "layout": {"order": 0, "colspan": 1},
+                }
+            ],
         )
+        preview_engine = FakePreviewEngine()
 
-        # Ne doit plus appeler templates.preview_template directement
-        assert (
-            "from niamoto.gui.api.routers.templates import preview_template"
-            not in source_code
-        ), "preview_widget ne doit plus importer preview_template de templates.py"
+        with (
+            patch(
+                "niamoto.gui.api.routers.layout.get_working_directory",
+                return_value=work_dir,
+            ),
+            patch(
+                "niamoto.gui.api.services.preview_engine.engine.get_preview_engine",
+                return_value=preview_engine,
+            ),
+        ):
+            response = TestClient(create_app()).get("/api/layout/taxons/preview/0")
 
-    def test_layout_handles_navigation_widget(self):
-        """Vérifie que les navigation widgets sont résolus en template_id convention."""
-        from niamoto.gui.api.routers import layout
-
-        # La logique sync est extraite dans _preview_widget_sync
-        source_code = inspect.getsource(layout._preview_widget_sync)
-
-        # Le convention pour les navigation widgets est _hierarchical_nav_widget
-        assert "hierarchical_nav_widget" in source_code, (
-            "preview_widget doit gérer le cas spécial hierarchical_nav_widget"
-        )
+        assert response.status_code == 200, response.text
+        assert len(preview_engine.requests) == 1
+        request = preview_engine.requests[0]
+        assert request.template_id == "taxons_hierarchical_nav_widget"
+        assert request.group_by == "taxons"
+        assert request.entity_id is None
+        assert request.mode == "full"
 
 
 @pytest.mark.skipif(
