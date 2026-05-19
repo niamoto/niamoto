@@ -1,5 +1,9 @@
 import axios from 'axios'
 import { promptServerErrorBugReport } from '@/features/feedback/lib/server-error-feedback'
+import {
+  DESKTOP_API_AUTH_HEADER,
+  getDesktopApiAuthToken,
+} from '@/shared/desktop/apiAuth'
 
 // Create axios instance with base configuration
 export const apiClient = axios.create({
@@ -12,7 +16,13 @@ export const apiClient = axios.create({
 
 // Request interceptor for error handling
 apiClient.interceptors.request.use(
-  config => config,
+  async config => {
+    const desktopApiAuthToken = await getDesktopApiAuthToken()
+    if (desktopApiAuthToken) {
+      config.headers.set(DESKTOP_API_AUTH_HEADER, desktopApiAuthToken)
+    }
+    return config
+  },
   error => Promise.reject(error)
 )
 
