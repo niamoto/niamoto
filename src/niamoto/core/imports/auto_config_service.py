@@ -141,6 +141,16 @@ class AutoConfigService:
 
         return hierarchy_info
 
+    def _ensure_relationship_csv_file(
+        self, file_path: Path, filepath: str, *, role: str
+    ) -> None:
+        """Validate a file used by CSV relationship detection."""
+        if file_path.suffix.lower() != ".csv":
+            raise ValueError(
+                f"Unsupported {role} file type: {file_path.suffix or '<none>'}. "
+                "Only CSV files supported for relationship detection"
+            )
+
     def detect_relationships(
         self, source_file: str, target_files: List[str]
     ) -> Dict[str, Any]:
@@ -148,10 +158,16 @@ class AutoConfigService:
         source_path = self._resolve_project_path(source_file)
         if not source_path.exists():
             raise FileNotFoundError(f"Source file not found: {source_file}")
+        self._ensure_relationship_csv_file(source_path, source_file, role="source")
 
-        source_columns, source_sample, _ = self._read_csv_columns_and_rows(
-            source_path, max_rows=100, count_all_rows=False
-        )
+        try:
+            source_columns, source_sample, _ = self._read_csv_columns_and_rows(
+                source_path, max_rows=100, count_all_rows=False
+            )
+        except UnicodeDecodeError as exc:
+            raise ValueError(
+                f"Invalid CSV encoding for source file: {source_file}"
+            ) from exc
         source_entity_name = Path(source_file).stem
         all_relationships = []
 
@@ -159,10 +175,16 @@ class AutoConfigService:
             target_path = self._resolve_project_path(target_file)
             if not target_path.exists():
                 continue
+            self._ensure_relationship_csv_file(target_path, target_file, role="target")
 
-            target_columns, target_sample, _ = self._read_csv_columns_and_rows(
-                target_path, max_rows=100, count_all_rows=False
-            )
+            try:
+                target_columns, target_sample, _ = self._read_csv_columns_and_rows(
+                    target_path, max_rows=100, count_all_rows=False
+                )
+            except UnicodeDecodeError as exc:
+                raise ValueError(
+                    f"Invalid CSV encoding for target file: {target_file}"
+                ) from exc
             target_entity_name = Path(target_file).stem
 
             relationships = ColumnDetector.detect_relationships(

@@ -773,6 +773,49 @@ class TestDetectRelationships:
         assert response.status_code == 400
         assert "outside project" in response.json()["detail"].lower()
 
+    def test_detect_relationships_rejects_unsupported_source_format(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        """Test relationship detection rejects non-CSV source files."""
+        tif_file = working_directory / "imports" / "test.tif"
+        tif_file.write_bytes(b"FAKE TIF")
+
+        response = test_client.post(
+            "/api/smart/detect-relationships",
+            json={
+                "source_file": "imports/test.tif",
+                "target_files": ["imports/sample_taxonomy.csv"],
+            },
+        )
+
+        assert response.status_code == 400
+        detail = response.json()["detail"].lower()
+        assert "unsupported source file type" in detail
+        assert "only csv files supported" in detail
+
+    def test_detect_relationships_rejects_unsupported_target_format(
+        self,
+        test_client: TestClient,
+        sample_csv_files: Dict[str, Path],
+        working_directory: Path,
+    ):
+        """Test relationship detection rejects non-CSV target files."""
+        tif_file = working_directory / "imports" / "target.tif"
+        tif_file.write_bytes(b"FAKE TIF")
+
+        response = test_client.post(
+            "/api/smart/detect-relationships",
+            json={
+                "source_file": "imports/sample_occurrences.csv",
+                "target_files": ["imports/target.tif"],
+            },
+        )
+
+        assert response.status_code == 400
+        detail = response.json()["detail"].lower()
+        assert "unsupported target file type" in detail
+        assert "only csv files supported" in detail
+
 
 # ============================================================================
 # AUTO-CONFIGURE MAIN TESTS
