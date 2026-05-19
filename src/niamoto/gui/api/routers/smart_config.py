@@ -82,6 +82,10 @@ class AutoConfigureJobStatusResponse(BaseModel):
     events: List[AutoConfigureProgressEvent] = []
     result: Optional[AutoConfigureResponse] = None
     error: Optional[str] = None
+    created_at: float
+    started_at: Optional[float] = None
+    completed_at: Optional[float] = None
+    elapsed_seconds: float
 
 
 class DetectRelationshipsRequest(BaseModel):
@@ -105,18 +109,21 @@ class UploadedFileInfo(BaseModel):
 class _AutoConfigureJob:
     """In-memory auto-config job state."""
 
-    def __init__(self, job_id: str):
+    def __init__(self, job_id: str) -> None:
         self.job_id = job_id
         self.status: Literal["pending", "running", "completed", "failed"] = "pending"
         self.events: List[Dict[str, Any]] = []
         self.result: Optional[Dict[str, Any]] = None
         self.error: Optional[str] = None
+        self.created_at = time.time()
+        self.started_at: Optional[float] = None
+        self.completed_at: Optional[float] = None
 
 
 class _AutoConfigureJobStore:
     """Tiny in-memory job store for long-running auto-config analysis."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._jobs: Dict[str, _AutoConfigureJob] = {}
         self._lock = threading.Lock()
 
@@ -142,6 +149,7 @@ class _AutoConfigureJobStore:
             job = self._jobs.get(job_id)
             if job:
                 job.status = "running"
+                job.started_at = time.time()
 
     def complete(self, job_id: str, result: Dict[str, Any]) -> None:
         with self._lock:
@@ -150,6 +158,7 @@ class _AutoConfigureJobStore:
                 return
             job.status = "completed"
             job.result = result
+            job.completed_at = time.time()
 
     def complete_with_event(
         self, job_id: str, result: Dict[str, Any], event: Dict[str, Any]
@@ -161,6 +170,7 @@ class _AutoConfigureJobStore:
             job.events.append(event)
             job.result = result
             job.status = "completed"
+            job.completed_at = time.time()
 
     def fail(self, job_id: str, error: str) -> None:
         with self._lock:
@@ -169,6 +179,7 @@ class _AutoConfigureJobStore:
                 return
             job.status = "failed"
             job.error = error
+            job.completed_at = time.time()
 
     def fail_with_event(self, job_id: str, error: str, event: Dict[str, Any]) -> None:
         with self._lock:
@@ -178,6 +189,7 @@ class _AutoConfigureJobStore:
             job.events.append(event)
             job.error = error
             job.status = "failed"
+            job.completed_at = time.time()
 
 
 _AUTO_CONFIG_JOB_STORE = _AutoConfigureJobStore()
@@ -650,12 +662,18 @@ async def get_auto_configure_job(job_id: str) -> AutoConfigureJobStatusResponse:
 
     result = AutoConfigureResponse(**job.result) if job.result else None
     events = [AutoConfigureProgressEvent(**event) for event in job.events]
+    elapsed_from = job.started_at or job.created_at
+    elapsed_until = job.completed_at or time.time()
     return AutoConfigureJobStatusResponse(
         job_id=job.job_id,
         status=job.status,
         events=events,
         result=result,
         error=job.error,
+        created_at=job.created_at,
+        started_at=job.started_at,
+        completed_at=job.completed_at,
+        elapsed_seconds=max(0.0, elapsed_until - elapsed_from),
     )
 
 

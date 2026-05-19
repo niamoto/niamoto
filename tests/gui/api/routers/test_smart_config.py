@@ -1175,6 +1175,10 @@ class TestAutoConfigureJobs:
             f"Job did not complete within 30s (status={final_status['status']})"
         )
         assert final_status["result"]["success"] is True
+        assert final_status["elapsed_seconds"] >= 0
+        assert final_status["created_at"] > 0
+        assert final_status["started_at"] is not None
+        assert final_status["completed_at"] is not None
         assert final_status["events"]
 
     def test_auto_configure_job_events_stream_real_findings(

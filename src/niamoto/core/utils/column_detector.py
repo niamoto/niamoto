@@ -944,13 +944,18 @@ class ColumnDetector:
 
     @classmethod
     def analyze_file_columns(
-        cls, columns: List[str], sample_data: Optional[List[Dict[str, Any]]] = None
+        cls,
+        columns: List[str],
+        sample_data: Optional[List[Dict[str, Any]]] = None,
+        *,
+        enable_semantic_ml: bool = True,
     ) -> Dict[str, Any]:
         """Comprehensive analysis of file columns.
 
         Args:
             columns: List of column names
             sample_data: Optional sample data
+            enable_semantic_ml: Whether to run heavier semantic ML predictions
 
         Returns:
             Dictionary with all detected patterns
@@ -966,7 +971,11 @@ class ColumnDetector:
         result["geometry_columns"] = cls.detect_geometry_columns(columns)
         result["name_columns"] = cls.detect_name_columns(columns)
         result["date_columns"] = cls.detect_date_columns(columns)
-        result["ml_predictions"] = cls._detect_semantic_columns(columns, sample_data)
+        result["ml_predictions"] = (
+            cls._detect_semantic_columns(columns, sample_data)
+            if enable_semantic_ml
+            else []
+        )
         heuristic_classification = build_heuristic_classification(result)
         result["heuristic_classification"] = heuristic_classification
         result["heuristic_flags"] = collect_heuristic_flags(result)
@@ -995,10 +1004,13 @@ class ColumnDetector:
 
         profiler = DataProfiler()
         predictions: List[Dict[str, Any]] = []
+        column_series = [
+            (col_name, pd.Series([row.get(col_name) for row in sample_data]))
+            for col_name in columns
+        ]
+        semantic_detections = profiler.detect_semantic_types(column_series)
 
-        for col_name in columns:
-            series = pd.Series([row.get(col_name) for row in sample_data])
-            semantic_type, confidence = profiler._detect_semantic_type(col_name, series)
+        for col_name, (semantic_type, confidence) in zip(columns, semantic_detections):
             if not semantic_type:
                 continue
             predictions.append(

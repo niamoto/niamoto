@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from niamoto.core.imports.auto_config_service import AutoConfigService
+from niamoto.core.utils.column_detector import ColumnDetector
 
 
 def test_build_collection_candidates_exposes_reviewable_reference_metadata(
@@ -51,6 +52,29 @@ def test_build_collection_candidates_exposes_reviewable_reference_metadata(
             ],
         }
     ]
+
+
+def test_auxiliary_stats_csv_skips_semantic_ml(tmp_path: Path, monkeypatch):
+    csv_path = tmp_path / "raw_plot_stats.csv"
+    csv_path.write_text(
+        "id,class_object,class_name,class_value,class_index,plot_id\n"
+        "1,plot,elevation,120,1,plot-a\n",
+        encoding="utf-8",
+    )
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("semantic ML should be skipped for stats sources")
+
+    monkeypatch.setattr(
+        ColumnDetector, "_detect_semantic_columns", classmethod(fail_if_called)
+    )
+
+    analysis = AutoConfigService(tmp_path)._analyze_csv_file(
+        csv_path, include_sample_rows=False
+    )
+
+    assert analysis["ml_predictions"] == []
+    assert AutoConfigService(tmp_path)._is_auxiliary_stats_candidate(analysis)
 
 
 def test_build_simple_reference_config_sets_schema_name_field(tmp_path: Path):

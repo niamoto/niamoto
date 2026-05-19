@@ -4,6 +4,7 @@ import {
   startAutoConfigureJob,
   subscribeToAutoConfigureJobEvents,
   type AutoConfigureProgressEvent,
+  type AutoConfigureJobStatusResponse,
   type AutoConfigureResponse,
 } from '@/features/import/api/smart-config'
 
@@ -27,8 +28,34 @@ interface UseAutoConfigureJobResult {
   reset: () => void
 }
 
+function latestStage(events: AutoConfigureProgressEvent[]): string | null {
+  return [...events].reverse().find((event) => event.kind === 'stage')?.message ?? null
+}
+
+function latestProgressMessage(events: AutoConfigureProgressEvent[]): string | null {
+  return [...events]
+    .reverse()
+    .find((event) => ['stage', 'detail', 'finding'].includes(event.kind))?.message ??
+    null
+}
+
+function buildTimeoutMessage(
+  fallback: string,
+  current: AutoConfigureJobStatusResponse
+): string {
+  const details: string[] = []
+  if (typeof current.elapsed_seconds === 'number') {
+    details.push(`${Math.round(current.elapsed_seconds)}s`)
+  }
+  const latestMessage = latestProgressMessage(current.events ?? [])
+  if (latestMessage) {
+    details.push(latestMessage)
+  }
+  return details.length > 0 ? `${fallback} (${details.join(' - ')})` : fallback
+}
+
 export function useAutoConfigureJob({
-  timeoutMs = 180000,
+  timeoutMs = 600000,
   pollIntervalMs = 400,
 }: UseAutoConfigureJobOptions = {}): UseAutoConfigureJobResult {
   const [status, setStatus] = useState<AutoConfigureJobStatus>('idle')
@@ -53,10 +80,7 @@ export function useAutoConfigureJob({
   }, [closeStream])
 
   const start = useCallback(
-      async (
-        paths: string[],
-        messages?: { failed?: string; timedOut?: string }
-      ) => {
+    async (paths: string[], messages?: { failed?: string; timedOut?: string }) => {
       closeStream()
       setStatus('running')
       setError(null)
@@ -77,6 +101,13 @@ export function useAutoConfigureJob({
         const startTime = Date.now()
         while (Date.now() - startTime < timeoutMs) {
           const current = await getAutoConfigureJob(job.job_id)
+          if (current.events?.length > 0) {
+            setEvents(current.events.slice(-30))
+            const currentStage = latestStage(current.events)
+            if (currentStage) {
+              setStage(currentStage)
+            }
+          }
 
           if (current.status === 'completed' && current.result) {
             closeStream()
@@ -86,13 +117,42 @@ export function useAutoConfigureJob({
           }
 
           if (current.status === 'failed') {
-            throw new Error(current.error || messages?.failed || 'Auto-configuration failed')
+            throw new Error(
+              current.error || messages?.failed || 'Auto-configuration failed'
+            )
           }
 
           await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
         }
 
-        throw new Error(messages?.timedOut || 'Auto-configuration timed out')
+        const current = await getAutoConfigureJob(job.job_id)
+        if (current.events?.length > 0) {
+          setEvents(current.events.slice(-30))
+          const currentStage = latestStage(current.events)
+          if (currentStage) {
+            setStage(currentStage)
+          }
+        }
+
+        if (current.status === 'completed' && current.result) {
+          closeStream()
+          setResult(current.result)
+          setStatus('completed')
+          return current.result
+        }
+
+        if (current.status === 'failed') {
+          throw new Error(
+            current.error || messages?.failed || 'Auto-configuration failed'
+          )
+        }
+
+        throw new Error(
+          buildTimeoutMessage(
+            messages?.timedOut || 'Auto-configuration timed out',
+            current
+          )
+        )
       } catch (err) {
         closeStream()
         const message =
