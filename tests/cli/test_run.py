@@ -290,11 +290,12 @@ def test_run_pipeline_with_group_option(
 
     # Verify transform and export were called with group parameter
     mock_import.assert_called_once()
-    mock_transform.assert_called_once()
-    mock_export.assert_called_once()
-
-    # Check that ctx.invoke was called with the group parameter
-    # This is harder to test directly, but we can verify the command ran successfully
+    mock_transform.assert_called_once_with(
+        group="taxon", data=None, verbose=False, recreate_table=True
+    )
+    mock_export.assert_called_once_with(
+        target=None, group="taxon", list=False, dry_run=False
+    )
 
 
 @patch("niamoto.cli.commands.run.reset_environment")
@@ -319,8 +320,12 @@ def test_run_pipeline_with_target_option(
 
     # Verify all commands were called
     mock_import.assert_called_once()
-    mock_transform.assert_called_once()
-    mock_export.assert_called_once()
+    mock_transform.assert_called_once_with(
+        group=None, data=None, verbose=False, recreate_table=True
+    )
+    mock_export.assert_called_once_with(
+        target="my_site", group=None, list=False, dry_run=False
+    )
 
 
 @patch("niamoto.cli.commands.run.reset_environment")
@@ -386,8 +391,12 @@ def test_run_pipeline_mixed_options(
 
     # Verify only transform and export were called
     mock_import.assert_not_called()
-    mock_transform.assert_called_once()
-    mock_export.assert_called_once()
+    mock_transform.assert_called_once_with(
+        group="taxon", data=None, verbose=True, recreate_table=True
+    )
+    mock_export.assert_called_once_with(
+        target="my_site", group="taxon", list=False, dry_run=False
+    )
     # Reset should still be called
     mock_reset_env.assert_called_once_with("/mock/config")
 
