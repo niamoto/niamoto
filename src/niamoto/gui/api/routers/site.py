@@ -2669,45 +2669,77 @@ def _references_to_bibtex(references: List[Dict[str, Any]]) -> str:
             return default
         return str(value).strip()
 
+    def escape_value(value: Any) -> str:
+        text = " ".join(clean_text(value).splitlines())
+        replacements = {
+            "\\": r"\textbackslash{}",
+            "{": r"\{",
+            "}": r"\}",
+            "&": r"\&",
+            "%": r"\%",
+            "$": r"\$",
+            "#": r"\#",
+            "_": r"\_",
+        }
+        return "".join(replacements.get(char, char) for char in text)
+
+    def append_field(field: str, value: Any) -> None:
+        escaped = escape_value(value)
+        if escaped:
+            lines.append(f"  {field:<10}= {{{escaped}}},")
+
+    def clean_key_part(value: str, default: str) -> str:
+        cleaned = re.sub(r"[^a-zA-Z0-9]+", "", value).lower()
+        return cleaned or default
+
     def make_key(ref: Dict[str, Any]) -> str:
         authors = clean_text(ref.get("authors"))
         author_tokens = authors.split(",")[0].strip().split()
-        first_author = author_tokens[-1].lower() if author_tokens else "unknown"
-        year = clean_text(ref.get("year"), "0000") or "0000"
+        first_author = clean_key_part(
+            author_tokens[-1] if author_tokens else "", "unknown"
+        )
+        year = clean_key_part(clean_text(ref.get("year"), "0000"), "0000")
         title_tokens = clean_text(ref.get("title")).split()
-        title_word = title_tokens[0].lower() if title_tokens else "untitled"
+        title_word = clean_key_part(title_tokens[0] if title_tokens else "", "untitled")
         return f"{first_author}{year}{title_word}"
 
     lines = []
+    used_keys: set[str] = set()
     for ref in references:
         bib_type = type_mapping.get(clean_text(ref.get("type"), "other"), "misc")
         key = make_key(ref)
+        base_key = key
+        suffix = 2
+        while key in used_keys:
+            key = f"{base_key}{suffix}"
+            suffix += 1
+        used_keys.add(key)
 
         lines.append(f"@{bib_type}{{{key},")
         authors_value = clean_text(ref.get("authors"))
         if authors_value:
             # Convert "A, B, C" back to "A and B and C"
             authors = authors_value.replace(", ", " and ")
-            lines.append(f"  author    = {{{authors}}},")
+            append_field("author", authors)
         if title := clean_text(ref.get("title")):
-            lines.append(f"  title     = {{{title}}},")
+            append_field("title", title)
         if year := clean_text(ref.get("year")):
-            lines.append(f"  year      = {{{year}}},")
+            append_field("year", year)
         if journal := clean_text(ref.get("journal")):
             if bib_type in ("inproceedings", "incollection"):
-                lines.append(f"  booktitle = {{{journal}}},")
+                append_field("booktitle", journal)
             elif bib_type in ("phdthesis", "mastersthesis"):
-                lines.append(f"  school    = {{{journal}}},")
+                append_field("school", journal)
             else:
-                lines.append(f"  journal   = {{{journal}}},")
+                append_field("journal", journal)
         if volume := clean_text(ref.get("volume")):
-            lines.append(f"  volume    = {{{volume}}},")
+            append_field("volume", volume)
         if pages := clean_text(ref.get("pages")):
-            lines.append(f"  pages     = {{{pages.replace('-', '--')}}},")
+            append_field("pages", pages.replace("-", "--"))
         if doi := clean_text(ref.get("doi")):
-            lines.append(f"  doi       = {{{doi}}},")
+            append_field("doi", doi)
         if url := clean_text(ref.get("url")):
-            lines.append(f"  url       = {{{url}}},")
+            append_field("url", url)
         lines.append("}")
         lines.append("")
 
