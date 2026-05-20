@@ -152,12 +152,9 @@ class PluginRegistry:
     ) -> Dict[str, Any]:
         """
         Get metadata for a plugin.
-        Args:
-            name: Plugin identifier
-            plugin_type: Optional plugin type. When omitted, returns the first
-                matching metadata entry for backward compatibility.
-        Returns:
-            Plugin metadata or empty dict if none registered
+
+        When ``plugin_type`` is omitted, the first matching metadata entry is
+        returned for backward compatibility.
         """
         if plugin_type is not None:
             return cls._metadata[plugin_type].get(name, {})
