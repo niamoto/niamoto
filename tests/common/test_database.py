@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -236,6 +237,31 @@ def test_duckdb_read_only_request_falls_back_after_writable_open(tmp_path) -> No
 
     db_read_request.engine.dispose()
     db_write.engine.dispose()
+
+
+def test_duckdb_mode_tracking_normalizes_paths(tmp_path, monkeypatch) -> None:
+    """Relative and absolute paths to the same DuckDB file share mode state."""
+
+    monkeypatch.chdir(tmp_path)
+    db_path = Path("normalized.duckdb")
+
+    db_write = Database(str(db_path), optimize=False)
+    db_read_request = None
+    try:
+        db_write.execute_sql("CREATE TABLE test_table (id INTEGER)")
+
+        db_read_request = Database(
+            str(db_path.resolve()),
+            read_only=True,
+            optimize=False,
+        )
+
+        assert db_read_request.requested_read_only is True
+        assert db_read_request.read_only is False
+    finally:
+        if db_read_request is not None:
+            db_read_request.engine.dispose()
+        db_write.engine.dispose()
 
 
 def test_duckdb_execute_select_keeps_writable_mode_registered(tmp_path) -> None:

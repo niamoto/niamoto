@@ -481,7 +481,7 @@ def test_open_db_returns_same_instance():
 
     assert db1 is db2
     MockDB.assert_called_once()
-    assert MockDB.call_args.kwargs.get("read_only") is None
+    assert MockDB.call_args.kwargs.get("read_only") is True
 
 
 def test_render_serializes_concurrent_preview_work():

@@ -126,12 +126,15 @@ class ShapeProcessor(TransformerPlugin):
             self.db = db
 
             self.config_dir = os.getcwd()
+            self.project_dir = self.config_dir
 
             # Use Config to get imports configuration
             try:
                 from niamoto.common.config import Config
 
                 cfg = Config()
+                self.config_dir = cfg.config_dir
+                self.project_dir = os.path.dirname(cfg.config_dir)
                 generic_imports = cfg.get_imports_config
                 # Convert GenericImportConfig to dict for backward compatibility with layers access
                 self.imports_config = (
@@ -447,7 +450,7 @@ class ShapeProcessor(TransformerPlugin):
 
             layer_path = layer_import["path"]
             if not os.path.isabs(layer_path):
-                layer_path = os.path.join(self.config_dir, layer_path)
+                layer_path = os.path.join(self.project_dir, layer_path)
 
             format_type = layer_import.get("format", "").lower()
 

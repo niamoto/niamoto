@@ -7,6 +7,7 @@ add instances to the database, and close sessions.
 
 from collections import defaultdict
 from contextlib import contextmanager
+from pathlib import Path
 from threading import local
 from threading import Lock
 from typing import TypeVar, Any, Iterator, Optional, List, Dict, Set, ClassVar
@@ -132,6 +133,7 @@ class Database:
                     event.listen(
                         self.engine, "connect", Database._load_duckdb_spatial_extension
                     )
+                    self._ensure_duckdb_read_mode_is_compatible(db_path)
 
             connection_str = str(self.connection_string)
             self.is_duckdb = connection_str.startswith("duckdb")
@@ -195,6 +197,57 @@ class Database:
         self._closed = True
 
     @classmethod
+    def _normalize_duckdb_path(cls, db_path: str) -> str:
+        return str(Path(db_path).expanduser().resolve())
+
+    @classmethod
+    def _is_duckdb_configuration_conflict(cls, error: Exception) -> bool:
+        error_msg = str(error)
+        return (
+            "same database file" in error_msg and "different configuration" in error_msg
+        )
+
+    def _ensure_duckdb_read_mode_is_compatible(self, db_path: str) -> None:
+        """Fallback to process-compatible DuckDB mode for read-only wrappers.
+
+        DuckDB rejects mixed configurations for the same file. If a connection
+        was opened outside this wrapper or the bookkeeping lost sight of an
+        active writer, a lightweight probe lets read-only wrappers discover the
+        conflict before the first query and recreate the engine in the compatible
+        default mode.
+        """
+
+        if not self.requested_read_only or not self.read_only:
+            return
+
+        try:
+            with self.engine.connect():
+                pass
+        except exc.SQLAlchemyError as e:
+            if not self._is_duckdb_configuration_conflict(e):
+                raise
+
+            logger.info(
+                "Retrying DuckDB read-only request in writable-compatible mode: %s",
+                db_path,
+            )
+            self.engine.dispose()
+            self.read_only = False
+            self.engine = create_engine(
+                self.connection_string,
+                echo=False,
+                poolclass=NullPool,
+            )
+            self._register_duckdb_mode(db_path, self.read_only)
+            self._suppress_duckdb_mode_release = False
+            self._wrap_engine_dispose(db_path, self.read_only)
+            event.listen(
+                self.engine, "connect", Database._load_duckdb_spatial_extension
+            )
+            with self.engine.connect():
+                pass
+
+    @classmethod
     def _resolve_duckdb_read_only_mode(cls, db_path: str, requested: bool) -> bool:
         """Keep DuckDB connection mode consistent within the current process.
 
@@ -206,7 +259,7 @@ class Database:
         connection errors.
         """
 
-        normalized = str(db_path)
+        normalized = cls._normalize_duckdb_path(db_path)
         with cls._duckdb_mode_lock:
             active_modes = cls._duckdb_mode_counts[normalized]
             if requested and active_modes[False] > 0:
@@ -215,13 +268,13 @@ class Database:
 
     @classmethod
     def _register_duckdb_mode(cls, db_path: str, read_only: bool) -> None:
-        normalized = str(db_path)
+        normalized = cls._normalize_duckdb_path(db_path)
         with cls._duckdb_mode_lock:
             cls._duckdb_mode_counts[normalized][read_only] += 1
 
     @classmethod
     def _release_duckdb_mode(cls, db_path: str, read_only: bool) -> None:
-        normalized = str(db_path)
+        normalized = cls._normalize_duckdb_path(db_path)
         with cls._duckdb_mode_lock:
             active_modes = cls._duckdb_mode_counts.get(normalized)
             if not active_modes:
