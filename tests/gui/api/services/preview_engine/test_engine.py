@@ -276,7 +276,10 @@ def test_render_general_info_count_uses_configured_relation(
         lambda _name, _type: FakeInfoGrid,
     )
 
-    html = engine._render_general_info("plots", entity_id, db, warnings)
+    try:
+        html = engine._render_general_info("plots", entity_id, db, warnings)
+    finally:
+        db.engine.dispose()
 
     assert "occurrences_count" in html
     assert captured_count["params"] == {"eid": "P42"}

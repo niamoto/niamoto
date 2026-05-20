@@ -107,9 +107,13 @@ class TestCreateApp:
         assert allowed.status_code == 200
         assert allowed.headers["access-control-allow-origin"] == "http://localhost:5173"
 
-    def test_desktop_token_protects_api_mutations_globally(self, monkeypatch):
+    def test_desktop_token_protects_api_mutations_globally(self, monkeypatch, tmp_path):
         """Mutating API routes should require the desktop token when it is set."""
         monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+        monkeypatch.setattr(
+            "niamoto.gui.api.services.job_store_runtime.get_working_directory",
+            lambda: tmp_path,
+        )
         app = create_app()
         client = TestClient(app)
 
@@ -251,6 +255,10 @@ class TestSPAStaticFiles:
         monkeypatch.setattr("niamoto.gui.api.app.UI_BUILD_DIR", ui_build)
         monkeypatch.setattr(
             "niamoto.gui.api.app.get_valid_optional_working_directory",
+            lambda: tmp_path,
+        )
+        monkeypatch.setattr(
+            "niamoto.gui.api.services.job_store_runtime.get_working_directory",
             lambda: tmp_path,
         )
 

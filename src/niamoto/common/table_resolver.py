@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Optional
 
-from sqlalchemy import inspect
-
 
 def quote_identifier(db: Any, name: str) -> str:
     """Safely quote a SQL identifier (table/column name)."""
-    preparer = inspect(db.engine).dialect.identifier_preparer
+    preparer = db.engine.dialect.identifier_preparer
     return preparer.quote(name)
 
 
