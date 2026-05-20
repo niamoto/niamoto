@@ -381,7 +381,8 @@ def _frontend_sibling_tests(source: Path, repo_root: Path) -> tuple[str, ...]:
 
 
 def _line_count(path: Path) -> int:
-    return sum(1 for _ in path.open(encoding="utf-8"))
+    with path.open(encoding="utf-8") as handle:
+        return sum(1 for _ in handle)
 
 
 def _risk_score(rel_path: str, rules: tuple[tuple[str, int], ...]) -> int:

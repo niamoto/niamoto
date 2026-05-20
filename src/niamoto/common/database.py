@@ -79,6 +79,8 @@ class Database:
 
         try:
             self.db_path = db_path
+            self._owns_engine = engine is None
+            self._closed = False
             self.active_transaction = False
             self.requested_read_only = read_only
             self.read_only = read_only
@@ -174,6 +176,23 @@ class Database:
                 message="Failed to initialize database connection",
                 details={"path": db_path, "error": str(e)},
             )
+
+    def __del__(self) -> None:
+        """Best-effort cleanup for short-lived Database wrappers."""
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def close(self) -> None:
+        """Close sessions and dispose the owned SQLAlchemy engine."""
+        if getattr(self, "_closed", False):
+            return
+
+        self.close_db_session()
+        if getattr(self, "_owns_engine", False) and hasattr(self, "engine"):
+            self.engine.dispose()
+        self._closed = True
 
     @classmethod
     def _resolve_duckdb_read_only_mode(cls, db_path: str, requested: bool) -> bool:

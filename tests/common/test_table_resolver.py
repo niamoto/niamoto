@@ -13,17 +13,14 @@ from niamoto.common.table_resolver import (
 )
 
 
-def test_quote_identifier_uses_sqlalchemy_identifier_preparer(monkeypatch) -> None:
+def test_quote_identifier_uses_sqlalchemy_identifier_preparer() -> None:
     mock_preparer = Mock()
     mock_preparer.quote.return_value = '"taxons"'
     mock_dialect = SimpleNamespace(identifier_preparer=mock_preparer)
-    monkeypatch.setattr(
-        "niamoto.common.table_resolver.inspect",
-        lambda engine: SimpleNamespace(dialect=mock_dialect),
-    )
 
-    db = SimpleNamespace(engine=object())
+    db = SimpleNamespace(engine=SimpleNamespace(dialect=mock_dialect))
     assert quote_identifier(db, "taxons") == '"taxons"'
+    mock_preparer.quote.assert_called_once_with("taxons")
 
 
 def test_resolve_dataset_and_reference_table_names_match_case_insensitively() -> None:

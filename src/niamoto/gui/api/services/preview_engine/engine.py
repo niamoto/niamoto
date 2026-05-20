@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from niamoto.core.services.transformer import TransformerService
 
 import pandas as pd
-from sqlalchemy import inspect, text
+from sqlalchemy import text
 
 from niamoto.common.database import Database
 from niamoto.common.exceptions import DataLoadError, DataTransformError
@@ -1090,7 +1090,7 @@ document.addEventListener('DOMContentLoaded', function() {{
                 else:
                     return self._info_html(f"Table '{reference_name}' not found")
 
-            preparer = inspect(db.engine).dialect.identifier_preparer
+            preparer = db.engine.dialect.identifier_preparer
             quoted_table = preparer.quote(ref_table)
             col_names = [c.lower() for c in self._get_column_names(db, quoted_table)]
 
@@ -1385,7 +1385,7 @@ document.addEventListener('DOMContentLoaded', function() {{
             if not entity_table:
                 return self._info_html(f"Table '{reference}' not found")
 
-            preparer = inspect(db.engine).dialect.identifier_preparer
+            preparer = db.engine.dialect.identifier_preparer
             quoted_table = preparer.quote(entity_table)
             col_names = self._get_column_names(db, quoted_table)
 
@@ -1981,7 +1981,7 @@ document.addEventListener('DOMContentLoaded', function() {{
                 if not entity_table or not db.has_table(entity_table):
                     return self._info_html(f"No table for source '{data_source}'")
 
-                preparer = inspect(db.engine).dialect.identifier_preparer
+                preparer = db.engine.dialect.identifier_preparer
                 quoted_table = preparer.quote(entity_table)
                 entity_columns = set(self._get_column_names(db, quoted_table))
 

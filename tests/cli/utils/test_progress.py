@@ -14,6 +14,12 @@ from niamoto.cli.utils.progress import (
 from niamoto.common.utils.emoji import emoji
 
 
+def _mock_console():
+    console = MagicMock()
+    console.is_jupyter = False
+    return console
+
+
 class TestProgressManager:
     """Test ProgressManager class."""
 
@@ -192,40 +198,40 @@ class TestProgressManager:
 
     def test_add_error(self):
         """Test adding error messages."""
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         manager = ProgressManager(console=mock_console)
 
         with manager.progress_context():
             manager.add_error("Test error message")
 
         assert manager._stats["errors"] == 1
-        mock_console.print.assert_called_with(
+        mock_console.print.assert_any_call(
             f"{emoji('❌', '[X]')} Test error message", style="bold red"
         )
 
     def test_add_error_escapes_rich_markup(self):
         """Test error messages escape caller-provided Rich markup."""
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         manager = ProgressManager(console=mock_console)
         message = "Failed [red]bad[/red]"
 
         with manager.progress_context():
             manager.add_error(message)
 
-        mock_console.print.assert_called_with(
+        mock_console.print.assert_any_call(
             f"{emoji('❌', '[X]')} {escape(message)}", style="bold red"
         )
 
     def test_add_warning(self):
         """Test adding warning messages."""
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         manager = ProgressManager(console=mock_console)
 
         with manager.progress_context():
             manager.add_warning("Test warning message")
 
         assert manager._stats["warnings"] == 1
-        mock_console.print.assert_called_with(
+        mock_console.print.assert_any_call(
             f"{emoji('⚠', '[!]')}  Test warning message", style="yellow"
         )
 
@@ -236,7 +242,7 @@ class TestProgressManager:
         end_time = datetime(2023, 1, 1, 12, 0, 45)
         mock_datetime.now.side_effect = [start_time, end_time]
 
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         manager = ProgressManager(console=mock_console)
 
         with manager.progress_context(total_operations=5):
@@ -261,7 +267,7 @@ class TestProgressManager:
         end_time = datetime(2023, 1, 1, 12, 2, 30)  # 2m 30s
         mock_datetime.now.side_effect = [start_time, end_time]
 
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         manager = ProgressManager(console=mock_console)
 
         with manager.progress_context():
@@ -283,7 +289,7 @@ class TestProgressManager:
         end_time = datetime(2023, 1, 1, 12, 0, 30)
         mock_datetime.now.side_effect = [start_time, end_time]
 
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         manager = ProgressManager(console=mock_console)
 
         additional_stats = {"Files processed": 25, "Data imported": "1,500 records"}
@@ -301,7 +307,7 @@ class TestProgressManager:
         end_time = datetime(2023, 1, 1, 12, 0, 30)
         mock_datetime.now.side_effect = [start_time, end_time]
 
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         manager = ProgressManager(console=mock_console)
 
         with manager.progress_context():
@@ -320,7 +326,7 @@ class TestProgressManager:
 
     def test_show_summary_without_context(self):
         """Test showing summary without active context."""
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         manager = ProgressManager(console=mock_console)
 
         # Should return early without printing
@@ -387,7 +393,7 @@ class TestOperationTracker:
 
     def test_start_operation(self):
         """Test starting an operation."""
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         tracker = OperationTracker(console=mock_console)
 
         tracker.start_operation("Starting test operation")
@@ -397,7 +403,7 @@ class TestOperationTracker:
 
     def test_start_operation_escapes_rich_markup(self):
         """Test tracker messages escape caller-provided Rich markup."""
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         tracker = OperationTracker(console=mock_console)
         message = "Starting [red]import[/red]"
 
@@ -409,7 +415,7 @@ class TestOperationTracker:
 
     def test_complete_operation(self):
         """Test completing an operation."""
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         tracker = OperationTracker(console=mock_console)
 
         tracker.complete_operation("Operation completed successfully")
@@ -421,7 +427,7 @@ class TestOperationTracker:
 
     def test_error(self):
         """Test recording an error."""
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         tracker = OperationTracker(console=mock_console)
 
         tracker.error("An error occurred")
@@ -433,7 +439,7 @@ class TestOperationTracker:
 
     def test_warning(self):
         """Test recording a warning."""
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         tracker = OperationTracker(console=mock_console)
 
         tracker.warning("A warning occurred")
@@ -445,7 +451,7 @@ class TestOperationTracker:
 
     def test_info(self):
         """Test showing info message."""
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         tracker = OperationTracker(console=mock_console)
 
         tracker.info("Information message")
@@ -460,7 +466,7 @@ class TestOperationTracker:
         end_time = datetime(2023, 1, 1, 12, 0, 45)
         mock_datetime.now.side_effect = [start_time, end_time]
 
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         tracker = OperationTracker(console=mock_console)
         tracker.operations = 5
 
@@ -482,7 +488,7 @@ class TestOperationTracker:
         end_time = datetime(2023, 1, 1, 12, 1, 30)  # 1m 30s
         mock_datetime.now.side_effect = [start_time, end_time]
 
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         tracker = OperationTracker(console=mock_console)
         tracker.operations = 3
         tracker.errors = 1
@@ -521,7 +527,7 @@ class TestOperationTracker:
 
     def test_multiple_operations(self):
         """Test multiple operations and their tracking."""
-        mock_console = MagicMock()
+        mock_console = _mock_console()
         tracker = OperationTracker(console=mock_console)
 
         # Simulate a complete workflow

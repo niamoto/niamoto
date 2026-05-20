@@ -15,6 +15,14 @@ from niamoto.core.plugins.transformers.geospatial.vector_overlay import (
 )
 from niamoto.common.exceptions import DataTransformError
 
+pytestmark = [
+    pytest.mark.filterwarnings("ignore:Geometry is in a geographic CRS:UserWarning"),
+    pytest.mark.filterwarnings("ignore:CRS mismatch between the CRS:UserWarning"),
+    pytest.mark.filterwarnings(
+        "ignore:`keep_geom_type=True` in overlay resulted in:UserWarning"
+    ),
+]
+
 
 # Fixtures for test data
 @pytest.fixture
