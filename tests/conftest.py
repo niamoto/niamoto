@@ -86,7 +86,7 @@ def cleanup_magicmocks():
     # Run the test
     yield
 
-    _cleanup_magicmock_paths(Path(__file__).parent.parent)
+    _cleanup_magicmock_root_entries(Path(__file__).parent.parent)
 
 
 def is_magicmock_file(name):
@@ -128,6 +128,33 @@ def _cleanup_magicmock_paths(root_dir: Path, *, verbose: bool = False) -> None:
             except Exception as e:
                 if verbose:
                     print(f"Error cleaning up {item}: {e}")
+
+
+def _cleanup_magicmock_root_entries(root_dir: Path, *, verbose: bool = False) -> None:
+    """Remove MagicMock artifacts created directly in the project root."""
+    try:
+        entries = list(root_dir.iterdir())
+    except FileNotFoundError:
+        return
+
+    for item in entries:
+        if not is_magicmock_file(item.name):
+            continue
+
+        try:
+            if item.is_file():
+                if verbose:
+                    print(f"Cleaning up MagicMock file: {item}")
+                item.unlink()
+                _known_magicmock_paths.add(str(item))
+            elif item.is_dir():
+                if verbose:
+                    print(f"Cleaning up MagicMock directory: {item}")
+                shutil.rmtree(item)
+                _known_magicmock_paths.add(str(item))
+        except Exception as e:
+            if verbose:
+                print(f"Error cleaning up {item}: {e}")
 
 
 def is_test_database_artifact(path: Path) -> bool:

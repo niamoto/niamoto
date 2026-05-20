@@ -210,18 +210,22 @@ class PluginLoader:
 
                 # Try to extract plugin class
                 try:
-                    # Quick inspection to find plugin classes
-                    spec = importlib.util.spec_from_file_location(module_name, file)
-                    if not spec or not spec.loader:
-                        continue
+                    # Quick inspection to find plugin classes. Reuse already imported
+                    # modules so collection-time imports keep the same class objects.
+                    if module_name in sys.modules:
+                        module = sys.modules[module_name]
+                    else:
+                        spec = importlib.util.spec_from_file_location(module_name, file)
+                        if not spec or not spec.loader:
+                            continue
 
-                    module = importlib.util.module_from_spec(spec)
-                    sys.modules[module_name] = module
-                    try:
-                        spec.loader.exec_module(module)
-                    except Exception:
-                        sys.modules.pop(module_name, None)
-                        raise
+                        module = importlib.util.module_from_spec(spec)
+                        sys.modules[module_name] = module
+                        try:
+                            spec.loader.exec_module(module)
+                        except Exception:
+                            sys.modules.pop(module_name, None)
+                            raise
 
                     # Find plugin classes in this module
                     for name, obj in inspect.getmembers(module):
@@ -231,6 +235,7 @@ class PluginLoader:
                             and is_plugin_class(obj)
                         ):
                             plugin_name = getattr(obj, "name", file.stem)
+                            PluginRegistry.register_plugin(plugin_name, obj, obj.type)
 
                             plugins[plugin_name] = PluginInfo(
                                 name=plugin_name,

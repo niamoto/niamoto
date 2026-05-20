@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from niamoto.common.resource_paths import ResourceLocation, ResourcePaths
 from niamoto.core.plugins.exceptions import PluginLoadError
 from niamoto.core.plugins.base import Plugin, PluginType
 from niamoto.core.plugins.plugin_loader import PluginLoader
@@ -163,3 +164,39 @@ def test_discover_plugins_does_not_leave_decorated_plugin_registered(
     } in discovered
     assert not PluginRegistry.has_plugin("decorated_temp", PluginType.TRANSFORMER)
     assert "plugins.transformers.decorated_temp" not in sys.modules
+
+
+def test_discover_location_reuses_loaded_plugin_module_classes(tmp_path, monkeypatch):
+    PluginRegistry.clear()
+    plugin_root = tmp_path / "plugins"
+    transformers_dir = plugin_root / "transformers"
+    transformers_dir.mkdir(parents=True)
+    plugin_file = transformers_dir / "identity_temp.py"
+    plugin_file.write_text(
+        "from niamoto.core.plugins.base import Plugin, PluginType, register\n"
+        "@register('identity_temp', PluginType.TRANSFORMER)\n"
+        "class IdentityTemp(Plugin):\n"
+        "    type = PluginType.TRANSFORMER\n",
+        encoding="utf-8",
+    )
+    module_name = "plugins.transformers.identity_temp"
+    sys.modules.pop(module_name, None)
+
+    loader = PluginLoader()
+    loader._load_plugin_module(plugin_file, module_name)
+    original_plugin = PluginRegistry.get_plugin("identity_temp", PluginType.TRANSFORMER)
+    PluginRegistry.clear()
+    monkeypatch.setattr(loader, "_get_module_name", lambda _file, _is_core: module_name)
+
+    discovered = loader._discover_plugins_in_location(
+        ResourceLocation(ResourcePaths.SCOPE_PROJECT, plugin_root, priority=100)
+    )
+
+    assert discovered["identity_temp"].plugin_class is original_plugin
+    assert (
+        PluginRegistry.get_plugin("identity_temp", PluginType.TRANSFORMER)
+        is original_plugin
+    )
+
+    PluginRegistry.clear()
+    sys.modules.pop(module_name, None)
