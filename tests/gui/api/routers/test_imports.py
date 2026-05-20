@@ -227,6 +227,39 @@ def test_execute_import_all_rejects_concurrent_job_for_same_workdir(
     }
 
 
+def test_execute_import_all_rejects_active_entity_job_for_same_workdir(
+    monkeypatch,
+    tmp_path,
+):
+    work_dir = tmp_path
+    active_job_id = "active-dataset-import"
+    before_job_ids = set(imports.import_jobs)
+    imports.import_jobs[active_job_id] = {
+        **_base_job(active_job_id),
+        "status": "running",
+        "import_type": "dataset",
+        "entity_name": "occurrences",
+        "working_directory": str(work_dir.resolve()),
+    }
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+
+    try:
+        response = TestClient(create_app()).post(
+            "/api/imports/execute/all", data={"reset_table": "false"}
+        )
+    finally:
+        imports.import_jobs.pop(active_job_id, None)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {
+        "message": "An import job is already pending or running",
+        "job_id": active_job_id,
+    }
+    assert set(imports.import_jobs) == before_job_ids
+
+
 def test_execute_import_reference_rejects_active_all_job_for_same_workdir(
     monkeypatch,
     tmp_path,
@@ -677,7 +710,10 @@ def test_delete_entity_drops_registry_table_before_removing_config(
 
         def get(self, entity_name):
             assert entity_name == "plots"
-            return SimpleNamespace(table_name="actual_imported_plots")
+            return SimpleNamespace(
+                kind=imports.EntityKind.REFERENCE,
+                table_name="actual_imported_plots",
+            )
 
     monkeypatch.setattr(
         "niamoto.gui.api.context.get_working_directory", lambda: work_dir
@@ -755,6 +791,81 @@ def test_delete_dataset_fallback_drops_dataset_table_not_reference_collision(
     assert "plots" in updated_config["entities"]["references"]
 
 
+def test_delete_dataset_ignores_registry_table_for_reference_collision(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path
+    config_dir = work_dir / "config"
+    config_dir.mkdir()
+    import_path = config_dir / "import.yml"
+    import_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": "1.0",
+                "entities": {
+                    "datasets": {"plots": {"connector": {"type": "file"}}},
+                    "references": {"plots": {"connector": {"type": "file"}}},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    dropped = []
+
+    class FakeConfig:
+        def __init__(self, *args, **kwargs):
+            self.database_path = str(work_dir / "db" / "niamoto.duckdb")
+
+    class FakeDB:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def has_table(self, table_name):
+            return table_name in {
+                imports.EntityRegistry.ENTITIES_TABLE,
+                "dataset_plots",
+                "reference_plots",
+            }
+
+        def execute_sql(self, sql):
+            dropped.append(sql)
+
+    class FakeRegistry:
+        ENTITIES_TABLE = imports.EntityRegistry.ENTITIES_TABLE
+
+        def __init__(self, db):
+            self.db = db
+
+        def get(self, entity_name):
+            assert entity_name == "plots"
+            return SimpleNamespace(
+                kind=imports.EntityKind.REFERENCE,
+                table_name="reference_plots",
+            )
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+    monkeypatch.setattr(imports, "Config", FakeConfig)
+    monkeypatch.setattr(imports, "open_database", lambda _path: FakeDB())
+    monkeypatch.setattr(imports, "EntityRegistry", FakeRegistry)
+    monkeypatch.setattr(imports, "quote_identifier", lambda _db, name: f'"{name}"')
+
+    response = asyncio.run(
+        imports.delete_entity(_request(), "dataset", "plots", delete_table=True)
+    )
+
+    assert response["success"] is True
+    assert response["table_dropped"] is True
+    assert dropped == ['DROP TABLE IF EXISTS "dataset_plots"']
+    updated_config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    assert "plots" not in updated_config["entities"]["datasets"]
+    assert "plots" in updated_config["entities"]["references"]
+
+
 def test_delete_entity_keeps_config_when_requested_table_drop_fails(
     monkeypatch, tmp_path
 ):
@@ -802,7 +913,10 @@ def test_delete_entity_keeps_config_when_requested_table_drop_fails(
             self.db = db
 
         def get(self, entity_name):
-            return SimpleNamespace(table_name="dataset_occurrences")
+            return SimpleNamespace(
+                kind=imports.EntityKind.DATASET,
+                table_name="dataset_occurrences",
+            )
 
     monkeypatch.setattr(
         "niamoto.gui.api.context.get_working_directory", lambda: work_dir

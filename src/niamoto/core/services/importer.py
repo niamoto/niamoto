@@ -100,11 +100,6 @@ class ImporterService:
         elif config.kind == "spatial":
             kind = EntityKind.REFERENCE
 
-        # Reset table if requested
-        if reset_table and self.db.has_table(table_name):
-            self.db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
-            logger.info(f"Dropped existing table: {table_name}")
-
         try:
             # Detect connector mode
             if config.connector.type == ConnectorType.DERIVED:
@@ -130,6 +125,10 @@ class ImporterService:
                         f"Ensure datasets are imported before derived references.",
                     )
 
+                if reset_table and self.db.has_table(table_name):
+                    self.db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
+                    logger.info(f"Dropped existing table: {table_name}")
+
                 # 2. Import via hierarchy builder
                 result = self.engine.import_derived_reference(
                     entity_name=name,
@@ -152,9 +151,19 @@ class ImporterService:
                 resolved_sources = []
                 for source in config.connector.sources:
                     resolved_path = self._resolve_path(source.path)
+                    if not resolved_path.exists():
+                        raise FileReadError(
+                            str(resolved_path),
+                            "Source file not found",
+                            details={"path": str(resolved_path)},
+                        )
                     # Create a copy of source with resolved path
                     source_copy = source.model_copy(update={"path": str(resolved_path)})
                     resolved_sources.append(source_copy)
+
+                if reset_table and self.db.has_table(table_name):
+                    self.db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
+                    logger.info(f"Dropped existing table: {table_name}")
 
                 # Import via multi-feature engine
                 result = self.engine.import_multi_feature(
@@ -182,6 +191,10 @@ class ImporterService:
                         "Source file not found",
                         details={"path": str(source_path)},
                     )
+
+                if reset_table and self.db.has_table(table_name):
+                    self.db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
+                    logger.info(f"Dropped existing table: {table_name}")
 
                 # Import using generic engine
                 result = self.engine.import_from_csv(

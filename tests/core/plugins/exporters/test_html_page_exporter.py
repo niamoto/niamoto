@@ -1546,6 +1546,38 @@ class TestHtmlPageExporter(NiamotoTestCase):
         self.assertTrue(existing_file.exists())
         self.assertEqual(existing_file.read_text(), "Should not be deleted")
 
+    def test_export_with_group_filter_refuses_unowned_group_clear(self):
+        """Filtered exports must not delete a pre-existing unowned group directory."""
+        exporter = HtmlPageExporter(self.mock_db)
+
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        group_dir = self.output_dir / "plot"
+        group_dir.mkdir()
+        important_file = group_dir / "important.txt"
+        important_file.write_text("keep me")
+
+        self.mock_db.has_table.return_value = True
+        self.mock_db.get_table_columns.return_value = ["plot_id", "name"]
+        self.mock_db.fetch_all.return_value = []
+        self.target_config.groups = [
+            GroupConfigWeb(
+                group_by="plot",
+                data_source="db",
+                output_pattern="plot/{id}.html",
+                index_output_pattern="plot/index.html",
+                widgets=[],
+            )
+        ]
+
+        with self.assertRaisesRegex(
+            ProcessError,
+            "Refusing to clear output directory without Niamoto export ownership marker",
+        ):
+            exporter.export(self.target_config, self.mock_db, group_filter="plot")
+
+        self.assertTrue(important_file.exists())
+        self.assertEqual(important_file.read_text(), "keep me")
+
     def test_validate_template_availability(self):
         """Test template availability validation."""
         exporter = HtmlPageExporter(self.mock_db)

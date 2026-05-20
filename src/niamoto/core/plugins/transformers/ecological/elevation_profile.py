@@ -145,9 +145,22 @@ class ElevationProfile(TransformerPlugin):
             # Open the DEM
             try:
                 with rasterio.open(dem_path) as src:
+                    raster_crs = getattr(src, "crs", data.crs)
+                    raster_geom = main_geom
+                    if (
+                        data.crs is not None
+                        and raster_crs is not None
+                        and data.crs != raster_crs
+                    ):
+                        raster_geom = (
+                            gpd.GeoSeries([main_geom], crs=data.crs)
+                            .to_crs(raster_crs)
+                            .iloc[0]
+                        )
+
                     # Mask the DEM with the geometry
                     masked, mask_transform = mask(
-                        src, [main_geom], crop=True, nodata=params["nodata"]
+                        src, [raster_geom], crop=True, nodata=params["nodata"]
                     )
 
                     # Get the elevation data (first band)
@@ -211,8 +224,8 @@ class ElevationProfile(TransformerPlugin):
             if params.get("overlay_forest") and params.get("forest_path"):
                 forest_distribution = self._calculate_forest_distribution(
                     params["forest_path"],
-                    main_geom,
-                    data.crs,
+                    raster_geom,
+                    raster_crs or data.crs,
                     elevation_data,
                     bin_edges,
                     valid_mask,

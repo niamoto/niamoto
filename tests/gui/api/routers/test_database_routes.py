@@ -349,6 +349,10 @@ def test_query_endpoint_allows_safe_identifiers_and_literals_with_keyword_substr
             "SELECT * FROM dataset_occurrences UNION SELECT * FROM drop",
             "Query contains forbidden keyword: drop",
         ),
+        (
+            "SELECT * FROM read_csv_auto('/tmp/secret.csv')",
+            "Query contains forbidden function: read_csv_auto",
+        ),
     ],
 )
 def test_query_endpoint_rejects_mutation_and_multistatement_sql_before_opening_db(

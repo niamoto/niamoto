@@ -6,8 +6,8 @@ from pathlib import Path
 from string import Formatter
 import tempfile
 import threading
-from typing import Dict, Any, Literal, Optional, List, Union
-from fastapi import APIRouter, HTTPException, Body
+from typing import Dict, Any, Literal, Optional, List, Sequence, Union
+from fastapi import APIRouter, HTTPException, Body, Request
 from pydantic import BaseModel, Field, ValidationError
 import re
 import yaml
@@ -272,6 +272,16 @@ def _api_export_table_candidates(
     if data_source:
         return [data_source]
     return [group_by, f"{group_by}_stats", f"{group_by}_data"]
+
+
+def _api_export_suggestion_table_candidates(
+    group: Dict[str, Any], group_by: str
+) -> List[str]:
+    """Return table candidates for a saved API export group configuration."""
+    data_source = group.get("data_source")
+    return _api_export_table_candidates(
+        group_by, str(data_source) if data_source else None
+    )
 
 
 def _api_export_target_name_values(export_target: Dict[str, Any]) -> List[Any]:
@@ -3447,7 +3457,10 @@ async def suggest_api_export_index_fields(
             status_code=404, detail=f"API export target '{export_name}' not found"
         )
     group = _find_target_group(export_target, group_by) or {}
-    return await suggest_index_fields(group_by, data_source=group.get("data_source"))
+    return await _suggest_index_fields(
+        group_by,
+        table_candidates=_api_export_suggestion_table_candidates(group, group_by),
+    )
 
 
 def _api_export_target_uses_dwc(export_target: Dict[str, Any], group_by: str) -> bool:
@@ -3779,8 +3792,11 @@ async def suggest_api_export_auto_config(
         )
 
     existing_group = _find_target_group(export_target, group_by) or {}
-    suggestions = await suggest_index_fields(
-        group_by, data_source=existing_group.get("data_source")
+    suggestions = await _suggest_index_fields(
+        group_by,
+        table_candidates=_api_export_suggestion_table_candidates(
+            existing_group, group_by
+        ),
     )
     try:
         preview_items = _load_api_export_preview_items(
@@ -5007,9 +5023,8 @@ def _infer_schema_from_transform_config(
     return schema
 
 
-@router.get("/export/{group_by}/index-generator/suggestions")
-async def suggest_index_fields(
-    group_by: str, data_source: Optional[str] = None
+async def _suggest_index_fields(
+    group_by: str, table_candidates: Optional[Sequence[str]] = None
 ) -> IndexFieldSuggestions:
     """
     Analyze transformed data and suggest display fields and filters.
@@ -5022,7 +5037,7 @@ async def suggest_index_fields(
 
     Args:
         group_by: The group name (e.g., 'taxons', 'plots', 'shapes')
-        data_source: Optional transformed table to inspect for API export groups
+        table_candidates: Optional validated transformed tables to inspect
 
     Returns:
         Suggested display_fields and filters
@@ -5094,11 +5109,7 @@ async def suggest_index_fields(
 
         db = Database(str(db_path), read_only=True)
         try:
-            candidates = (
-                _api_export_table_candidates(group_by, data_source)
-                if data_source
-                else (group_by, f"{group_by}_stats")
-            )
+            candidates = table_candidates or (group_by, f"{group_by}_stats")
             for candidate in candidates:
                 if db.has_table(candidate):
                     transformed_table = candidate
@@ -5544,6 +5555,19 @@ async def suggest_index_fields(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error analyzing data: {str(e)}")
+
+
+@router.get("/export/{group_by}/index-generator/suggestions")
+async def suggest_index_fields(
+    request: Request, group_by: str
+) -> IndexFieldSuggestions:
+    """Analyze transformed data and suggest display fields and filters."""
+    if "data_source" in request.query_params:
+        raise HTTPException(
+            status_code=400,
+            detail="data_source is not accepted on this public suggestions route",
+        )
+    return await _suggest_index_fields(group_by)
 
 
 @router.post("/scaffold")

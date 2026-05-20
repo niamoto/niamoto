@@ -202,10 +202,23 @@ class ForestElevationAnalysis(TransformerPlugin):
             # Open the DEM
             try:
                 with rasterio.open(dem_path) as src:
+                    raster_crs = getattr(src, "crs", data.crs)
+                    raster_geom = main_geom
+                    if (
+                        data.crs is not None
+                        and raster_crs is not None
+                        and data.crs != raster_crs
+                    ):
+                        raster_geom = (
+                            gpd.GeoSeries([main_geom], crs=data.crs)
+                            .to_crs(raster_crs)
+                            .iloc[0]
+                        )
+
                     # Mask the DEM with the geometry
                     masked, mask_transform = mask(
                         src,
-                        [main_geom],
+                        [raster_geom],
                         crop=True,
                         nodata=params.nodata,
                     )
@@ -231,8 +244,9 @@ class ForestElevationAnalysis(TransformerPlugin):
                     return self._empty_results(elevation_bins, params.forest_types)
 
                 # Ensure the CRS matches
-                if data.crs != forest_gdf.crs:
-                    forest_gdf = forest_gdf.to_crs(data.crs)
+                forest_crs = raster_crs or data.crs
+                if forest_crs != forest_gdf.crs:
+                    forest_gdf = forest_gdf.to_crs(forest_crs)
             except Exception as e:
                 self.logger.error(f"Error loading the forest types layer: {str(e)}")
                 return self._empty_results(elevation_bins, params.forest_types)
@@ -240,7 +254,7 @@ class ForestElevationAnalysis(TransformerPlugin):
             # Clip the forest layer to the main geometry
             try:
                 forest_in_area = gpd.clip(
-                    forest_gdf, gpd.GeoDataFrame(geometry=[main_geom], crs=data.crs)
+                    forest_gdf, gpd.GeoDataFrame(geometry=[raster_geom], crs=forest_crs)
                 )
 
                 if forest_in_area.empty:

@@ -64,6 +64,94 @@ class TableStats(BaseModel):
     data_types: Dict[str, str]
 
 
+def _extract_query_table_names(query: str) -> set[str]:
+    """Extract simple FROM/JOIN table names and reject computed table sources."""
+    if re.search(r"\b(?:from|join)\s*\(", query, flags=re.IGNORECASE):
+        raise HTTPException(
+            status_code=400,
+            detail="Subqueries are not allowed in this inspection endpoint",
+        )
+
+    table_names: set[str] = set()
+    table_pattern = (
+        r"\b(?:from|join)\s+"
+        r"(?P<table>\"(?:\"\"|[^\"])+\"|[A-Za-z_][A-Za-z0-9_]*)"
+    )
+    for match in re.finditer(table_pattern, query, flags=re.IGNORECASE):
+        table_token = match.group("table")
+        if table_token.startswith('"'):
+            table_name = table_token[1:-1].replace('""', '"')
+        else:
+            table_name = table_token
+        table_names.add(table_name)
+
+    if not table_names and re.search(r"\b(?:from|join)\b", query, flags=re.IGNORECASE):
+        raise HTTPException(
+            status_code=400,
+            detail="Only project database tables can be queried",
+        )
+
+    return table_names
+
+
+def _build_safe_select_query(db: Any, query: str) -> str:
+    """Rebuild a simple SELECT query from allow-listed identifiers."""
+    query_no_limit = re.sub(r"\s+limit\s+\d+\s*$", "", query, flags=re.IGNORECASE)
+    match = re.fullmatch(
+        r"\s*select\s+(?P<columns>\*|[A-Za-z_][A-Za-z0-9_]*(?:\s*,\s*[A-Za-z_][A-Za-z0-9_]*)*)"
+        r"\s+from\s+(?P<table>\"(?:\"\"|[^\"])+\"|[A-Za-z_][A-Za-z0-9_]*)"
+        r"(?:\s+order\s+by\s+(?P<order>[A-Za-z_][A-Za-z0-9_]*)(?:\s+(?P<direction>asc|desc))?)?"
+        r"\s*",
+        query_no_limit,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        raise HTTPException(
+            status_code=400,
+            detail="Only simple SELECT queries against project tables are allowed",
+        )
+
+    table_token = match.group("table")
+    table_name = (
+        table_token[1:-1].replace('""', '"')
+        if table_token.startswith('"')
+        else table_token
+    )
+    known_tables = set(db.get_table_names())
+    if table_name not in known_tables:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Query references unknown or disallowed table: {table_name}",
+        )
+
+    table_columns = {column["name"] for column in db.get_columns(table_name)}
+    preparer = db.engine.dialect.identifier_preparer
+    if match.group("columns") == "*":
+        columns_sql = "*"
+    else:
+        columns = [column.strip() for column in match.group("columns").split(",")]
+        unknown_columns = sorted(set(columns) - table_columns)
+        if unknown_columns:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Query references unknown column: {unknown_columns[0]}",
+            )
+        columns_sql = ", ".join(preparer.quote(column) for column in columns)
+
+    query_sql = f"SELECT {columns_sql} FROM {preparer.quote(table_name)}"
+    order_column = match.group("order")
+    if order_column:
+        if order_column not in table_columns:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Query references unknown column: {order_column}",
+            )
+        direction = (match.group("direction") or "ASC").upper()
+        query_sql += f" ORDER BY {preparer.quote(order_column)} {direction}"
+
+    return query_sql
+
+
 def _default_preview_order_clause(db: Any, table_name: str) -> str:
     """Build a stable default ORDER BY clause for paginated previews."""
     columns = db.get_columns(table_name)
@@ -451,16 +539,40 @@ async def execute_query(
                 status_code=400, detail=f"Query contains forbidden keyword: {keyword}"
             )
 
+    external_access_functions = [
+        "read_blob",
+        "read_csv",
+        "read_csv_auto",
+        "read_json",
+        "read_json_auto",
+        "read_ndjson",
+        "read_parquet",
+        "read_text",
+    ]
+    for function_name in external_access_functions:
+        if re.search(rf"\b{function_name}\s*\(", keyword_scan):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Query contains forbidden function: {function_name}",
+            )
+
+    referenced_tables = _extract_query_table_names(keyword_scan)
+
     db_path = get_database_path()
     if not db_path:
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
         with open_database(db_path, read_only=True) as db:
+            if referenced_tables:
+                safe_query = _build_safe_select_query(db, query_clean)
+            else:
+                safe_query = query_clean
+
             with db.engine.connect() as conn:
                 params: Dict[str, Any] = {"_limit": max(1, int(limit))}
                 query_to_run = (
-                    f"SELECT * FROM ({query_clean}) AS limited_query LIMIT :_limit"
+                    f"SELECT * FROM ({safe_query}) AS limited_query LIMIT :_limit"
                 )
 
                 result = conn.execute(text(query_to_run), params)

@@ -169,9 +169,22 @@ class ForestHoldridgeAnalysis(TransformerPlugin):
 
             # Open the Holdridge raster
             with rasterio.open(holdridge_path) as src:
+                raster_crs = getattr(src, "crs", data.crs)
+                raster_geom = main_geom
+                if (
+                    data.crs is not None
+                    and raster_crs is not None
+                    and data.crs != raster_crs
+                ):
+                    raster_geom = (
+                        gpd.GeoSeries([main_geom], crs=data.crs)
+                        .to_crs(raster_crs)
+                        .iloc[0]
+                    )
+
                 # Mask the raster with the geometry
                 masked, mask_transform = mask(
-                    src, [main_geom], crop=True, nodata=params.nodata
+                    src, [raster_geom], crop=True, nodata=params.nodata
                 )
 
                 # Get the Holdridge data (first band)
@@ -198,12 +211,13 @@ class ForestHoldridgeAnalysis(TransformerPlugin):
                     )
 
                 # Ensure the CRS matches
-                if data.crs != forest_gdf.crs:
-                    forest_gdf = forest_gdf.to_crs(data.crs)
+                forest_crs = raster_crs or data.crs
+                if forest_crs != forest_gdf.crs:
+                    forest_gdf = forest_gdf.to_crs(forest_crs)
 
                 # Clip the forest to the main geometry
                 forest_in_area = gpd.clip(
-                    forest_gdf, gpd.GeoDataFrame(geometry=[main_geom], crs=data.crs)
+                    forest_gdf, gpd.GeoDataFrame(geometry=[raster_geom], crs=forest_crs)
                 )
 
                 # Create a raster mask for the forest

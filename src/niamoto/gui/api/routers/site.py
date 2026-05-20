@@ -15,6 +15,7 @@ import shutil
 from datetime import datetime
 
 from ..context import get_database_path, get_working_directory
+from ..desktop_auth import require_desktop_mutation_auth
 from ..utils.database import open_database
 from niamoto.common.i18n import I18nResolver
 from niamoto.core.plugins.exporters.index_generator import IndexGeneratorPlugin
@@ -772,13 +773,14 @@ async def get_site_config():
 
 
 @router.put("/config")
-async def update_site_config(update: SiteConfigUpdate):
+async def update_site_config(request: Request, update: SiteConfigUpdate):
     """
     Update site configuration in export.yml.
 
     Updates site settings, navigation, and static pages in the
     web_pages export configuration. Creates a backup before saving.
     """
+    require_desktop_mutation_auth(request)
     with SITE_CONFIG_WRITE_LOCK:
         export_config = _get_export_config()
         exports = export_config.get("exports", [])
@@ -2089,7 +2091,9 @@ class FileContentUpdate(BaseModel):
 
 
 @router.post("/upload", response_model=FileUploadResponse)
-async def upload_file(file: UploadFile = File(...), folder: str = "files"):
+async def upload_file(
+    request: Request, file: UploadFile = File(...), folder: str = "files"
+):
     """
     Upload a file to the project.
 
@@ -2097,6 +2101,7 @@ async def upload_file(file: UploadFile = File(...), folder: str = "files"):
         file: The file to upload
         folder: Target folder (relative to project root). Default: "files"
     """
+    require_desktop_mutation_auth(request)
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not set")
@@ -2357,7 +2362,7 @@ async def get_data_content(path: str):
 
 
 @router.put("/data-content")
-async def update_data_content(update: DataFileUpdate):
+async def update_data_content(request: Request, update: DataFileUpdate):
     """
     Update the content of a JSON data file.
 
@@ -2366,6 +2371,7 @@ async def update_data_content(update: DataFileUpdate):
     Args:
         update: Contains path and new data array
     """
+    require_desktop_mutation_auth(request)
     import json
 
     work_dir = get_working_directory()
@@ -2421,13 +2427,14 @@ async def update_data_content(update: DataFileUpdate):
 
 
 @router.put("/file-content")
-async def update_file_content(update: FileContentUpdate):
+async def update_file_content(request: Request, update: FileContentUpdate):
     """
     Update the content of a file.
 
     Args:
         update: Contains path and new content
     """
+    require_desktop_mutation_auth(request)
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not set")

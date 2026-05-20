@@ -153,6 +153,25 @@ def test_import_reference_missing_file(service, mock_engine, tmp_path):
         service.import_reference("test", config)
 
 
+def test_import_reference_reset_table_validates_source_before_drop(
+    service, mock_engine, tmp_path
+):
+    """reset_table must not delete existing data when the replacement source is invalid."""
+    service.db.has_table = mock.Mock(return_value=True)
+    service.db.execute_sql = mock.Mock()
+    config = ReferenceEntityConfig(
+        connector=ConnectorConfig(
+            type=ConnectorType.FILE, path=str(tmp_path / "nonexistent.csv")
+        ),
+        schema=EntitySchema(id_field="id", fields=[]),
+    )
+
+    with pytest.raises(FileReadError):
+        service.import_reference("test", config, reset_table=True)
+
+    service.db.execute_sql.assert_not_called()
+
+
 def test_import_all(service, mock_engine, tmp_path):
     """Test importing all entities from a complete configuration."""
     # Create test files

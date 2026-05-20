@@ -236,6 +236,22 @@ def test_analyze_file_reports_component_message_for_shapes_shp_upload():
     analyzer.assert_not_called()
 
 
+def test_analyze_file_rejects_direct_spatial_filename_traversal(monkeypatch):
+    client = TestClient(create_app())
+    analyzer = Mock()
+    monkeypatch.setattr(files_router, "analyze_shape", analyzer)
+
+    response = client.post(
+        "/api/files/analyze",
+        files={"file": ("../escape.geojson", b'{"type":"FeatureCollection"}')},
+        data={"entity_type": "shapes"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Invalid filename"}
+    analyzer.assert_not_called()
+
+
 def test_test_api_connection_uses_requests_stack():
     client = TestClient(create_app())
     mocked_response = Mock()

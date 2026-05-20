@@ -7,10 +7,15 @@ import duckdb
 import pandas as pd
 import yaml
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers import config as config_router
 from niamoto.gui.api.routers import sources as sources_router
+
+
+def _request() -> Request:
+    return Request({"type": "http", "headers": []})
 
 
 def test_get_group_sources_disposes_database_after_builtin_lookup(
@@ -494,6 +499,7 @@ def test_source_save_shares_transform_write_lock_with_widget_updates(
         try:
             asyncio.run(
                 sources_router.save_source_config(
+                    _request(),
                     "taxons",
                     sources_router.SaveSourceRequest(
                         source_name="taxa_stats",
@@ -591,6 +597,7 @@ def test_save_source_config_serializes_concurrent_source_writes(monkeypatch, tmp
                 second_save_started.set()
             asyncio.run(
                 sources_router.save_source_config(
+                    _request(),
                     "taxons",
                     sources_router.SaveSourceRequest(
                         source_name=source_name,

@@ -169,6 +169,7 @@ def deploy_commands(ctx, platform, project, branch, extra):
 
 async def _run_deploy(deployer, config):
     """Run deployer and print SSE lines to console."""
+    errors = []
     async for line in deployer.deploy(config):
         # Parse SSE format: "data: MESSAGE\n\n"
         text = line.strip()
@@ -179,13 +180,22 @@ async def _run_deploy(deployer, config):
         if message == "DONE":
             break
         elif message.startswith("ERROR: "):
-            print_error(message[7:])
+            error_message = message[7:]
+            errors.append(error_message)
+            print_error(error_message)
         elif message.startswith("SUCCESS: "):
             print_success(message[9:])
         elif message.startswith("URL: "):
             print_success(f"URL: {message[5:]}")
         else:
             print_info(message)
+
+    if errors:
+        raise CommandError(
+            command="deploy",
+            message="Deployment failed",
+            details={"errors": errors},
+        )
 
 
 # --- Subcommands ---

@@ -24,6 +24,7 @@ import yaml
 
 from niamoto.core.imports.auto_config_service import AutoConfigService
 from niamoto.gui.api.context import get_working_directory
+from niamoto.gui.api.desktop_auth import require_desktop_mutation_auth
 
 router = APIRouter()
 
@@ -411,7 +412,7 @@ async def _read_uploaded_content(uploaded_file: UploadFile) -> bytes:
 
 @router.post("/upload-files")
 async def upload_files(
-    files: List[Any] = File(...), overwrite: bool = False
+    request: Request, files: List[Any] = File(...), overwrite: bool = False
 ) -> Dict[str, Any]:
     """Upload multiple files to the imports directory.
 
@@ -424,6 +425,7 @@ async def upload_files(
     Returns:
         Dict with uploaded file information, existing files, and any errors
     """
+    require_desktop_mutation_auth(request)
     try:
         work_dir = get_working_directory()
         if not work_dir:
@@ -890,7 +892,9 @@ class CreateEntitiesBulkRequest(BaseModel):
 
 
 @router.post("/management/entities/bulk")
-async def create_entities_bulk(request: CreateEntitiesBulkRequest):
+async def create_entities_bulk(
+    http_request: Request, request: CreateEntitiesBulkRequest
+):
     """
     Create entities in bulk by saving them to config/import.yml.
 
@@ -903,6 +907,7 @@ async def create_entities_bulk(request: CreateEntitiesBulkRequest):
     Returns:
         Success status and message
     """
+    require_desktop_mutation_auth(http_request)
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not set")
