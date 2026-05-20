@@ -72,7 +72,7 @@ def _load_transform_tables(project_dir: Path) -> dict[str, list[dict]]:
         db.close_db_session()
 
 
-def _run_export(project_dir: Path, workers: int) -> None:
+def _run_export(project_dir: Path) -> dict[str, dict]:
     export_dir = project_dir / "exports" / "web"
     if export_dir.exists():
         shutil.rmtree(export_dir)
@@ -80,9 +80,10 @@ def _run_export(project_dir: Path, workers: int) -> None:
     config = Config(str(project_dir / "config"), create_default=False)
     service = ExporterService(config.database_path, config)
     try:
-        service.run_export(target_name="web_pages", workers=workers)
+        result = service.run_export(target_name="web_pages")
     finally:
         service.db.close_db_session()
+    return result
 
 
 def _normalize_html(content: str) -> str:
@@ -92,31 +93,44 @@ def _normalize_html(content: str) -> str:
 def _collect_export_html(project_dir: Path) -> dict[str, str]:
     root = project_dir / "exports" / "web"
     html_files = sorted(root.rglob("*.html"))
-    return {
+    assert html_files, f"Expected exported HTML files under {root}"
+    collected = {
         str(path.relative_to(root)): _normalize_html(path.read_text(encoding="utf-8"))
         for path in html_files
     }
+    assert "index.html" in collected
+    return collected
+
+
+def _assert_successful_web_export(result: dict[str, dict]) -> None:
+    web_result = result["web_pages"]
+    assert web_result["status"] == "success"
+    assert web_result["errors"] == 0
+    assert web_result["files_generated"] > 0
 
 
 @pytest.mark.slow
 @pytest.mark.integration
-def test_export_html_matches_between_sequential_and_parallel(
+def test_export_html_is_stable_across_independent_runs(
     tmp_path: Path,
     niamoto_subset_instance_dir: Path,
 ):
-    sequential_project = _copy_instance(
-        niamoto_subset_instance_dir, tmp_path / "subset-export-w1"
+    first_project = _copy_instance(
+        niamoto_subset_instance_dir, tmp_path / "subset-export-first"
     )
-    parallel_project = _copy_instance(
-        niamoto_subset_instance_dir, tmp_path / "subset-export-w2"
+    second_project = _copy_instance(
+        niamoto_subset_instance_dir, tmp_path / "subset-export-second"
     )
 
-    with _project_env(sequential_project):
-        _run_export(sequential_project, workers=1)
-    with _project_env(parallel_project):
-        _run_export(parallel_project, workers=2)
+    with _project_env(first_project):
+        first_result = _run_export(first_project)
+    with _project_env(second_project):
+        second_result = _run_export(second_project)
 
-    sequential_html = _collect_export_html(sequential_project)
-    parallel_html = _collect_export_html(parallel_project)
+    _assert_successful_web_export(first_result)
+    _assert_successful_web_export(second_result)
 
-    assert parallel_html == sequential_html
+    first_html = _collect_export_html(first_project)
+    second_html = _collect_export_html(second_project)
+
+    assert second_html == first_html

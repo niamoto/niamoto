@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import inspect
+
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
+from niamoto.gui.api.routers import layers as layers_router
 from niamoto.gui.api.routers.layers import RasterMetadata, VectorMetadata
 
 
@@ -35,6 +38,10 @@ def test_list_layers_returns_sorted_relative_paths_without_metadata(
         "imports/a.gpkg",
         "imports/nested/z.geojson",
     ]
+
+
+def test_get_layer_info_runs_as_sync_threadpool_route():
+    assert not inspect.iscoroutinefunction(layers_router.get_layer_info)
 
 
 def test_list_layers_returns_500_when_working_directory_is_missing(monkeypatch):

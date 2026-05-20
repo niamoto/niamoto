@@ -1,3 +1,4 @@
+import json
 import pandas as pd
 from unittest.mock import Mock, patch
 
@@ -366,6 +367,60 @@ class TestInteractiveMapWidgetRender(NiamotoTestCase):
 
         self.assertIn("Location field is required", result)
 
+    @patch("plotly.express.choropleth_map")
+    def test_render_choropleth_map_uses_dataframe_geojson_source(
+        self, mock_choropleth_map
+    ):
+        """Configured DataFrame GeoJSON should be passed to Plotly choropleth maps."""
+        geojson_data = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "id": "a",
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [165.0, -21.0],
+                                [166.0, -21.0],
+                                [166.0, -22.0],
+                                [165.0, -22.0],
+                                [165.0, -21.0],
+                            ]
+                        ],
+                    },
+                    "properties": {"name": "Area A"},
+                }
+            ],
+        }
+        df = pd.DataFrame(
+            {
+                "area_id": ["a"],
+                "value": [7],
+                "geojson_field": [geojson_data],
+            }
+        )
+
+        mock_fig = Mock()
+        mock_fig.data = []
+        mock_fig.layout = {}
+        mock_fig.to_json.return_value = '{"data": [], "layout": {}}'
+        mock_choropleth_map.return_value = mock_fig
+
+        params = InteractiveMapParams(
+            map_type="choropleth_map",
+            location_field="area_id",
+            color_field="value",
+            geojson_source="geojson_field",
+        )
+
+        result = self.widget.render(df, params)
+
+        self.assertIn("plotly-graph-div", result)
+        mock_choropleth_map.assert_called_once()
+        self.assertEqual(mock_choropleth_map.call_args.kwargs["geojson"], geojson_data)
+
     def test_render_geojson_points_parsing(self):
         """Test rendering with GeoJSON point data."""
         geojson_data = {
@@ -441,7 +496,9 @@ class TestInteractiveMapWidgetRender(NiamotoTestCase):
         # Mock topology conversion to get choropleth outline mode
         mock_topology = Mock()
         mock_topology.to_geojson.return_value = (
-            '{"type": "FeatureCollection", "features": [{"id": 0}]}'
+            '{"type": "FeatureCollection", "features": [{"id": 0, "geometry": '
+            '{"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], '
+            "[0, 1], [0, 0]]]}}]}"
         )
         mock_topology_class.return_value = mock_topology
 
@@ -455,6 +512,62 @@ class TestInteractiveMapWidgetRender(NiamotoTestCase):
         self.assertIsInstance(result, str)
         # Could be success or error, but should not be None
         self.assertIsNotNone(result)
+
+    @patch("plotly.express.choropleth_map")
+    @patch("topojson.Topology")
+    def test_render_topojson_keeps_all_shape_and_forest_features(
+        self, mock_topology_class, mock_choropleth_map
+    ):
+        """TopoJSON conversion should create one row per converted polygon."""
+        topojson_data = {
+            "shape_coords": {"type": "Topology", "objects": {"data": {}}, "arcs": []},
+            "forest_cover_coords": {
+                "type": "Topology",
+                "objects": {"data": {}},
+                "arcs": [],
+            },
+        }
+        polygon = {
+            "type": "Polygon",
+            "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+        }
+        shape_topology = Mock()
+        shape_topology.to_geojson.return_value = json.dumps(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {"type": "Feature", "id": "a", "geometry": polygon},
+                    {"type": "Feature", "id": "b", "geometry": polygon},
+                ],
+            }
+        )
+        forest_topology = Mock()
+        forest_topology.to_geojson.return_value = json.dumps(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {"type": "Feature", "id": "c", "geometry": polygon},
+                    {"type": "Feature", "id": "d", "geometry": polygon},
+                ],
+            }
+        )
+        mock_topology_class.side_effect = [shape_topology, forest_topology]
+        mock_fig = Mock()
+        mock_fig.data = []
+        mock_fig.to_json.return_value = '{"data": [], "layout": {}}'
+        mock_choropleth_map.return_value = mock_fig
+
+        result = self.widget.render(topojson_data, InteractiveMapParams())
+
+        self.assertIn("plotly-graph-div", result)
+        df_plot = mock_choropleth_map.call_args.args[0]
+        self.assertEqual(
+            df_plot["shape_id"].tolist(),
+            ["shape_a", "shape_b", "forest_c", "forest_d"],
+        )
+        self.assertEqual(
+            df_plot["layer"].tolist(), ["shape", "shape", "forest", "forest"]
+        )
 
     @patch("plotly.express.scatter_map")
     def test_render_auto_zoom_enabled(self, mock_scatter_map):

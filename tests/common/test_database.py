@@ -8,7 +8,11 @@ import pytest
 from sqlalchemy.sql import text
 
 from niamoto.common.database import Database
-from niamoto.common.exceptions import DatabaseQueryError, TransactionError
+from niamoto.common.exceptions import (
+    DatabaseConnectionError,
+    DatabaseQueryError,
+    TransactionError,
+)
 
 
 @pytest.fixture
@@ -89,6 +93,16 @@ def test_has_table(test_database: Any) -> None:
     test_database.execute_sql("CREATE TABLE lookup (id INTEGER)")
     assert test_database.has_table("lookup")
     assert not test_database.has_table("missing")
+
+
+def test_has_table_cache_invalidated_after_execute_sql_ddl(
+    test_database: Any,
+) -> None:
+    assert not test_database.has_table("created_after_miss")
+
+    test_database.execute_sql("CREATE TABLE created_after_miss (id INTEGER)")
+
+    assert test_database.has_table("created_after_miss")
 
 
 def test_execute_select_errors(test_database: Any) -> None:
@@ -419,13 +433,18 @@ def test_optimize_all_tables(tmp_path) -> None:
 
 # Error handling tests
 def test_get_new_session_error_handling() -> None:
-    """Test get_new_session error handling with invalid database."""
+    """Test get_new_session wraps session factory failures."""
 
-    # This should not raise during init, but operations should fail
     db = Database(":memory:")
-    session = db.get_new_session()  # Should succeed
-    assert session is not None
-    db.engine.dispose()
+    delattr(db, "session")
+
+    try:
+        with pytest.raises(DatabaseConnectionError) as exc_info:
+            db.get_new_session()
+    finally:
+        db.engine.dispose()
+
+    assert "Failed to create new session" in str(exc_info.value)
 
 
 def test_add_instance_and_commit_error_handling(test_database: Any) -> None:
@@ -568,20 +587,20 @@ def test_commit_transaction_error_triggers_rollback(test_database: Any) -> None:
 
     test_database.begin_transaction()
 
-    # Simulate a commit error with SQLAlchemy exception
-    with patch.object(
-        test_database.session,
-        "commit",
-        side_effect=exc.SQLAlchemyError("Commit failed"),
+    with (
+        patch.object(
+            test_database.session,
+            "commit",
+            side_effect=exc.SQLAlchemyError("Commit failed"),
+        ),
+        patch.object(test_database.session, "rollback") as rollback,
     ):
-        try:
+        with pytest.raises(DatabaseError) as exc_info:
             test_database.commit_transaction()
-        except DatabaseError:
-            pass  # Expected
 
-    # Transaction should be marked inactive after failed commit
-    # Note: The error_handler might not reset it, so we just verify the exception was raised
-    # The actual rollback is tested separately
+    assert "Failed to commit transaction" in str(exc_info.value)
+    rollback.assert_called_once_with()
+    assert test_database.active_transaction is False
 
 
 def test_get_table_columns(test_database: Any) -> None:

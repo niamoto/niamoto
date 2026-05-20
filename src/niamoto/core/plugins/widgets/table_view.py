@@ -176,9 +176,17 @@ class TableViewWidget(WidgetPlugin):
 
         # Sorting
         if params.sort_by:
-            valid_sort_cols = [
-                col for col in params.sort_by if col in df_display.columns
+            configured_flags = params.ascending or [True] * len(params.sort_by)
+            if len(configured_flags) < len(params.sort_by):
+                configured_flags = configured_flags + [True] * (
+                    len(params.sort_by) - len(configured_flags)
+                )
+            sort_pairs = [
+                (col, ascending)
+                for col, ascending in zip(params.sort_by, configured_flags)
+                if col in df_display.columns
             ]
+            valid_sort_cols = [col for col, _ascending in sort_pairs]
             if not valid_sort_cols:
                 logger.warning(
                     f"None of the specified sort_by columns found: {params.sort_by}. Skipping sorting."
@@ -190,16 +198,7 @@ class TableViewWidget(WidgetPlugin):
                         f"Sort columns not found: {missing_sort}. Sorting by available: {valid_sort_cols}"
                     )
 
-                # Ensure ascending list matches valid sort columns length
-                ascending_flags = params.ascending or [True] * len(
-                    valid_sort_cols
-                )  # Default to True
-                if len(ascending_flags) < len(valid_sort_cols):
-                    ascending_flags.extend(
-                        [True] * (len(valid_sort_cols) - len(ascending_flags))
-                    )
-                elif len(ascending_flags) > len(valid_sort_cols):
-                    ascending_flags = ascending_flags[: len(valid_sort_cols)]
+                ascending_flags = [ascending for _col, ascending in sort_pairs]
 
                 try:
                     df_display = df_display.sort_values(

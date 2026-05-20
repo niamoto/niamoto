@@ -48,7 +48,7 @@ class TransformationPreview(BaseModel):
     entity_name: str
     group_by: str
     transformation_key: str
-    transformation_data: Dict[str, Any]
+    transformation_data: Any
     widget_plugin: Optional[str] = None
 
 
@@ -154,8 +154,9 @@ async def get_available_entities(
         all_entity_info = []
 
         for entity in all_entities:
+            entity_name = getattr(entity, "name", entity.table_name)
             entity_info = EntityInfo(
-                name=entity.table_name,  # Use table_name as the entity identifier
+                name=entity_name,
                 kind=entity.kind.value,
                 entity_type=entity.table_name,  # Use table_name for entity_type as well
             )
@@ -163,9 +164,9 @@ async def get_available_entities(
             all_entity_info.append(entity_info)
 
             if entity.kind.value == "dataset":
-                datasets.append(entity.table_name)
+                datasets.append(entity_name)
             else:  # reference
-                references.append(entity.table_name)
+                references.append(entity_name)
 
         # Apply filter if requested
         if kind:
@@ -289,9 +290,15 @@ async def get_entity_detail(group_by: str, entity_id: str):
                     if col_name != id_column and col_type == "JSON":
                         json_columns.append(col_name)
 
+                has_general_info = any(col["name"] == "general_info" for col in columns)
+                name_expression = (
+                    "json_extract(general_info, '$.name.value') as name"
+                    if has_general_info
+                    else "NULL as name"
+                )
                 columns_str = ", ".join(
                     [f"CAST({quoted_id_column} AS VARCHAR) as id"]
-                    + ["json_extract(general_info, '$.name.value') as name"]
+                    + [name_expression]
                     + [quote_identifier(db, column) for column in json_columns]
                 )
                 query = text(f"""
@@ -469,7 +476,7 @@ async def render_widget(group_by: str, entity_id: str, transform_key: str):
         if not db_path or not db_path.exists():
             return HTMLResponse(content="<p class='error'>Database not found</p>")
 
-        with open_database(db_path) as db:
+        with open_database(db_path, read_only=True) as db:
             plugin_instance = plugin_class(db=db)
 
             widget_params = widget_config.get("params", {})

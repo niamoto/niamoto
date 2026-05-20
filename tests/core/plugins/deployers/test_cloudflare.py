@@ -5,7 +5,7 @@ from pathlib import Path
 
 import httpx
 
-from niamoto.core.plugins.deployers.cloudflare import CloudflareDeployer
+from niamoto.core.plugins.deployers.cloudflare import CloudflareDeployer, WORKER_SCRIPT
 from niamoto.core.plugins.deployers.models import DeployConfig
 
 
@@ -26,6 +26,7 @@ class _FakeResponse:
 class _FakeClient:
     def __init__(self, responses: list[_FakeResponse]):
         self._responses = responses
+        self.calls = []
 
     async def __aenter__(self):
         return self
@@ -33,13 +34,16 @@ class _FakeClient:
     async def __aexit__(self, exc_type, exc, tb):
         return False
 
-    async def post(self, *_args, **_kwargs):
+    async def post(self, *args, **kwargs):
+        self.calls.append(("post", args, kwargs))
         return self._responses.pop(0)
 
-    async def put(self, *_args, **_kwargs):
+    async def put(self, *args, **kwargs):
+        self.calls.append(("put", args, kwargs))
         return self._responses.pop(0)
 
-    async def delete(self, *_args, **_kwargs):
+    async def delete(self, *args, **kwargs):
+        self.calls.append(("delete", args, kwargs))
         return self._responses.pop(0)
 
 
@@ -109,6 +113,12 @@ def test_cloudflare_unpublish_reports_network_errors(
     assert lines[-1].strip() == "data: DONE"
 
 
+def test_cloudflare_worker_script_forwards_fetch_request() -> None:
+    assert "async fetch(request)" in WORKER_SCRIPT
+    assert "ASSETS.fetch(request)" in WORKER_SCRIPT
+    assert "this.ctx.request" not in WORKER_SCRIPT
+
+
 def test_cloudflare_deployer_uploads_manifest_and_returns_branch_url(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -126,24 +136,25 @@ def test_cloudflare_deployer_uploads_manifest_and_returns_branch_url(
             "account-id": "account-123",
         }.get(key),
     )
+    fake_client = _FakeClient(
+        [
+            _FakeResponse(
+                200,
+                {
+                    "success": True,
+                    "result": {
+                        "jwt": "upload-jwt",
+                        "buckets": [["bucket-hash"]],
+                    },
+                },
+            ),
+            _FakeResponse(201, {"result": {"jwt": "completion-jwt"}}),
+            _FakeResponse(200, {"success": True}),
+        ]
+    )
     monkeypatch.setattr(
         "niamoto.core.plugins.deployers.cloudflare.httpx.AsyncClient",
-        lambda **_kwargs: _FakeClient(
-            [
-                _FakeResponse(
-                    200,
-                    {
-                        "success": True,
-                        "result": {
-                            "jwt": "upload-jwt",
-                            "buckets": [["bucket-hash"]],
-                        },
-                    },
-                ),
-                _FakeResponse(201, {"result": {"jwt": "completion-jwt"}}),
-                _FakeResponse(200, {"success": True}),
-            ]
-        ),
+        lambda **_kwargs: fake_client,
     )
     monkeypatch.setattr(
         "niamoto.core.plugins.deployers.cloudflare._hash_file",
@@ -169,3 +180,34 @@ def test_cloudflare_deployer_uploads_manifest_and_returns_branch_url(
         "URL: https://preview.niamoto-site.workers.dev" in line for line in lines
     )
     assert lines[-1].strip() == "data: DONE"
+    session_method, session_args, session_kwargs = fake_client.calls[0]
+    assert session_method == "post"
+    assert session_args == (
+        "https://api.cloudflare.com/client/v4/accounts/account-123"
+        "/workers/scripts/niamoto-site/assets-upload-session",
+    )
+    assert session_kwargs["headers"] == {"Authorization": "Bearer cf-token"}
+    assert session_kwargs["json"]["manifest"] == {
+        "/index.html": {"hash": "bucket-hash", "size": 14},
+        "/nested/page.html": {"hash": "bucket-hash", "size": 15},
+    }
+
+    upload_method, upload_args, upload_kwargs = fake_client.calls[1]
+    assert upload_method == "post"
+    assert upload_args == (
+        "https://api.cloudflare.com/client/v4/accounts/account-123"
+        "/workers/assets/upload?base64=true",
+    )
+    assert upload_kwargs["headers"] == {"Authorization": "Bearer upload-jwt"}
+    assert upload_kwargs["files"][0][0] == "bucket-hash"
+
+    deploy_method, deploy_args, deploy_kwargs = fake_client.calls[2]
+    assert deploy_method == "put"
+    assert deploy_args == (
+        "https://api.cloudflare.com/client/v4/accounts/account-123"
+        "/workers/scripts/niamoto-site",
+    )
+    assert deploy_kwargs["headers"] == {"Authorization": "Bearer cf-token"}
+    metadata = deploy_kwargs["files"]["metadata"][1]
+    assert '"jwt": "completion-jwt"' in metadata
+    assert deploy_kwargs["files"]["worker.js"][1] == WORKER_SCRIPT

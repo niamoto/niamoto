@@ -34,6 +34,15 @@ def simple_polygon_gdf(simple_polygon):
 
 
 @pytest.fixture
+def metric_polygon_gdf():
+    """Create a projected polygon matching the metric DEM extent."""
+    polygon = Polygon([(0, 0), (100, 0), (100, 100), (0, 100)])
+    return gpd.GeoDataFrame(
+        {"id": [1], "name": ["metric_test"]}, geometry=[polygon], crs="EPSG:3857"
+    )
+
+
+@pytest.fixture
 def temp_dem():
     """Create a temporary DEM (Digital Elevation Model) file."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -54,6 +63,32 @@ def temp_dem():
             count=1,
             dtype=elevation_data.dtype,
             crs="EPSG:4326",
+            transform=transform,
+            nodata=-9999,
+        ) as dst:
+            dst.write(elevation_data)
+
+        yield filepath
+
+
+@pytest.fixture
+def temp_metric_dem():
+    """Create a projected DEM with 10 m x 10 m pixels."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filepath = os.path.join(tmpdir, "test_metric_dem.tif")
+
+        elevation_data = np.arange(0, 1000, 10, dtype=np.float32).reshape(1, 10, 10)
+        transform = from_bounds(0, 0, 100, 100, 10, 10)
+
+        with rasterio.open(
+            filepath,
+            "w",
+            driver="GTiff",
+            height=10,
+            width=10,
+            count=1,
+            dtype=elevation_data.dtype,
+            crs="EPSG:3857",
             transform=transform,
             nodata=-9999,
         ) as dst:
@@ -228,20 +263,20 @@ class TestTransformBasic:
     """Test basic transform functionality."""
 
     def test_transform_basic_elevation_profile(
-        self, plugin, simple_polygon_gdf, temp_dem
+        self, plugin, metric_polygon_gdf, temp_metric_dem
     ):
         """Test basic elevation profile creation."""
         config = {
             "plugin": "elevation_profile",
             "params": {
-                "dem_path": temp_dem,
+                "dem_path": temp_metric_dem,
                 "bins": 5,
                 "nodata": -9999,
                 "area_unit": "ha",
             },
         }
 
-        result = plugin.transform(simple_polygon_gdf, config)
+        result = plugin.transform(metric_polygon_gdf, config)
 
         assert "class_name" in result
         assert "pixel_count" in result
@@ -258,7 +293,7 @@ class TestTransformBasic:
         ]
         assert result["bin_edges"] == [0.0, 200.0, 400.0, 600.0, 800.0, 1000.0]
         assert result["pixel_count"] == [20, 20, 20, 20, 20]
-        assert result["area"] == pytest.approx([0.00002] * 5)
+        assert result["area"] == pytest.approx([0.2] * 5)
 
     def test_transform_with_custom_bins(self, plugin, simple_polygon_gdf, temp_dem):
         """Test elevation profile with custom bins."""
@@ -277,43 +312,45 @@ class TestTransformBasic:
         assert len(result["class_name"]) == 5  # 5 classes from 6 bin edges
         assert result["bin_edges"] == [0, 200, 400, 600, 800, 1000]
 
-    def test_transform_different_area_units(self, plugin, simple_polygon_gdf, temp_dem):
+    def test_transform_different_area_units(
+        self, plugin, metric_polygon_gdf, temp_metric_dem
+    ):
         """Test elevation profile with different area units."""
         # Test ha
         config_ha = {
             "plugin": "elevation_profile",
             "params": {
-                "dem_path": temp_dem,
+                "dem_path": temp_metric_dem,
                 "bins": 5,
                 "area_unit": "ha",
                 "nodata": -9999,
             },
         }
-        result_ha = plugin.transform(simple_polygon_gdf, config_ha)
+        result_ha = plugin.transform(metric_polygon_gdf, config_ha)
 
         # Test km2
         config_km2 = {
             "plugin": "elevation_profile",
             "params": {
-                "dem_path": temp_dem,
+                "dem_path": temp_metric_dem,
                 "bins": 5,
                 "area_unit": "km2",
                 "nodata": -9999,
             },
         }
-        result_km2 = plugin.transform(simple_polygon_gdf, config_km2)
+        result_km2 = plugin.transform(metric_polygon_gdf, config_km2)
 
         # Test m2
         config_m2 = {
             "plugin": "elevation_profile",
             "params": {
-                "dem_path": temp_dem,
+                "dem_path": temp_metric_dem,
                 "bins": 5,
                 "area_unit": "m2",
                 "nodata": -9999,
             },
         }
-        result_m2 = plugin.transform(simple_polygon_gdf, config_m2)
+        result_m2 = plugin.transform(metric_polygon_gdf, config_m2)
 
         # Check conversions
         assert result_ha["area_unit"] == "ha"
@@ -322,9 +359,9 @@ class TestTransformBasic:
         assert result_ha["pixel_count"] == [20, 20, 20, 20, 20]
         assert result_km2["pixel_count"] == [20, 20, 20, 20, 20]
         assert result_m2["pixel_count"] == [20, 20, 20, 20, 20]
-        assert result_ha["area"] == pytest.approx([0.00002] * 5)
-        assert result_km2["area"] == pytest.approx([0.0000002] * 5)
-        assert result_m2["area"] == pytest.approx([0.2] * 5)
+        assert result_ha["area"] == pytest.approx([0.2] * 5)
+        assert result_km2["area"] == pytest.approx([0.002] * 5)
+        assert result_m2["area"] == pytest.approx([2000.0] * 5)
 
     def test_transform_with_nodata_handling(
         self, plugin, simple_polygon_gdf, temp_dem_with_nodata
@@ -481,31 +518,41 @@ class TestForestDistribution:
             assert all(area == 0 for area in result["forest_area"])
             assert all(pct == 0 for pct in result["forest_percentage"])
 
-    def test_calculate_forest_distribution_crs_mismatch(
-        self, plugin, simple_polygon, temp_forest_layer, temp_dem
-    ):
+    def test_calculate_forest_distribution_crs_mismatch(self, plugin):
         """Test forest distribution handles CRS mismatch."""
-        # Create elevation data in EPSG:4326
-        elevation_data = np.arange(100, dtype=np.float32).reshape(10, 10)
-        valid_mask = np.ones((10, 10), dtype=bool)
-        bin_edges = np.array([0, 25, 50, 75, 100])
-        transform = from_bounds(0, 0, 1, 1, 10, 10)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, "forest_4326.shp")
 
-        # Forest is in EPSG:4326, test with different CRS
-        result = plugin._calculate_forest_distribution(
-            temp_forest_layer,
-            simple_polygon,
-            "EPSG:3857",  # Different CRS
-            elevation_data,
-            bin_edges,
-            valid_mask,
-            transform,
-            1.0,
-            0.0001,
-        )
+            main_geom = Polygon([(0, 0), (100, 0), (100, 100), (0, 100)])
+            forest_in_metric_crs = gpd.GeoDataFrame(
+                {"id": [1]},
+                geometry=[Polygon([(0, 0), (50, 0), (50, 100), (0, 100)])],
+                crs="EPSG:3857",
+            )
+            forest_in_metric_crs.to_crs("EPSG:4326").to_file(filepath)
 
-        # Should handle reprojection
+            elevation_data = np.arange(100, dtype=np.float32).reshape(10, 10)
+            valid_mask = np.ones((10, 10), dtype=bool)
+            bin_edges = np.array([0, 25, 50, 75, 100])
+            transform = from_bounds(0, 0, 100, 100, 10, 10)
+
+            result = plugin._calculate_forest_distribution(
+                filepath,
+                main_geom,
+                "EPSG:3857",
+                elevation_data,
+                bin_edges,
+                valid_mask,
+                transform,
+                100.0,
+                0.0001,
+            )
+
         assert result is not None
+        assert result["total_pixels"] == [25, 25, 25, 25]
+        assert result["forest_pixels"] == [15, 10, 15, 10]
+        assert result["forest_area"] == pytest.approx([0.15, 0.1, 0.15, 0.1])
+        assert result["forest_percentage"] == pytest.approx([60.0, 40.0, 60.0, 40.0])
 
     def test_calculate_forest_distribution_no_overlap(
         self, plugin, simple_polygon, temp_dem

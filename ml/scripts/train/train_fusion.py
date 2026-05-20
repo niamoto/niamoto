@@ -476,13 +476,21 @@ def main():
         f1_scores = []
 
         for fold, (train_idx, test_idx) in enumerate(kfold.split(y, groups=groups)):
+            train_classes = np.unique(y[train_idx])
+            if len(train_classes) < 2:
+                logger.warning(
+                    "  Fold %s skipped: training split has only one class (%s)",
+                    fold,
+                    train_classes[0],
+                )
+                continue
             train_recs = [records[i] for i in train_idx]
             test_recs = [records[i] for i in test_idx]
 
             # Re-train header model on training fold
             header_recs = [r for r in train_recs if not r.get("is_anonymous")]
             names, concepts_h, _, _ = prepare_data(header_recs)
-            if len(names) > 0:
+            if len(names) > 0 and len(set(concepts_h)) >= 2:
                 fold_header = build_pipeline()
                 fold_header.fit(names, concepts_h)
             else:
@@ -498,8 +506,11 @@ def main():
                 ]
             )
             val_concepts = [r["concept_coarse"] for r in train_recs]
-            fold_value = build_value_model()
-            fold_value.fit(X_val, val_concepts)
+            if len(set(val_concepts)) >= 2:
+                fold_value = build_value_model()
+                fold_value.fit(X_val, val_concepts)
+            else:
+                fold_value = None
 
             # Extract features with fold-specific branch models (batched)
             X_train_fold = extract_fusion_features_batch(
@@ -516,8 +527,12 @@ def main():
             f1_scores.append(f1)
             logger.info(f"  Fold {fold}: macro-F1 = {f1:.3f}")
 
-        mean_f1 = float(np.mean(f1_scores))
-        logger.info(f"  Mean macro-F1 = {mean_f1:.3f}")
+        if f1_scores:
+            mean_f1 = float(np.mean(f1_scores))
+            logger.info(f"  Mean macro-F1 = {mean_f1:.3f}")
+        else:
+            mean_f1 = 0.0
+            logger.warning("No evaluable folds for KFold")
     else:
         mean_f1 = 0.0
         logger.warning("Not enough groups for KFold")

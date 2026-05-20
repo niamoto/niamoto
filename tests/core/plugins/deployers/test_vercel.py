@@ -26,6 +26,7 @@ class _FakeResponse:
 class _FakeClient:
     def __init__(self, responses: list[_FakeResponse]):
         self._responses = responses
+        self.calls = []
 
     async def __aenter__(self):
         return self
@@ -33,10 +34,12 @@ class _FakeClient:
     async def __aexit__(self, exc_type, exc, tb):
         return False
 
-    async def post(self, *_args, **_kwargs):
+    async def post(self, *args, **kwargs):
+        self.calls.append(("post", args, kwargs))
         return self._responses.pop(0)
 
-    async def delete(self, *_args, **_kwargs):
+    async def delete(self, *args, **kwargs):
+        self.calls.append(("delete", args, kwargs))
         return self._responses.pop(0)
 
 
@@ -80,10 +83,11 @@ def test_vercel_deployer_uploads_files_and_returns_https_url(
     exports_dir.mkdir()
     (exports_dir / "index.html").write_text("hello", encoding="utf-8")
 
-    client_queue = [
-        _FakeClient([_FakeResponse(200)]),
-        _FakeClient([_FakeResponse(201, {"url": "niamoto-site.vercel.app"})]),
-    ]
+    upload_client = _FakeClient([_FakeResponse(200)])
+    deploy_client = _FakeClient(
+        [_FakeResponse(201, {"url": "niamoto-site.vercel.app"})]
+    )
+    client_queue = [upload_client, deploy_client]
 
     monkeypatch.setattr(
         "niamoto.core.plugins.deployers.vercel.CredentialService.get",
@@ -120,6 +124,27 @@ def test_vercel_deployer_uploads_files_and_returns_https_url(
     )
     assert any("URL: https://niamoto-site.vercel.app" in line for line in lines)
     assert lines[-1].strip() == "data: DONE"
+    upload_method, upload_args, upload_kwargs = upload_client.calls[0]
+    assert upload_method == "post"
+    assert upload_args == ("https://api.vercel.com/v2/files",)
+    assert upload_kwargs["headers"]["Authorization"] == "Bearer vercel-token"
+    assert upload_kwargs["headers"]["Content-Type"] == "application/octet-stream"
+    assert upload_kwargs["headers"]["x-vercel-digest"]
+    assert upload_kwargs["content"] == b"hello"
+
+    deploy_method, deploy_args, deploy_kwargs = deploy_client.calls[0]
+    assert deploy_method == "post"
+    assert deploy_args == ("https://api.vercel.com/v13/deployments",)
+    assert deploy_kwargs["headers"] == {
+        "Authorization": "Bearer vercel-token",
+        "Content-Type": "application/json",
+    }
+    assert deploy_kwargs["json"]["name"] == "niamoto-site"
+    assert deploy_kwargs["json"]["files"][0]["file"] == "index.html"
+    assert (
+        deploy_kwargs["json"]["files"][0]["sha"]
+        == upload_kwargs["headers"]["x-vercel-digest"]
+    )
 
 
 def test_vercel_unpublish_reports_network_errors(monkeypatch, tmp_path: Path) -> None:

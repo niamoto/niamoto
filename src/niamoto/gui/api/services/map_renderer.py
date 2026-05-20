@@ -249,6 +249,7 @@ class MapRenderer:
             [config.center_lat, config.center_lon]
         )
         safe_zoom = cls._json_for_inline_script(config.zoom)
+        safe_auto_zoom = cls._json_for_inline_script(config.auto_zoom)
         safe_style = cls._json_for_inline_script(
             {
                 "color": style.color,
@@ -285,6 +286,7 @@ class MapRenderer:
     <script>
         const geojson = {safe_geojson};
         const mapStyle = {safe_style};
+        const autoZoom = {safe_auto_zoom};
         const map = L.map('map').setView({safe_center}, {safe_zoom});
 
         // Tenter de charger les tuiles OSM, avec fallback fond blanc si offline
@@ -333,7 +335,7 @@ class MapRenderer:
         }}).addTo(map);
 
         // Fit bounds to show all features
-        if (geojson.features.length > 0) {{
+        if (autoZoom && geojson.features.length > 0) {{
             map.fitBounds(geojsonLayer.getBounds(), {{ padding: [20, 20] }});
         }}
     </script>

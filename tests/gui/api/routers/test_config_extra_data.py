@@ -6,7 +6,6 @@ import asyncio
 from copy import deepcopy
 from pathlib import Path
 import threading
-import time
 from unittest.mock import patch
 
 import duckdb
@@ -51,6 +50,7 @@ from niamoto.gui.api.routers.config import (
     _resolve_join_column_for_records,
     _should_inline_boolean_badge,
 )
+from tests.gui.api.routers.concurrency_helpers import TrackingRLock
 from niamoto.gui.api.app import create_app
 
 
@@ -517,6 +517,72 @@ def test_update_index_generator_accepts_localized_strings(tmp_path: Path):
     assert saved_group["display_fields"][2]["link_label"]["fr"] == "Endemia"
 
 
+def test_update_index_generator_preserves_existing_output_pattern(tmp_path: Path):
+    project_dir = tmp_path / "project"
+    config_dir = project_dir / "config"
+    config_dir.mkdir(parents=True)
+
+    (config_dir / "export.yml").write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "web_pages",
+                        "enabled": True,
+                        "exporter": "html_page_exporter",
+                        "params": {},
+                        "groups": [
+                            {
+                                "group_by": "taxons",
+                                "widgets": [],
+                                "index_generator": {
+                                    "enabled": True,
+                                    "template": "_group_index.html",
+                                    "output_pattern": "custom/{id}.html",
+                                    "page_config": {"title": "Taxons"},
+                                    "display_fields": [],
+                                    "custom_future_field": {"keep": True},
+                                },
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = {
+        "enabled": True,
+        "template": "_group_index.html",
+        "page_config": {"title": "Taxons"},
+        "display_fields": [
+            {
+                "name": "full_name",
+                "source": "full_name",
+                "type": "text",
+            }
+        ],
+    }
+
+    with patch(
+        "niamoto.gui.api.routers.config.get_working_directory",
+        return_value=project_dir,
+    ):
+        response = TestClient(create_app()).put(
+            "/api/config/export/taxons/index-generator", json=payload
+        )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["output_pattern"] == "custom/{id}.html"
+    assert response.json()["custom_future_field"] == {"keep": True}
+
+    saved = yaml.safe_load((config_dir / "export.yml").read_text(encoding="utf-8"))
+    saved_index = saved["exports"][0]["groups"][0]["index_generator"]
+    assert saved_index["output_pattern"] == "custom/{id}.html"
+    assert saved_index["custom_future_field"] == {"keep": True}
+
+
 def test_index_generator_roundtrips_params_groups(tmp_path: Path):
     project_dir = tmp_path / "project"
     config_dir = project_dir / "config"
@@ -595,6 +661,7 @@ def test_update_index_generator_preserves_concurrent_group_updates(monkeypatch):
         ]
     }
     config_lock = threading.Lock()
+    export_write_lock = TrackingRLock()
     first_save_entered = threading.Event()
     release_first_save = threading.Event()
     errors: list[BaseException] = []
@@ -618,6 +685,7 @@ def test_update_index_generator_preserves_concurrent_group_updates(monkeypatch):
 
     monkeypatch.setattr(config_router, "_load_export_config", fake_load_export_config)
     monkeypatch.setattr(config_router, "_save_export_config", fake_save_export_config)
+    monkeypatch.setattr(config_router, "EXPORT_CONFIG_WRITE_LOCK", export_write_lock)
 
     def payload(title: str) -> config_router.IndexGeneratorConfigUpdate:
         return config_router.IndexGeneratorConfigUpdate(
@@ -643,7 +711,7 @@ def test_update_index_generator_preserves_concurrent_group_updates(monkeypatch):
     first.start()
     assert first_save_entered.wait(timeout=2)
     second.start()
-    time.sleep(0.05)
+    assert export_write_lock.contended_acquire.wait(timeout=2)
     release_first_save.set()
     first.join(timeout=2)
     second.join(timeout=2)
@@ -818,6 +886,65 @@ def test_index_suggestions_merge_transformed_fields_with_reference_extra_data(
     assert "subspecies" in rank_filter["values"]
     assert "family" not in rank_filter["values"]
     assert "genus" not in rank_filter["values"]
+
+
+def test_index_suggestions_use_configured_database_path(tmp_path: Path):
+    project_dir = tmp_path / "project"
+    config_dir = project_dir / "config"
+    custom_db_dir = project_dir / "custom-db"
+    config_dir.mkdir(parents=True)
+    custom_db_dir.mkdir(parents=True)
+
+    (config_dir / "config.yml").write_text(
+        yaml.safe_dump({"database": {"path": "custom-db/custom.duckdb"}}),
+        encoding="utf-8",
+    )
+    (config_dir / "transform.yml").write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "group_by": "taxons",
+                    "source": "taxons",
+                    "transformers": [],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    db_path = custom_db_dir / "custom.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE entity_taxons (
+                id BIGINT,
+                full_name VARCHAR,
+                rank VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_taxons VALUES
+                (1, 'Araucaria columnaris', 'species'),
+                (2, 'Araucaria rulei', 'species')
+            """
+        )
+    finally:
+        conn.close()
+
+    with patch(
+        "niamoto.gui.api.routers.config.get_working_directory",
+        return_value=project_dir,
+    ):
+        response = TestClient(create_app()).get(
+            "/api/config/export/taxons/index-generator/suggestions"
+        )
+
+    assert response.status_code == 200, response.text
+    sources = {field["source"] for field in response.json()["display_fields"]}
+    assert "full_name" in sources
 
 
 def test_index_suggestions_use_terminal_taxa_and_skip_metadata_fields(

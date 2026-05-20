@@ -677,6 +677,8 @@ async def get_export_status(job_id: str, http_request: Request):
 
     if not job:
         raise HTTPException(status_code=404, detail=f"Export job {job_id} not found")
+    if job.get("type") != "export":
+        raise HTTPException(status_code=404, detail=f"Export job {job_id} not found")
 
     return ExportStatus(**_job_to_status(job))
 
@@ -846,7 +848,9 @@ async def get_export_metrics(http_request: Request):
     job_store = _get_job_store(http_request)
     last = job_store.get_last_run("export", status="completed")
 
-    if not last or not last.get("result"):
+    result = last.get("result") if last else None
+    metrics = result.get("metrics") if isinstance(result, dict) else None
+    if not isinstance(metrics, dict):
         return {
             "metrics": {
                 "total_exports": 0,
@@ -860,7 +864,7 @@ async def get_export_metrics(http_request: Request):
         }
 
     return {
-        "metrics": last["result"]["metrics"],
+        "metrics": metrics,
         "last_run": last.get("completed_at"),
         "job_id": last["id"],
     }
@@ -908,6 +912,32 @@ async def execute_export_cli(
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
+
+            while process.returncode is None:
+                if _job_is_cancelled(job_store, job_id):
+                    process.terminate()
+                    try:
+                        await asyncio.wait_for(process.wait(), timeout=5)
+                    except asyncio.TimeoutError:
+                        process.kill()
+                        await process.wait()
+                    stdout, stderr = await process.communicate()
+                    try:
+                        job_store.cancel_job(job_id, "Export CLI command cancelled")
+                    except AttributeError:
+                        job_store.fail_job(
+                            job_id,
+                            "Export CLI command cancelled",
+                            result={
+                                "stdout": stdout.decode() if stdout else "",
+                                "stderr": stderr.decode() if stderr else "",
+                            },
+                        )
+                    return
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=0.25)
+                except asyncio.TimeoutError:
+                    continue
 
             stdout, stderr = await process.communicate()
 

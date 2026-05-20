@@ -422,7 +422,7 @@ def get_table_columns(db: Database, table_name: str) -> List[str]:
 
 
 @router.get("/tables", response_model=List[TableInfo])
-async def list_tables():
+def list_tables():
     """
     List all available database tables with metadata.
 
@@ -466,7 +466,7 @@ async def list_tables():
 
 
 @router.post("/query", response_model=QueryResponse)
-async def query_table(request: QueryRequest):
+def query_table(request: QueryRequest):
     """
     Query a database table with optional filtering and pagination.
 
@@ -652,25 +652,22 @@ async def preview_enrichment(request: EnrichmentPreviewRequest):
 
         # For preview, we don't require enabled=true, just that config exists
 
+        # Preserve provider-specific options such as structured profiles and
+        # dataset selectors; preview only overrides caching.
+        enrichment_params = {
+            key: value for key, value in api_enrichment.items() if key != "plugin"
+        }
+        enrichment_params["cache_results"] = False
+
         # Prepare config for the plugin
         plugin_config = {
             "plugin": api_enrichment.get("plugin", "api_taxonomy_enricher"),
-            "params": {
-                "api_url": api_enrichment.get("api_url"),
-                "query_field": api_enrichment.get("query_field", "full_name"),
-                "query_param_name": api_enrichment.get("query_param_name", "q"),
-                "response_mapping": api_enrichment.get("response_mapping", {}),
-                "rate_limit": api_enrichment.get("rate_limit", 1.0),
-                "cache_results": False,  # Disable cache for preview
-                "auth_method": api_enrichment.get("auth_method", "none"),
-                "auth_params": api_enrichment.get("auth_params", {}),
-                "query_params": api_enrichment.get("query_params", {}),
-                "chained_endpoints": api_enrichment.get("chained_endpoints", []),
-            },
+            "params": enrichment_params,
         }
 
         # Create plugin instance and call it
         enricher = ApiTaxonomyEnricher()
+        enricher.validate_config(plugin_config)
 
         # Prepare taxon data
         taxon_data = {
@@ -683,12 +680,21 @@ async def preview_enrichment(request: EnrichmentPreviewRequest):
             taxon_data,
             plugin_config,
         )
+        api_enrichment_result = result.get("api_enrichment")
+        if api_enrichment_result is None:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "API enrichment preview failed: loader did not return "
+                    "api_enrichment data"
+                ),
+            )
 
         # Return enriched data
         return {
             "success": True,
             "taxon_name": request.taxon_name,
-            "api_enrichment": result.get("api_enrichment", {}),
+            "api_enrichment": api_enrichment_result,
             "config_used": {
                 "api_url": plugin_config["params"]["api_url"],
                 "query_field": plugin_config["params"]["query_field"],

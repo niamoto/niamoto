@@ -240,34 +240,40 @@ class TestOperationMessages:
         """Test start message printing."""
         message = "Starting operation"
         print_start(message)
-        mock_console.print.assert_called_once_with(f"🌱 {message}", style="bold blue")
+        mock_console.print.assert_called_once_with(
+            f"{emoji('🌱', '[*]')} {message}", style="bold blue"
+        )
 
     def test_print_processing(self, mock_console):
         """Test processing message printing."""
         message = "Processing data"
         print_processing(message)
-        mock_console.print.assert_called_once_with(f"⚡ {message}", style="cyan")
+        mock_console.print.assert_called_once_with(
+            f"{emoji('⚡', '[~]')} {message}", style="cyan"
+        )
 
     def test_print_section(self, mock_console):
         """Test section header printing."""
         title = "Section Title"
         print_section(title)
         mock_console.print.assert_called_once_with(
-            f"\n📋 {title}", style="bold magenta"
+            f"\n{emoji('📋', '[#]')} {title}", style="bold magenta"
         )
 
     def test_print_summary_header(self, mock_console):
         """Test summary header printing."""
         title = "Summary Title"
         print_summary_header(title)
-        mock_console.print.assert_called_once_with(f"\n📊 {title}", style="bold blue")
+        mock_console.print.assert_called_once_with(
+            f"\n{emoji('📊', '[=]')} {title}", style="bold blue"
+        )
 
     def test_print_operation_start(self, mock_console):
         """Test operation start message."""
         operation = "import"
         print_operation_start(operation)
         mock_console.print.assert_called_once_with(
-            f"🔄 Starting {operation}...", style="blue"
+            f"{emoji('🔄', '[~]')} Starting {operation}...", style="blue"
         )
 
     def test_print_operation_complete_without_details(self, mock_console):
@@ -357,7 +363,7 @@ class TestStepMessages:
         step_name = "Loading data"
         print_step_header(step_name)
         mock_console.print.assert_called_once_with(
-            f"📋 {step_name}...", style="bold cyan"
+            f"{emoji('📋', '[#]')} {step_name}...", style="bold cyan"
         )
 
     def test_print_step_complete_basic(self, mock_console):
@@ -610,7 +616,9 @@ class TestMetricsMessages:
 
         # Should print header + each line
         assert mock_console.print.call_count == 4
-        mock_console.print.assert_any_call("\n📊 Import Summary:", style="bold blue")
+        mock_console.print.assert_any_call(
+            f"\n{emoji('📊', '[=]')} Import Summary:", style="bold blue"
+        )
         mock_console.print.assert_any_call("   Files processed: 5", style="cyan")
         mock_console.print.assert_any_call("   Records imported: 1,000", style="cyan")
         mock_console.print.assert_any_call("   Duration: 45.6s", style="cyan")
@@ -621,7 +629,7 @@ class TestMetricsMessages:
         metrics_lines = [
             "Files created: 3",
             "",  # Empty line should be skipped
-            "✅",  # Icon-only line should be skipped
+            emoji("✅", "[OK]"),  # Icon-only line should be skipped
             "Duration: 30.2s",
         ]
 
@@ -629,7 +637,9 @@ class TestMetricsMessages:
 
         # Should print header + only valid lines
         assert mock_console.print.call_count == 3
-        mock_console.print.assert_any_call("\n📊 Export Summary:", style="bold blue")
+        mock_console.print.assert_any_call(
+            f"\n{emoji('📊', '[=]')} Export Summary:", style="bold blue"
+        )
         mock_console.print.assert_any_call("   Files created: 3", style="cyan")
         mock_console.print.assert_any_call("   Duration: 30.2s", style="cyan")
 
@@ -652,7 +662,9 @@ class TestMetricsMessages:
 
         # Should print summary
         assert mock_console.print.call_count == 3  # Header + 2 lines
-        mock_console.print.assert_any_call("\n📊 Import Summary:", style="bold blue")
+        mock_console.print.assert_any_call(
+            f"\n{emoji('📊', '[=]')} Import Summary:", style="bold blue"
+        )
 
     @patch("niamoto.cli.utils.metrics.MetricsFormatter")
     def test_print_operation_metrics_unknown_type(

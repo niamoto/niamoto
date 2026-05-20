@@ -100,12 +100,11 @@ def _collect_schema_property_names(
 
 def _schema_param_property_names(schema: dict[str, Any]) -> set[str]:
     """Retourne les champs explicites utilisables pour les params GUI."""
-    property_names = _collect_schema_property_names(schema)
     properties = _resolve_schema_node(schema, schema).get("properties", {})
     params_schema = properties.get("params") if isinstance(properties, dict) else None
     if isinstance(params_schema, dict):
-        property_names.update(_collect_schema_property_names(params_schema, schema))
-    return property_names
+        return _collect_schema_property_names(params_schema, schema)
+    return _collect_schema_property_names(schema)
 
 
 def _plugin_schema_property_names(
@@ -432,8 +431,24 @@ class TestSchemaCoversReferenceParams:
             },
         }
 
-        assert _schema_param_property_names(schema) == {"params", "declared"}
+        assert _schema_param_property_names(schema) == {"declared"}
         assert "missing" not in _schema_param_property_names(schema)
+
+    def test_schema_param_property_names_ignores_properties_outside_params(self):
+        """Un doublon hors params ne doit pas masquer un champ params absent."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "source": {"type": "string"},
+                "params": {
+                    "type": "object",
+                    "properties": {"declared": {"type": "string"}},
+                },
+            },
+        }
+
+        assert _schema_param_property_names(schema) == {"declared"}
+        assert "source" not in _schema_param_property_names(schema)
 
     @pytest.mark.parametrize("group", ["taxons", "plots", "shapes"])
     def test_schema_has_fields_for_all_params(

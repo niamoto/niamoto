@@ -504,7 +504,7 @@ export function AddWidgetModal({
   // Semantic groups for combined widgets
   const { groups: semanticGroups } = useSemanticGroups(
     reference.name,
-    'occurrences',
+    undefined,
     activeTab === 'combined'
   )
 
@@ -515,7 +515,7 @@ export function AddWidgetModal({
   const {
     suggestions: combinedSuggestions,
     loading: combinedLoading,
-  } = useCombinedWidgetSuggestions(reference.name, debouncedFields, 'occurrences')
+  } = useCombinedWidgetSuggestions(reference.name, debouncedFields)
 
   // Get available fields from suggestions
   const visibleSuggestions = useMemo(

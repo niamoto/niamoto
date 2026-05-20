@@ -5,11 +5,11 @@ from __future__ import annotations
 import asyncio
 from copy import deepcopy
 import threading
-import time
 
 import yaml
 
 from niamoto.gui.api.routers import collections
+from tests.gui.api.routers.concurrency_helpers import TrackingRLock
 
 
 def test_list_collections_returns_reviewable_candidates(
@@ -59,6 +59,35 @@ def test_update_collection_review_state_persists_metadata(
     }
 
 
+def test_update_collection_rejects_empty_payload_without_saving(
+    gui_duckdb_client, gui_duckdb_context
+):
+    import_path = gui_duckdb_context / "config" / "import.yml"
+    original = import_path.read_text(encoding="utf-8")
+
+    response = gui_duckdb_client.patch("/api/collections/taxons", json={})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Collection update must include at least one field"
+    )
+    assert import_path.read_text(encoding="utf-8") == original
+
+
+def test_update_collection_rejects_unknown_fields_without_saving(
+    gui_duckdb_client, gui_duckdb_context
+):
+    import_path = gui_duckdb_context / "config" / "import.yml"
+    original = import_path.read_text(encoding="utf-8")
+
+    response = gui_duckdb_client.patch(
+        "/api/collections/taxons", json={"reviewStatus": "accepted"}
+    )
+
+    assert response.status_code == 422
+    assert import_path.read_text(encoding="utf-8") == original
+
+
 def test_create_manual_collection_from_dataset_persists_non_page_collection(
     gui_duckdb_client, gui_duckdb_context
 ):
@@ -97,6 +126,7 @@ def test_concurrent_collection_creates_preserve_both_metadata_entries(monkeypatc
         "metadata": {"collections": {}},
     }
     config_lock = threading.Lock()
+    collection_write_lock = TrackingRLock()
     first_save_entered = threading.Event()
     release_first_save = threading.Event()
     errors: list[BaseException] = []
@@ -131,6 +161,7 @@ def test_concurrent_collection_creates_preserve_both_metadata_entries(monkeypatc
 
     monkeypatch.setattr(collections, "_catalog_service", FakeCatalogService)
     monkeypatch.setattr(collections, "_save_service_config", fake_save_service_config)
+    monkeypatch.setattr(collections, "COLLECTION_CONFIG_LOCK", collection_write_lock)
 
     def make_request(name: str) -> collections.CollectionCreateRequest:
         return collections.CollectionCreateRequest(
@@ -153,7 +184,7 @@ def test_concurrent_collection_creates_preserve_both_metadata_entries(monkeypatc
     first.start()
     assert first_save_entered.wait(timeout=2)
     second.start()
-    time.sleep(0.05)
+    assert collection_write_lock.contended_acquire.wait(timeout=2)
     release_first_save.set()
     first.join(timeout=2)
     second.join(timeout=2)
@@ -347,3 +378,4 @@ def test_get_collection_data_options_unknown_collection_returns_404(
     response = gui_duckdb_client.get("/api/collections/missing/data-options")
 
     assert response.status_code == 404
+    assert response.json()["detail"] == "Collection 'missing' not found"

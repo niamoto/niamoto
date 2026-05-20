@@ -352,6 +352,35 @@ class ImporterService:
                         f"Circular dependency detected involving '{ref_name}'",
                     )
 
+    def _order_derived_references(
+        self, references: dict[str, ReferenceEntityConfig]
+    ) -> list[tuple[str, ReferenceEntityConfig]]:
+        """Order derived references so derived-reference sources run first."""
+        derived_refs = {
+            name: cfg
+            for name, cfg in references.items()
+            if cfg.connector.type == ConnectorType.DERIVED
+        }
+        ordered: list[tuple[str, ReferenceEntityConfig]] = []
+        visited: set[str] = set()
+
+        def visit(ref_name: str) -> None:
+            if ref_name in visited:
+                return
+
+            ref_config = derived_refs[ref_name]
+            source = ref_config.connector.source
+            if source in derived_refs:
+                visit(source)
+
+            visited.add(ref_name)
+            ordered.append((ref_name, ref_config))
+
+        for ref_name in derived_refs:
+            visit(ref_name)
+
+        return ordered
+
     @error_handler(log=True, raise_error=True)
     def import_all(
         self,
@@ -392,12 +421,9 @@ class ImporterService:
             # Phase 2: Import derived references (depend on datasets)
             if generic_config.entities and generic_config.entities.references:
                 logger.info("Phase 2: Importing derived references...")
-                derived_refs = {
-                    name: cfg
-                    for name, cfg in generic_config.entities.references.items()
-                    if cfg.connector.type == ConnectorType.DERIVED
-                }
-                for ref_name, ref_config in derived_refs.items():
+                for ref_name, ref_config in self._order_derived_references(
+                    generic_config.entities.references
+                ):
                     result = self.import_reference(ref_name, ref_config, reset_table)
                     results.append(f"  [Derived Ref] {result}")
 

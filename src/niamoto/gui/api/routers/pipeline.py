@@ -502,6 +502,28 @@ def _get_import_history_entries() -> list[dict]:
     return sorted(entries, key=_history_timestamp, reverse=True)
 
 
+def _get_active_import_jobs() -> list[dict]:
+    jobs: list[dict]
+    for _attempt in range(2):
+        try:
+            jobs = list(import_jobs.values())
+            break
+        except RuntimeError as exc:
+            if "dictionary changed size during iteration" not in str(exc):
+                raise
+    else:
+        return []
+
+    active_jobs = [
+        job
+        for job in jobs
+        if job.get("status") not in TERMINAL_JOB_STATUSES
+        and isinstance(job.get("id"), str)
+        and job.get("id")
+    ]
+    return sorted(active_jobs, key=_history_timestamp, reverse=True)
+
+
 def _merge_pipeline_history(
     job_history: list[dict],
     import_history: list[dict],
@@ -559,6 +581,13 @@ async def get_pipeline_status(http_request: Request):
 
     work_dir = get_working_directory()
     running = job_store.get_running_job()
+    active_import_jobs = _get_active_import_jobs()
+    if running and running.get("type") == "import":
+        running_import = running
+    elif active_import_jobs:
+        running_import = active_import_jobs[0]
+    else:
+        running_import = None
 
     # ------------------------------------------------------------------
     # 1. DATA stage — last import (job store OR entity metadata fallback)
@@ -575,17 +604,19 @@ async def get_pipeline_status(http_request: Request):
             last_import_at = entity_dt.isoformat()
 
     data_items: list[EntityStatus] = []
-    if running and running.get("type") == "import":
+    if running_import:
         data_items.append(
-            EntityStatus(name="import", status="running", reason="Import en cours")
+            EntityStatus(
+                name=_import_job_target(running_import) or "import",
+                status="running",
+                reason=running_import.get("message") or "Import en cours",
+            )
         )
 
     data_summary = _get_data_summary()
 
     data_status = StageStatus(
-        status="running"
-        if (running and running.get("type") == "import")
-        else ("fresh" if import_dt else "never_run"),
+        status="running" if running_import else ("fresh" if import_dt else "never_run"),
         last_run_at=last_import_at,
         items=data_items,
         summary=data_summary,
@@ -801,15 +832,18 @@ async def get_pipeline_status(http_request: Request):
     # Running job info
     # ------------------------------------------------------------------
     running_info = None
-    if running:
+    visible_running = running or running_import
+    if visible_running:
         running_info = {
-            "id": running.get("id"),
-            "type": running.get("type"),
-            "group_by": running.get("group_by"),
-            "group_bys": running.get("group_bys"),
-            "progress": running.get("progress", 0),
-            "message": running.get("message", ""),
-            "started_at": running.get("started_at"),
+            "id": visible_running.get("id"),
+            "type": visible_running.get("type")
+            or ("import" if visible_running in active_import_jobs else None),
+            "group_by": visible_running.get("group_by")
+            or _import_job_target(visible_running),
+            "group_bys": visible_running.get("group_bys"),
+            "progress": visible_running.get("progress", 0),
+            "message": visible_running.get("message", ""),
+            "started_at": visible_running.get("started_at"),
         }
 
     return PipelineStatusResponse(

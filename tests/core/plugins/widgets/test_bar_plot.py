@@ -535,25 +535,28 @@ class TestBarPlotWidget(NiamotoTestCase):
 
     def test_render_with_transform(self):
         """Test rendering with data transformation."""
-        data = {"species_counts": {"Araucaria": 150, "Agathis": 230, "Podocarpus": 95}}
+        data = {"bins": [0, 10, 20, 30], "counts": [2, 5, 3]}
 
         params = BarPlotParams(
-            x_axis="species",
+            x_axis="bin",
             y_axis="count",
-            transform="extract_series",
-            transform_params={"data_key": "species_counts"},
+            transform="bins_to_df",
         )
 
-        result = self.widget.render(data, params)
+        with patch.object(
+            self.widget,
+            "_render_fast_bar_figure",
+            wraps=self.widget._render_fast_bar_figure,
+        ) as render_figure:
+            result = self.widget.render(data, params)
 
-        # The transform functionality may not be fully implemented or may fail
-        # In that case, it should return an appropriate error message
         self.assertIsInstance(result, str)
-        # Since transform may not be implemented, we expect either success or specific error
-        if "<p class='error'>" in result:
-            self.assertIn("Input dict structure not recognized", result)
-        else:
-            self.assertIn("plotly-graph-div", result)
+        self.assertNotIn("<p class='error'>", result)
+        self.assertIn("plotly-graph-div", result)
+        render_figure.assert_called_once()
+        transformed_df = render_figure.call_args.args[0]
+        self.assertEqual(transformed_df["bin"].tolist(), ["0-10", "10-20", "20+"])
+        self.assertEqual(transformed_df["count"].tolist(), [2, 5, 3])
 
     def test_render_complex_scenario(self):
         """Test rendering with complex scenario combining multiple features."""

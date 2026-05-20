@@ -96,7 +96,7 @@ export function ContentTab({ reference }: ContentTabProps) {
   // Fetch suggestions only when the add-widget modal is opened
   const { suggestions, loading: suggestionsLoading } = useSuggestions(
     reference.name,
-    'occurrences',
+    undefined,
     addModalOpen
   )
 

@@ -22,6 +22,7 @@ import importlib.util
 import logging
 import os
 import inspect
+import uuid
 from pathlib import Path
 from typing import Set, Dict, Any, List, Optional
 from dataclasses import dataclass
@@ -468,6 +469,8 @@ class PluginLoader:
         Raises:
             PluginLoadError: If reload fails
         """
+        old_module = sys.modules.get(module_name)
+        old_plugins: list[tuple[str, type, PluginType]] = []
         try:
             if module_name not in self.loaded_plugins:
                 raise PluginLoadError(
@@ -481,6 +484,13 @@ class PluginLoader:
                     f"No file path found for {module_name}",
                     details={"module": module_name},
                 )
+
+            old_plugins = self._get_module_registered_plugins(module_name)
+
+            # Validate the new module before touching the working registration.
+            # This keeps the currently loaded plugin available if the new file is
+            # syntactically invalid or raises during import.
+            self._probe_plugin_module(Path(file_path), module_name)
 
             # Find and unregister existing plugins from this module
             self._unregister_module_plugins(module_name)
@@ -497,9 +507,59 @@ class PluginLoader:
             self.loaded_plugins.add(module_name)
 
         except Exception as e:
+            if old_module is not None:
+                sys.modules[module_name] = old_module
+            if old_plugins:
+                self.loaded_plugins.add(module_name)
+            for plugin_name, plugin_class, plugin_type in old_plugins:
+                if not PluginRegistry.has_plugin(plugin_name, plugin_type):
+                    PluginRegistry.register_plugin(
+                        plugin_name, plugin_class, plugin_type
+                    )
             raise PluginLoadError(
                 f"Failed to reload plugin {module_name}", details={"error": str(e)}
             )
+
+    def _probe_plugin_module(self, file: Path, module_name: str) -> None:
+        """Import a plugin under a temporary name without mutating the registry."""
+        probe_name = f"{module_name}.__reload_probe_{uuid.uuid4().hex}"
+        original_register_plugin = PluginRegistry.register_plugin
+
+        def capture_registration(
+            cls,
+            name,
+            plugin_class,
+            plugin_type=None,
+            metadata=None,
+        ):
+            actual_type = plugin_type or plugin_class.type
+            if not isinstance(actual_type, PluginType):
+                raise PluginLoadError(
+                    f"Invalid plugin type for {name}",
+                    details={"plugin": name, "type": str(actual_type)},
+                )
+            plugin_class.name = name
+
+        PluginRegistry.register_plugin = classmethod(capture_registration)
+        try:
+            self._load_plugin_module(file, probe_name)
+        finally:
+            PluginRegistry.register_plugin = original_register_plugin
+            sys.modules.pop(probe_name, None)
+
+    def _get_module_registered_plugins(
+        self, module_name: str
+    ) -> list[tuple[str, type, PluginType]]:
+        """Return registered plugin classes that came from a module."""
+        registered: list[tuple[str, type, PluginType]] = []
+        all_plugins = PluginRegistry.list_plugins()
+        for plugin_type, _plugins in all_plugins.items():
+            plugin_type_enum = PluginType(plugin_type)
+            plugins_by_type = PluginRegistry.get_plugins_by_type(plugin_type_enum)
+            for plugin_name, plugin_class in plugins_by_type.items():
+                if plugin_class.__module__ == module_name:
+                    registered.append((plugin_name, plugin_class, plugin_type_enum))
+        return registered
 
     def _unregister_module_plugins(self, module_name: str) -> None:
         """
@@ -578,6 +638,15 @@ class PluginLoader:
             List of discovered plugin information dictionaries
         """
         discovered = []
+        registry_plugins_snapshot = {
+            plugin_type: PluginRegistry.get_plugins_by_type(plugin_type)
+            for plugin_type in PluginType
+        }
+        registry_metadata_snapshot = {
+            plugin_type: PluginRegistry._metadata[plugin_type].copy()
+            for plugin_type in PluginType
+        }
+        imported_modules: set[str] = set()
 
         try:
             if not directory.exists():
@@ -643,7 +712,10 @@ class PluginLoader:
                             # Add only files that define concrete plugin classes.
                             is_core = "niamoto/core/plugins" in str(file_path)
                             module_name = self._get_module_name(file_path, is_core)
+                            module_already_loaded = module_name in sys.modules
                             module = importlib.import_module(module_name)
+                            if not module_already_loaded:
+                                imported_modules.add(module_name)
                             plugin_classes = [
                                 obj
                                 for _, obj in inspect.getmembers(module)
@@ -666,6 +738,18 @@ class PluginLoader:
 
         except Exception as e:
             logger.error(f"Error discovering plugins: {str(e)}")
+        finally:
+            for plugin_type in PluginType:
+                PluginRegistry._plugins[plugin_type].clear()
+                PluginRegistry._plugins[plugin_type].update(
+                    registry_plugins_snapshot[plugin_type]
+                )
+                PluginRegistry._metadata[plugin_type].clear()
+                PluginRegistry._metadata[plugin_type].update(
+                    registry_metadata_snapshot[plugin_type]
+                )
+            for module_name in imported_modules:
+                sys.modules.pop(module_name, None)
 
         return discovered
 

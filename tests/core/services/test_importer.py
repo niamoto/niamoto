@@ -20,6 +20,8 @@ from niamoto.core.imports.config_models import (
     ConnectorType,
     EntitySchema,
     EntitiesConfig,
+    ExtractionConfig,
+    HierarchyLevel,
 )
 
 
@@ -196,6 +198,62 @@ def test_import_all(service, mock_engine, tmp_path):
     assert "entity_species" in result
     assert "dataset_observations" in result
     assert mock_engine.import_from_csv.call_count == 2
+
+
+def test_import_all_orders_acyclic_derived_references_by_dependency(
+    service, monkeypatch
+):
+    """Derived references should import after their derived source references."""
+    import_order: list[str] = []
+
+    def fake_import_dataset(name, _config, _reset_table=False):
+        import_order.append(name)
+        return f"Imported dataset {name}"
+
+    def fake_import_reference(name, _config, _reset_table=False):
+        import_order.append(name)
+        return f"Imported reference {name}"
+
+    monkeypatch.setattr(service, "import_dataset", fake_import_dataset)
+    monkeypatch.setattr(service, "import_reference", fake_import_reference)
+
+    extraction = ExtractionConfig(levels=[HierarchyLevel(name="family")])
+    config = GenericImportConfig(
+        entities=EntitiesConfig(
+            datasets={
+                "occurrences": DatasetEntityConfig(
+                    connector=ConnectorConfig(
+                        type=ConnectorType.FILE, path="/tmp/occurrences.csv"
+                    ),
+                    schema=EntitySchema(id_field="id", fields=[]),
+                )
+            },
+            references={
+                "child": ReferenceEntityConfig(
+                    connector=ConnectorConfig(
+                        type=ConnectorType.DERIVED,
+                        source="parent",
+                        extraction=extraction,
+                    ),
+                    schema=EntitySchema(id_field="id", fields=[]),
+                ),
+                "parent": ReferenceEntityConfig(
+                    connector=ConnectorConfig(
+                        type=ConnectorType.DERIVED,
+                        source="occurrences",
+                        extraction=extraction,
+                    ),
+                    schema=EntitySchema(id_field="id", fields=[]),
+                ),
+            },
+        )
+    )
+
+    result = service.import_all(config)
+
+    assert import_order == ["occurrences", "parent", "child"]
+    assert "Imported reference parent" in result
+    assert "Imported reference child" in result
 
 
 def test_import_reference_invalid_empty_name(service):

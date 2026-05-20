@@ -17,7 +17,7 @@ from niamoto.common.exceptions import (
 )
 from niamoto.common.utils.error_handler import get_error_details
 from niamoto.core.services.importer import ImporterService
-from niamoto.core.imports.registry import EntityRegistry
+from niamoto.core.imports.registry import EntityKind, EntityRegistry
 from niamoto.core.imports.config_models import ConnectorType
 from niamoto.common.table_resolver import quote_identifier
 from ..utils.database import open_database
@@ -223,6 +223,46 @@ def _find_active_import_all_job(working_directory: str) -> Dict[str, Any] | None
     return None
 
 
+def _find_active_import_entity_job(
+    working_directory: str, import_type: str, entity_name: str
+) -> Dict[str, Any] | None:
+    for job in import_jobs.values():
+        if (
+            job.get("working_directory") == working_directory
+            and job.get("import_type") == import_type
+            and job.get("entity_name") == entity_name
+            and job.get("status") in ACTIVE_IMPORT_STATUSES
+        ):
+            return job
+    return None
+
+
+def _raise_if_import_conflicts(
+    working_directory: str, import_type: str, entity_name: str
+) -> None:
+    active_all_job = _find_active_import_all_job(working_directory)
+    if active_all_job is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "An import-all job is already pending or running",
+                "job_id": active_all_job.get("id"),
+            },
+        )
+
+    active_entity_job = _find_active_import_entity_job(
+        working_directory, import_type, entity_name
+    )
+    if active_entity_job is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": f"An import job for {import_type} '{entity_name}' is already pending or running",
+                "job_id": active_entity_job.get("id"),
+            },
+        )
+
+
 class ImportStatus(BaseModel):
     """Status of a particular entity import."""
 
@@ -325,6 +365,14 @@ async def execute_import_reference(
 ) -> ImportJobResponse:
     """Execute import of a specific reference entity."""
     _require_import_mutation_auth(request)
+    from ..context import get_working_directory
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=400, detail="Working directory not set")
+
+    working_directory = _working_directory_key(work_dir)
+    _raise_if_import_conflicts(working_directory, "reference", entity_name)
 
     # Generate job ID
     job_id = str(uuid.uuid4())
@@ -335,6 +383,7 @@ async def execute_import_reference(
         "status": "pending",
         "import_type": "reference",
         "entity_name": entity_name,
+        "working_directory": working_directory,
         "created_at": datetime.utcnow().isoformat(),
         "started_at": None,
         "completed_at": None,
@@ -377,6 +426,14 @@ async def execute_import_dataset(
 ) -> ImportJobResponse:
     """Execute import of a specific dataset entity."""
     _require_import_mutation_auth(request)
+    from ..context import get_working_directory
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=400, detail="Working directory not set")
+
+    working_directory = _working_directory_key(work_dir)
+    _raise_if_import_conflicts(working_directory, "dataset", entity_name)
 
     # Generate job ID
     job_id = str(uuid.uuid4())
@@ -387,6 +444,7 @@ async def execute_import_dataset(
         "status": "pending",
         "import_type": "dataset",
         "entity_name": entity_name,
+        "working_directory": working_directory,
         "created_at": datetime.utcnow().isoformat(),
         "started_at": None,
         "completed_at": None,
@@ -437,8 +495,16 @@ async def list_import_jobs(
     status: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List all import jobs with optional filtering."""
+    from ..context import get_working_directory
 
-    jobs = list(import_jobs.values())
+    work_dir = get_working_directory()
+    working_directory = _working_directory_key(work_dir) if work_dir else None
+    jobs = [
+        job
+        for job in import_jobs.values()
+        if working_directory is None
+        or job.get("working_directory") == working_directory
+    ]
 
     # Filter by status if provided
     if status:
@@ -532,13 +598,10 @@ async def delete_entity(
                             entity_name,
                         )
 
-                    table_names.extend(
-                        [
-                            entity_name,
-                            f"reference_{entity_name}",
-                            f"dataset_{entity_name}",
-                        ]
-                    )
+                    if entity_type == "dataset":
+                        table_names.extend([f"dataset_{entity_name}", entity_name])
+                    else:
+                        table_names.extend([f"reference_{entity_name}", entity_name])
 
                     for table_name in dict.fromkeys(table_names):
                         if not table_name:
@@ -713,7 +776,7 @@ async def get_import_status() -> ImportStatusResponse:
                     row_count=row_count,
                 )
 
-                if entity.kind.value == "REFERENCE":
+                if entity.kind == EntityKind.REFERENCE:
                     references.append(status)
                 else:
                     datasets.append(status)
@@ -1226,6 +1289,8 @@ async def impact_check(request: ImpactCheckRequest):
     from niamoto.core.services.compatibility import CompatibilityService
 
     work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not set")
 
     # Path validation FIRST
     resolved = (work_dir / request.file_path).resolve()

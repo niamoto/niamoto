@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 from niamoto.gui.api.services.templates.config_service import (
+    EXPORT_CONFIG_WRITE_LOCK,
     TRANSFORM_CONFIG_WRITE_LOCK,
     find_export_group,
     find_transform_group,
@@ -45,6 +46,7 @@ def build_relation_config(
     ref_field = "id"
 
     if config and isinstance(config, dict):
+        schema = config.get("schema", {})
         # Bloc relation explicite dans import.yml
         relation_config = config.get("relation", {})
         if relation_config:
@@ -52,6 +54,9 @@ def build_relation_config(
                 key_field = relation_config["foreign_key"]
             if relation_config.get("reference_key"):
                 ref_field = relation_config["reference_key"]
+
+        if ref_field == "id" and schema.get("id_field"):
+            ref_field = schema["id_field"]
 
         # Références dérivées (ex: taxons extraits des occurrences)
         connector = config.get("connector", {})
@@ -63,7 +68,6 @@ def build_relation_config(
 
         # schema.id_field en fallback si pas de relation explicite ni de dérivation
         if not key_field and not relation_config and not is_derived:
-            schema = config.get("schema", {})
             if schema.get("id_field"):
                 key_field = schema["id_field"]
 
@@ -122,7 +126,7 @@ def scaffold_configs(work_dir: Path) -> Tuple[bool, str]:
     # Récupérer le premier dataset comme source de données par défaut
     first_dataset = next(iter(datasets), None)
 
-    with TRANSFORM_CONFIG_WRITE_LOCK:
+    with TRANSFORM_CONFIG_WRITE_LOCK, EXPORT_CONFIG_WRITE_LOCK:
         # Charger les configs existantes
         transform_groups = load_transform_config(work_dir)
         export_config = load_export_config(work_dir)

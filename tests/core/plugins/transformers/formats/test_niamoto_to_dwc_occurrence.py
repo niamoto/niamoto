@@ -224,6 +224,32 @@ class TestNiamotoDwCTransformer:
         ]
         assert mock_fetch.call_args.args[0] == 123
 
+    def test_unique_occurrence_id_uses_taxonomy_entity_id_fallback(
+        self, transformer, sample_occurrence_data
+    ):
+        """Generated IDs should use the same fallback taxon ID as occurrence lookup."""
+        data = {
+            "taxons_id": 123,
+            "full_name": "Araucaria columnaris (Forster) Hook.",
+        }
+        config = {
+            "occurrence_list_source": "occurrences",
+            "taxonomy_entity": "taxons",
+            "mapping": {
+                "occurrenceID": {"generator": "unique_occurrence_id"},
+                "scientificName": "@taxon.full_name",
+            },
+        }
+
+        with patch.object(
+            transformer,
+            "_fetch_occurrences_from_db",
+            return_value=[sample_occurrence_data],
+        ):
+            result = transformer.transform(data, config)
+
+        assert result[0]["occurrenceID"] == "niaocc_123_0"
+
     def test_transform_does_not_fallback_to_generic_id_for_misconfigured_taxon_field(
         self, transformer, sample_mapping_config
     ):
@@ -347,6 +373,98 @@ class TestNiamotoDwCTransformer:
         assert len(result) == 1
         mock_batch_fetch.assert_called_once()
         mock_single_fetch.assert_not_called()
+
+    def test_fetch_occurrences_batch_groups_rows_by_taxon(
+        self,
+        transformer,
+        mock_db,
+    ):
+        """Batch fetch should group rows and strip its internal taxon marker."""
+        mock_connection = Mock()
+        mock_result = Mock()
+        mock_result.keys.return_value = ["_taxon_id", "id", "taxon_ref_id", "family"]
+        mock_result.fetchall.return_value = [
+            (123, 1, "taxon-123", "Araucariaceae"),
+            (123, 2, "taxon-123", "Araucariaceae"),
+            (456, 3, "taxon-456", "Myrtaceae"),
+        ]
+        mock_connection.execute.return_value = mock_result
+        mock_context = MagicMock()
+        mock_context.__enter__.return_value = mock_connection
+        mock_db.engine.connect.return_value = mock_context
+
+        result = transformer._fetch_occurrences_batch_from_db(
+            [123, 456, 789],
+            "occurrences",
+            "taxon_ref_id",
+            "taxons",
+            "taxon_id",
+        )
+
+        assert result == {
+            123: [
+                {"id": 1, "taxon_ref_id": "taxon-123", "family": "Araucariaceae"},
+                {"id": 2, "taxon_ref_id": "taxon-123", "family": "Araucariaceae"},
+            ],
+            456: [
+                {"id": 3, "taxon_ref_id": "taxon-456", "family": "Myrtaceae"},
+            ],
+            789: [],
+        }
+        assert "_taxon_id" not in result[123][0]
+        mock_connection.execute.assert_called_once()
+        assert mock_connection.execute.call_args.args[1] == {
+            "taxon_ids": [123, 456, 789]
+        }
+
+    def test_fetch_occurrences_batch_rejects_unsafe_identifiers_before_connecting(
+        self,
+        transformer,
+        mock_db,
+    ):
+        """Unsafe SQL identifiers should not reach the database connection."""
+        result = transformer._fetch_occurrences_batch_from_db(
+            [123],
+            "occurrences; DROP TABLE occurrences",
+            "taxon_ref_id",
+            "taxons",
+            "taxon_id",
+        )
+
+        assert result == {123: []}
+        mock_db.engine.connect.assert_not_called()
+
+    def test_prepare_batch_cache_is_scoped_to_config(
+        self,
+        transformer,
+        sample_taxon_data,
+        sample_occurrence_data,
+        sample_mapping_config,
+    ):
+        """Transform should not reuse a batch cache prepared for another config."""
+        second_config = {
+            **sample_mapping_config,
+            "occurrence_list_source": "other_occurrences",
+        }
+        stale_occurrence = {**sample_occurrence_data, "family": "Stale family"}
+        fresh_occurrence = {**sample_occurrence_data, "family": "Fresh family"}
+
+        with patch.object(
+            transformer,
+            "_fetch_occurrences_batch_from_db",
+            return_value={123: [stale_occurrence]},
+        ):
+            transformer.prepare_batch([sample_taxon_data], sample_mapping_config)
+
+        with patch.object(
+            transformer,
+            "_fetch_occurrences_from_db",
+            return_value=[fresh_occurrence],
+        ) as mock_single_fetch:
+            result = transformer.transform(sample_taxon_data, second_config)
+
+        mock_single_fetch.assert_called_once()
+        assert result[0]["family"] == "Fresh family"
 
     def test_transform_with_pydantic_config(
         self, transformer, mock_db, sample_taxon_data, sample_mapping_config

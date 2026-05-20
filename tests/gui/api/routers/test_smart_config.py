@@ -357,6 +357,38 @@ class TestUploadFiles:
         uploaded_names = {f["filename"] for f in data["uploaded_files"]}
         assert uploaded_names == {"plots.dbf"}
 
+    def test_upload_zip_overwrite_rejects_existing_symlink_component(
+        self, test_client: TestClient, tmp_path: Path, working_directory: Path
+    ):
+        """ZIP extraction must not follow existing symlinked components."""
+        existing_dir = working_directory / "imports" / "data"
+        existing_dir.mkdir()
+        outside_file = tmp_path / "outside.shp"
+        outside_file.write_bytes(b"outside data")
+        symlink_component = existing_dir / "plots.shp"
+
+        try:
+            symlink_component.symlink_to(outside_file)
+        except OSError:
+            pytest.skip("Symlinks are not supported on this platform")
+
+        zip_path = tmp_path / "data.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("plots.shp", b"replacement shapefile")
+
+        with open(zip_path, "rb") as f:
+            response = test_client.post(
+                "/api/smart/upload-files?overwrite=true",
+                files={"files": ("data.zip", f, "application/zip")},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["uploaded_files"] == []
+        assert data["errors"]
+        assert outside_file.read_bytes() == b"outside data"
+        assert symlink_component.is_symlink()
+
     def test_upload_zip_rejects_oversized_extracted_content(
         self,
         test_client: TestClient,
@@ -387,7 +419,6 @@ class TestUploadFiles:
 
     def test_upload_empty_filename_returns_error(self, test_client: TestClient):
         """Test uploading a file with empty filename should return error."""
-        # Create a file with no filename
         file_content = b"id,name\n1,test\n"
 
         response = test_client.post(
@@ -395,8 +426,14 @@ class TestUploadFiles:
             files={"files": ("", io.BytesIO(file_content), "text/csv")},
         )
 
-        assert response.status_code == 422
-        assert response.json()["detail"]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert data["uploaded_files"] == []
+        assert data["uploaded_count"] == 0
+        assert data["existing_files"] == []
+        assert data["existing_count"] == 0
+        assert data["errors"] == ["File without name skipped"]
 
     def test_upload_mixed_file_types(self, test_client: TestClient, fixtures_dir: Path):
         """Test uploading different file types in one request."""
@@ -492,6 +529,44 @@ class TestUploadFiles:
 
 class TestAnalyzeFile:
     """Test POST /api/smart/analyze-file endpoint."""
+
+    def test_analyze_file_dispatches_service_to_worker_thread(
+        self, monkeypatch, working_directory: Path
+    ):
+        captured = {}
+
+        class FakeAutoConfigService:
+            def __init__(self, work_dir: Path):
+                captured["work_dir"] = work_dir
+
+            def analyze_file(self, filepath, *, entity_name=None):
+                captured["filepath"] = filepath
+                captured["entity_name"] = entity_name
+                return {"columns": [], "row_count": 0}
+
+        async def fake_to_thread(func, *args, **kwargs):
+            captured["thread_func"] = func
+            captured["thread_args"] = args
+            captured["thread_kwargs"] = kwargs
+            return func(*args, **kwargs)
+
+        monkeypatch.setattr(smart_config, "AutoConfigService", FakeAutoConfigService)
+        monkeypatch.setattr(smart_config.asyncio, "to_thread", fake_to_thread)
+
+        response = asyncio.run(
+            smart_config.analyze_file_smart(
+                smart_config.FileInfo(
+                    filepath="imports/sample_occurrences.csv",
+                    entity_name="occurrence",
+                )
+            )
+        )
+
+        assert response == {"columns": [], "row_count": 0}
+        assert captured["work_dir"] == working_directory
+        assert captured["thread_func"].__name__ == "analyze_file"
+        assert captured["thread_args"] == ("imports/sample_occurrences.csv",)
+        assert captured["thread_kwargs"] == {"entity_name": "occurrence"}
 
     def test_analyze_valid_csv_file(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]
@@ -815,6 +890,44 @@ class TestDetectRelationships:
         assert "unsupported target file type" in detail
         assert "only csv files supported" in detail
 
+    def test_detect_relationships_rejects_missing_target_file(
+        self,
+        test_client: TestClient,
+        sample_csv_files: Dict[str, Path],
+    ):
+        """Missing target files should be client errors, not empty success."""
+        response = test_client.post(
+            "/api/smart/detect-relationships",
+            json={
+                "source_file": "imports/sample_occurrences.csv",
+                "target_files": ["imports/missing_target.csv"],
+            },
+        )
+
+        assert response.status_code == 404
+        assert "Target file not found" in response.json()["detail"]
+
+    def test_detect_relationships_rejects_target_directory_named_csv(
+        self,
+        test_client: TestClient,
+        sample_csv_files: Dict[str, Path],
+        working_directory: Path,
+    ):
+        """A directory with .csv suffix is not a valid scan target."""
+        target_dir = working_directory / "imports" / "target.csv"
+        target_dir.mkdir()
+
+        response = test_client.post(
+            "/api/smart/detect-relationships",
+            json={
+                "source_file": "imports/sample_occurrences.csv",
+                "target_files": ["imports/target.csv"],
+            },
+        )
+
+        assert response.status_code == 404
+        assert "Target file not found" in response.json()["detail"]
+
 
 # ============================================================================
 # AUTO-CONFIGURE MAIN TESTS
@@ -893,6 +1006,22 @@ class TestAutoConfigureMain:
 
         assert response.status_code == 400
         assert "outside project" in response.json()["detail"].lower()
+
+    def test_auto_configure_rejects_project_path_outside_imports(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        """Test auto-configure only accepts files from imports/."""
+        config_file = working_directory / "config" / "import.yml"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text("imports: []\n", encoding="utf-8")
+
+        response = test_client.post(
+            "/api/smart/auto-configure",
+            json={"files": ["config/import.yml"]},
+        )
+
+        assert response.status_code == 400
+        assert "imports" in response.json()["detail"].lower()
 
     def test_auto_configure_multiple_csvs_detects_references(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]
@@ -1219,6 +1348,22 @@ class TestAutoConfigureJobs:
             "three",
         ]
 
+    def test_auto_configure_job_store_limits_active_jobs_per_project(
+        self, working_directory: Path
+    ):
+        store = smart_config._AutoConfigureJobStore()
+        job = store.create_job(str(working_directory))
+        store.set_running(job.job_id)
+
+        with pytest.raises(ValueError, match="already pending or running"):
+            store.create_job(str(working_directory))
+
+        other_project = working_directory.parent / "other-active-project"
+        other_project.mkdir()
+        other_job = store.create_job(str(other_project))
+
+        assert other_job.project_path == str(other_project.resolve())
+
     def test_auto_configure_job_completes_with_result(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]
     ):
@@ -1256,6 +1401,58 @@ class TestAutoConfigureJobs:
         assert final_status["completed_at"] is not None
         assert final_status["events"]
 
+    def test_auto_configure_jobs_rejects_active_job_for_same_project(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        active_job = smart_config._AUTO_CONFIG_JOB_STORE.create_job(
+            str(working_directory)
+        )
+        smart_config._AUTO_CONFIG_JOB_STORE.set_running(active_job.job_id)
+
+        try:
+            response = test_client.post(
+                "/api/smart/auto-configure/jobs",
+                json={"files": ["imports/sample_occurrences.csv"]},
+            )
+        finally:
+            with smart_config._AUTO_CONFIG_JOB_STORE._lock:
+                smart_config._AUTO_CONFIG_JOB_STORE._jobs.pop(active_job.job_id, None)
+
+        assert response.status_code == 409
+        assert active_job.job_id in response.json()["detail"]
+
+    def test_auto_configure_job_status_is_project_scoped(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        other_project = working_directory.parent / "other-project"
+        other_project.mkdir()
+        job = smart_config._AUTO_CONFIG_JOB_STORE.create_job(str(other_project))
+
+        try:
+            response = test_client.get(f"/api/smart/auto-configure/jobs/{job.job_id}")
+        finally:
+            with smart_config._AUTO_CONFIG_JOB_STORE._lock:
+                smart_config._AUTO_CONFIG_JOB_STORE._jobs.pop(job.job_id, None)
+
+        assert response.status_code == 404
+
+    def test_auto_configure_job_events_are_project_scoped(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        other_project = working_directory.parent / "other-project-events"
+        other_project.mkdir()
+        job = smart_config._AUTO_CONFIG_JOB_STORE.create_job(str(other_project))
+
+        try:
+            response = test_client.get(
+                f"/api/smart/auto-configure/jobs/{job.job_id}/events"
+            )
+        finally:
+            with smart_config._AUTO_CONFIG_JOB_STORE._lock:
+                smart_config._AUTO_CONFIG_JOB_STORE._jobs.pop(job.job_id, None)
+
+        assert response.status_code == 404
+
     def test_auto_configure_job_events_stream_real_findings(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]
     ):
@@ -1290,9 +1487,9 @@ class TestAutoConfigureJobs:
         assert decoded_events[-1]["kind"] == "complete"
 
     def test_auto_configure_job_events_streams_terminal_complete_event(
-        self, test_client: TestClient
+        self, test_client: TestClient, working_directory: Path
     ):
-        job = smart_config._AUTO_CONFIG_JOB_STORE.create_job()
+        job = smart_config._AUTO_CONFIG_JOB_STORE.create_job(str(working_directory))
         event = smart_config._make_progress_event(
             kind="complete", message="Auto-configuration ready"
         )
@@ -1323,9 +1520,9 @@ class TestAutoConfigureJobs:
         assert decoded_events[-1]["kind"] == "complete"
 
     def test_auto_configure_job_events_streams_terminal_error_event(
-        self, test_client: TestClient
+        self, test_client: TestClient, working_directory: Path
     ):
-        job = smart_config._AUTO_CONFIG_JOB_STORE.create_job()
+        job = smart_config._AUTO_CONFIG_JOB_STORE.create_job(str(working_directory))
         event = smart_config._make_progress_event(kind="error", message="boom")
         smart_config._AUTO_CONFIG_JOB_STORE.fail_with_event(job.job_id, "boom", event)
 
@@ -1401,6 +1598,25 @@ class TestCreateEntitiesBulk:
         assert "references" in yaml_data["entities"]
         assert "occurrences" in yaml_data["entities"]["datasets"]
         assert "taxonomy" in yaml_data["entities"]["references"]
+
+    def test_create_entities_bulk_rejects_traversing_source_path(
+        self, test_client: TestClient
+    ):
+        response = test_client.post(
+            "/api/smart/management/entities/bulk",
+            json={
+                "entities": {
+                    "datasets": {
+                        "occurrences": {
+                            "source": "../outside.csv",
+                            "fields": {"id": "id"},
+                        }
+                    }
+                }
+            },
+        )
+
+        assert response.status_code == 400
 
     def test_create_entities_bulk_persists_auxiliary_sources(
         self, test_client: TestClient, working_directory: Path

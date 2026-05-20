@@ -123,10 +123,12 @@ class ScatterAnalysis(TransformerPlugin):
                     raise ValueError(f"Colonne '{col}' absente du DataFrame")
 
             # Extraire et convertir en numérique
-            df = data[[params.x_field, params.y_field]].copy()
-            df[params.x_field] = pd.to_numeric(df[params.x_field], errors="coerce")
-            df[params.y_field] = pd.to_numeric(df[params.y_field], errors="coerce")
-            df = df.rename(columns={params.x_field: "x", params.y_field: "y"})
+            df = pd.DataFrame(
+                {
+                    "x": pd.to_numeric(data[params.x_field], errors="coerce"),
+                    "y": pd.to_numeric(data[params.y_field], errors="coerce"),
+                }
+            )
             df = df.dropna()
 
             if df.empty:

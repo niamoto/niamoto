@@ -33,6 +33,7 @@ def test_value_feature_extractors_are_runtime_train_aligned():
 
     assert train_features.shape == runtime_features.shape
     assert train_features.shape[0] == len(FEATURE_NAMES)
+    np.testing.assert_allclose(train_features, runtime_features)
     assert train_features[_feature_index("short_code_ratio")] > 0.5
     assert runtime_features[_feature_index("short_code_ratio")] > 0.5
 
@@ -95,10 +96,12 @@ def test_code_like_headers_dampen_false_stat_count():
 class _DummyBranch:
     def __init__(self, classes, outputs):
         self.classes_ = np.array(classes)
-        self._outputs = np.array(outputs, dtype=float)
+        self._outputs = outputs
 
     def predict_proba(self, inputs):
-        return self._outputs[: len(inputs)]
+        if callable(self._outputs):
+            return np.array([self._outputs(value) for value in inputs], dtype=float)
+        return np.array(self._outputs, dtype=float)[: len(inputs)]
 
 
 def test_batch_branch_probability_extraction_matches_single_record_path():
@@ -123,11 +126,11 @@ def test_batch_branch_probability_extraction_matches_single_record_path():
     all_concepts = ["statistic.count", "measurement.height"]
     header_model = _DummyBranch(
         ["measurement.height", "statistic.count"],
-        [[0.9, 0.1], [0.9, 0.1]],
+        lambda value: [0.9, 0.1] if "height" in value else [0.2, 0.8],
     )
     value_model = _DummyBranch(
         ["measurement.height", "statistic.count"],
-        [[0.8, 0.2], [0.8, 0.2]],
+        lambda value: [0.8, 0.2] if value[0] < 2.4 else [0.3, 0.7],
     )
 
     batch_header, batch_value = extract_fusion_branch_probabilities_batch(

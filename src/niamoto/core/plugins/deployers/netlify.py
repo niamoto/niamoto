@@ -72,6 +72,13 @@ class NetlifyDeployer(DeployerPlugin):
         3. Upload ZIP to Netlify deploy endpoint
         4. Poll deploy status until ready or error
         """
+        errors = self.validate_exports(config)
+        if errors:
+            for err in errors:
+                yield self.sse_error(err)
+            yield self.sse_done()
+            return
+
         # --- Credentials ---
         token = CredentialService.get("netlify", "token")
         if not token:

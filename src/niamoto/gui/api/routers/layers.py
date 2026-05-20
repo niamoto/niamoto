@@ -240,7 +240,7 @@ async def list_layers(
 
 
 @router.get("/{layer_path:path}")
-async def get_layer_info(layer_path: str) -> Dict[str, Any]:
+def get_layer_info(layer_path: str) -> Dict[str, Any]:
     """
     Get detailed information about a specific layer.
 

@@ -3,6 +3,7 @@ Plugin for enriching taxonomy data with information from external APIs.
 """
 
 import logging
+import json
 import os
 import time
 from typing import Any, Dict, List, Literal, Optional
@@ -46,6 +47,12 @@ GN_SOURCE_ALIASES = {
     "tropicos": 165,
     "tropicos - missouri botanical garden": 165,
 }
+
+
+def _stable_cache_key(*parts: Any) -> str:
+    """Build a deterministic cache key from JSON-serializable semantic parts."""
+
+    return json.dumps(parts, sort_keys=True, default=str, separators=(",", ":"))
 
 
 class ApiTaxonomyEnricherParams(BasePluginParams):
@@ -364,20 +371,13 @@ class ApiTaxonomyEnricher(LoaderPlugin):
             return taxon_data
 
         # Check cache if enabled
-        cache_key = (
-            f"{params.profile or 'default'}::{params.api_url}::{params.taxonomy_source or ''}"
-            f"::{params.dataset_key}"
-            f"::{params.use_name_verifier}"
-            f"::{'|'.join(params.name_verifier_preferred_sources)}"
-            f"::{params.name_verifier_threshold if params.name_verifier_threshold is not None else ''}"
-            f"::{params.include_taxonomy}::{params.include_occurrences}::{params.include_media}"
-            f"::{params.include_places}"
-            f"::{params.include_references}::{params.include_vernaculars}"
-            f"::{params.include_distributions}::{params.media_limit}::{params.observation_limit}"
-            f"::{params.reference_limit}"
-            f"::{params.include_publication_details}::{params.include_page_preview}"
-            f"::{params.title_limit}::{params.page_limit}"
-            f"::{query_value}"
+        cache_key = _stable_cache_key(
+            "api_taxonomy_enricher",
+            query_value,
+            params.model_dump(
+                mode="json",
+                exclude={"cache_results", "rate_limit"},
+            ),
         )
         if params.cache_results and cache_key in self._cache:
             logger.debug(f"Using cached data for {query_value}")

@@ -92,6 +92,49 @@ def test_metadata_overlay_overrides_label_roles_visibility_and_review_state():
     assert taxons.source_type == "reference"
 
 
+def test_metadata_overlay_rejects_invalid_review_status_with_clear_error():
+    import_config = _import_config()
+    import_config["metadata"] = {
+        "collections": {
+            "taxons": {
+                "review_status": "done",
+            }
+        }
+    }
+    service = CollectionCatalogService(import_config=import_config)
+
+    try:
+        service.list_collections()
+    except ValueError as exc:
+        message = str(exc)
+        assert "Invalid review_status for collection 'taxons'" in message
+        assert "'done'" in message
+    else:
+        raise AssertionError("Expected invalid overlay review_status to be rejected")
+
+
+def test_metadata_manual_collection_rejects_invalid_review_status_with_clear_error():
+    import_config = _import_config()
+    import_config["metadata"] = {
+        "collections": {
+            "manual": {
+                "source": {"type": "dataset", "name": "occurrences"},
+                "review_status": "done",
+            }
+        }
+    }
+    service = CollectionCatalogService(import_config=import_config)
+
+    try:
+        service.list_collections()
+    except ValueError as exc:
+        message = str(exc)
+        assert "Invalid review_status for collection 'manual'" in message
+        assert "'done'" in message
+    else:
+        raise AssertionError("Expected invalid manual review_status to be rejected")
+
+
 def test_manual_dataset_collection_is_persisted_without_requiring_page_visibility():
     import_config = _import_config()
     service = CollectionCatalogService(import_config=import_config)

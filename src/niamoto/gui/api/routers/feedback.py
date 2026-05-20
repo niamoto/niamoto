@@ -11,7 +11,11 @@ import httpx
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-from niamoto.gui.api.url_security import validate_public_http_url
+from niamoto.gui.api.url_security import (
+    pin_public_dns_for_url,
+    resolve_public_http_url_addresses,
+    validate_public_http_url,
+)
 
 router = APIRouter()
 
@@ -70,12 +74,17 @@ async def _forward_feedback(
         )
 
     try:
+        safe_url, addresses = resolve_public_http_url_addresses(
+            worker_feedback_url,
+            detail="Feedback endpoint URL is not allowed.",
+        )
         async with httpx.AsyncClient(timeout=_FORWARD_TIMEOUT) as client:
-            response = await client.post(
-                worker_feedback_url,
-                headers={"X-Feedback-Key": api_key},
-                files=files,
-            )
+            with pin_public_dns_for_url(safe_url, addresses):
+                response = await client.post(
+                    safe_url,
+                    headers={"X-Feedback-Key": api_key},
+                    files=files,
+                )
     except httpx.HTTPError as exc:
         raise HTTPException(
             status_code=502,

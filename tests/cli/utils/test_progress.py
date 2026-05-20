@@ -151,6 +151,29 @@ class TestProgressManager:
         with manager.progress_context():
             manager.add_task("test_task", "Testing task", total=100)
             manager.complete_task("test_task", "Task completed successfully")
+            assert manager._stats["operations_completed"] == 100
+
+    @patch("niamoto.cli.utils.progress.datetime")
+    def test_complete_task_counts_remaining_progress(self, mock_datetime):
+        """Test completing a partially advanced task counts only remaining work."""
+        start_time = datetime(2023, 1, 1, 12, 0, 0)
+        task_start = datetime(2023, 1, 1, 12, 0, 5)
+        update_time = datetime(2023, 1, 1, 12, 0, 10)
+        complete_time = datetime(2023, 1, 1, 12, 0, 35)
+        mock_datetime.now.side_effect = [
+            start_time,
+            task_start,
+            update_time,
+            complete_time,
+        ]
+
+        manager = ProgressManager()
+
+        with manager.progress_context():
+            manager.add_task("test_task", "Testing task", total=100)
+            manager.update_task("test_task", advance=40)
+            manager.complete_task("test_task", "Task completed successfully")
+            assert manager._stats["operations_completed"] == 100
 
     def test_complete_task_nonexistent(self):
         """Test completing non-existent task."""
@@ -176,7 +199,9 @@ class TestProgressManager:
             manager.add_error("Test error message")
 
         assert manager._stats["errors"] == 1
-        mock_console.print.assert_called_with("❌ Test error message", style="bold red")
+        mock_console.print.assert_called_with(
+            f"{emoji('❌', '[X]')} Test error message", style="bold red"
+        )
 
     def test_add_error_escapes_rich_markup(self):
         """Test error messages escape caller-provided Rich markup."""
@@ -187,7 +212,9 @@ class TestProgressManager:
         with manager.progress_context():
             manager.add_error(message)
 
-        mock_console.print.assert_called_with(f"❌ {escape(message)}", style="bold red")
+        mock_console.print.assert_called_with(
+            f"{emoji('❌', '[X]')} {escape(message)}", style="bold red"
+        )
 
     def test_add_warning(self):
         """Test adding warning messages."""
@@ -218,7 +245,7 @@ class TestProgressManager:
 
         # Check that summary was printed
         mock_console.print.assert_any_call(
-            "\n📊 Test Operation Summary:", style="bold blue"
+            f"\n{emoji('📊', '[=]')} Test Operation Summary:", style="bold blue"
         )
         mock_console.print.assert_any_call("   Duration: 45s")
         mock_console.print.assert_any_call("   Operations completed: 3")
@@ -284,7 +311,8 @@ class TestProgressManager:
             )
 
         mock_console.print.assert_any_call(
-            f"\n📊 {escape('[red]Import[/red]')} Summary:", style="bold blue"
+            f"\n{emoji('📊', '[=]')} {escape('[red]Import[/red]')} Summary:",
+            style="bold blue",
         )
         mock_console.print.assert_any_call(
             f"   {escape('[bold]Source[/bold]')}: {escape('[cyan]dataset[/cyan]')}"
@@ -364,7 +392,7 @@ class TestOperationTracker:
 
         tracker.start_operation("Starting test operation")
         mock_console.print.assert_called_once_with(
-            "🚀 Starting test operation", style="blue"
+            f"{emoji('🚀', '>>')} Starting test operation", style="blue"
         )
 
     def test_start_operation_escapes_rich_markup(self):
@@ -376,7 +404,7 @@ class TestOperationTracker:
         tracker.start_operation(message)
 
         mock_console.print.assert_called_once_with(
-            f"🚀 {escape(message)}", style="blue"
+            f"{emoji('🚀', '>>')} {escape(message)}", style="blue"
         )
 
     def test_complete_operation(self):
@@ -439,7 +467,7 @@ class TestOperationTracker:
         tracker.show_summary("Test Operation")
 
         mock_console.print.assert_any_call(
-            "\n📊 Test Operation Summary:", style="bold blue"
+            f"\n{emoji('📊', '[=]')} Test Operation Summary:", style="bold blue"
         )
         mock_console.print.assert_any_call("   Duration: 45s")
         mock_console.print.assert_any_call("   Operations: 5")

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '@/lib/api-config';
+import { apiFetch } from '@/shared/lib/api/fetch';
 
 interface ConfigUpdate {
   content: Record<string, unknown>;
@@ -51,7 +52,7 @@ export function useConfig(configName: ConfigType) {
     setSaving(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/config/${configName}`, {
+      const response = await apiFetch(`${API_BASE_URL}/config/${configName}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -84,7 +85,7 @@ export function useConfig(configName: ConfigType) {
   // Validate configuration
   const validateConfig = useCallback(async (content: Record<string, unknown>): Promise<ValidationResult> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/config/${configName}/validate`, {
+      const response = await apiFetch(`${API_BASE_URL}/config/${configName}/validate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -125,7 +126,7 @@ export function useConfig(configName: ConfigType) {
     setSaving(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/config/${configName}/backup/restore`, {
+      const response = await apiFetch(`${API_BASE_URL}/config/${configName}/backup/restore`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

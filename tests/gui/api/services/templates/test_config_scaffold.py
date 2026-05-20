@@ -55,6 +55,31 @@ def test_build_relation_config_supports_hierarchical_and_direct_references():
     }
 
 
+def test_build_relation_config_uses_schema_id_field_for_derived_ref_key():
+    hierarchical = build_relation_config(
+        "taxons",
+        "hierarchical",
+        {
+            "connector": {
+                "type": "derived",
+                "extraction": {"id_column": "id_taxonref"},
+            },
+            "schema": {"id_field": "id_taxon"},
+        },
+    )
+
+    assert hierarchical == {
+        "plugin": "nested_set",
+        "key": "id_taxonref",
+        "ref_key": "id_taxon",
+        "fields": {
+            "parent": "parent_id",
+            "left": "lft",
+            "right": "rght",
+        },
+    }
+
+
 def test_build_relation_config_returns_none_without_safe_key():
     assert build_relation_config("plots", "generic", {"schema": {}}) is None
     assert build_relation_config("taxons", "hierarchical", {"connector": {}}) is None
@@ -215,6 +240,128 @@ def test_scaffold_configs_shares_transform_write_lock_with_widget_updates(
     groups = {group["group_by"]: group for group in transform_config}
     assert "plots" in groups
     assert "summary_widget" in groups["taxons"]["widgets_data"]
+
+
+def test_scaffold_configs_shares_export_write_lock_with_export_updates(
+    monkeypatch, tmp_path
+):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "datasets": {"occurrences": {}},
+                    "references": {
+                        "taxons": {"kind": "generic", "schema": {"id_field": "id"}},
+                        "plots": {
+                            "kind": "generic",
+                            "relation": {
+                                "dataset": "occurrences",
+                                "foreign_key": "plot_id",
+                                "reference_key": "id_plot",
+                            },
+                        },
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "transform.yml").write_text(
+        yaml.safe_dump(
+            [{"group_by": "taxons", "sources": [], "widgets_data": {}}],
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "export.yml").write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "web_pages",
+                        "exporter": "html_page_exporter",
+                        "groups": [{"group_by": "taxons", "widgets": []}],
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        config_scaffold, "find_stats_sources_for_reference", lambda *_args: []
+    )
+
+    original_save_export_config = config_scaffold.save_export_config
+    first_save_entered = threading.Event()
+    release_first_save = threading.Event()
+    errors: list[BaseException] = []
+
+    def delayed_save_export_config(work_dir, config, create_backup=False):
+        groups = config["exports"][0]["groups"]
+        if any(group.get("group_by") == "plots" for group in groups):
+            first_save_entered.set()
+            release_first_save.wait(timeout=2)
+        original_save_export_config(work_dir, config, create_backup=create_backup)
+
+    monkeypatch.setattr(
+        config_scaffold, "save_export_config", delayed_save_export_config
+    )
+
+    def run_scaffold():
+        try:
+            config_scaffold.scaffold_configs(tmp_path)
+        except BaseException as exc:
+            errors.append(exc)
+
+    def update_index_generator():
+        try:
+            asyncio.run(
+                config_router.update_index_generator(
+                    "taxons",
+                    config_router.IndexGeneratorConfigUpdate(
+                        page_config=config_router.IndexGeneratorPageConfigUpdate(
+                            title="Taxons"
+                        ),
+                        display_fields=[
+                            config_router.IndexGeneratorDisplayFieldUpdate(
+                                name="name",
+                                source="full_name",
+                                type="text",
+                            )
+                        ],
+                    ),
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=run_scaffold)
+    second = threading.Thread(target=update_index_generator)
+
+    first.start()
+    assert first_save_entered.wait(timeout=2)
+    second.start()
+    time.sleep(0.05)
+    release_first_save.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+
+    export_config = yaml.safe_load((config_dir / "export.yml").read_text())
+    groups = {
+        group["group_by"]: group for group in export_config["exports"][0]["groups"]
+    }
+    assert "plots" in groups
+    assert groups["taxons"]["index_generator"]["display_fields"][0]["name"] == "name"
 
 
 def test_scaffold_configs_returns_false_when_no_references_exist(tmp_path):

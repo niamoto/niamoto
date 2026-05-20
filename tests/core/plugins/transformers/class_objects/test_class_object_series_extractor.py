@@ -115,6 +115,38 @@ def test_extraction_no_sort(plugin, sample_data):
     assert result["values"] == [35, 15, 15, 25, 25]
 
 
+def test_duplicate_size_buckets_are_summed(plugin):
+    data = pd.DataFrame(
+        {
+            "class_object": ["forest_elevation", "forest_elevation"],
+            "class_name": ["100", "100"],
+            "class_value": [2, 3],
+        }
+    )
+    config = {
+        "plugin": "class_object_series_extractor",
+        "params": {
+            "source": "raw_shape_stats",
+            "class_object": "forest_elevation",
+            "size_field": {
+                "input": "class_name",
+                "output": "sizes",
+                "numeric": True,
+                "sort": True,
+            },
+            "value_field": {
+                "input": "class_value",
+                "output": "values",
+                "numeric": True,
+            },
+        },
+    }
+
+    result = plugin.transform(data, config)
+
+    assert result == {"sizes": [100], "values": [5]}
+
+
 def test_error_missing_class_object_data(plugin, sample_data):
     """Test that plugin returns empty result when the specified class_object is not found in data."""
     config = {

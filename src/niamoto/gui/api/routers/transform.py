@@ -1,6 +1,7 @@
 """Transform API endpoints for executing data transformations."""
 
 import logging
+from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import asyncio
@@ -23,6 +24,17 @@ from niamoto.gui.api.services.job_store_runtime import resolve_job_store
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _get_transform_source_name(source: Any) -> Optional[str]:
+    """Extract a stable source identifier from transform source config."""
+    if not isinstance(source, dict):
+        return None
+    for key in ("name", "data", "source", "path"):
+        value = source.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
 
 
 class TransformRequest(BaseModel):
@@ -76,8 +88,25 @@ class TransformCancelled(RuntimeError):
     """Raised inside the transform worker when a user cancels the job."""
 
 
+def _validate_transform_config_path(config_path: str) -> None:
+    """Allow transform execution only from the project transform.yml."""
+    requested_path = Path(config_path)
+    if requested_path.is_absolute() or ".." in requested_path.parts:
+        raise HTTPException(status_code=400, detail="Invalid transform config path")
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise HTTPException(status_code=500, detail="Working directory not set")
+
+    allowed_path = (Path(work_dir) / "config" / "transform.yml").resolve()
+    resolved_path = (Path(work_dir) / config_path).resolve()
+    if resolved_path != allowed_path:
+        raise HTTPException(status_code=400, detail="Invalid transform config path")
+
+
 def get_transform_config(config_path: str) -> Dict[str, Any]:
     """Load and parse transform configuration."""
+    _validate_transform_config_path(config_path)
     path = get_config_path(config_path)
 
     if not path.exists():
@@ -159,6 +188,7 @@ async def execute_transform_background(
         prepared_config: List[Dict[str, Any]] = []
 
         requested_groups = set(group_bys or ([] if group_by is None else [group_by]))
+        requested_transformations = set(transformations or [])
 
         def normalize_group(group: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             if not isinstance(group, dict):
@@ -177,7 +207,8 @@ async def execute_transform_background(
                 widgets = {
                     name: cfg
                     for name, cfg in widgets.items()
-                    if name in transformations
+                    if name in requested_transformations
+                    or f"{group_name}:{name}" in requested_transformations
                 }
 
             if transformations and not widgets:
@@ -222,9 +253,11 @@ async def execute_transform_background(
             group_name = group.get("group_by", "default")
             widgets = group.get("widgets_data", {}) or {}
             for widget_name in widgets.keys():
+                qualified_key = f"{group_name}:{widget_name}"
                 key = (
-                    f"{group_name}:{widget_name}"
+                    qualified_key
                     if widget_name_counts.get(widget_name, 0) > 1
+                    or qualified_key in requested_transformations
                     else widget_name
                 )
 
@@ -280,9 +313,10 @@ async def execute_transform_background(
             job_store.update_progress(job_id, progress_value, message)
             raise_if_cancelled()
 
+        service_group_by = None if group_bys else group_by
         transform_results = await asyncio.to_thread(
             transformer_service.transform_data,
-            group_by,
+            service_group_by,
             None,
             True,
             handle_progress,
@@ -377,6 +411,7 @@ async def execute_transform(
     This starts a background job that processes the transformations
     defined in the transform.yml configuration file.
     """
+    _validate_transform_config_path(request.config_path)
     job_store = _get_job_store(http_request)
 
     # Vérifier qu'aucun job n'est déjà en cours
@@ -683,14 +718,14 @@ async def get_transform_sources(
             if group_by and transform_group != group_by:
                 continue
 
-            # Extract source names
-            transform_sources = transform.get("sources", [])
+            # Extract source names from both plural and legacy singular forms.
+            transform_sources = transform.get("sources")
+            if transform_sources is None and "source" in transform:
+                transform_sources = [transform.get("source")]
             if not isinstance(transform_sources, list):
                 continue
             for source in transform_sources:
-                if not isinstance(source, dict):
-                    continue
-                source_name = source.get("name")
+                source_name = _get_transform_source_name(source)
                 if source_name:
                     sources.append(source_name)
 

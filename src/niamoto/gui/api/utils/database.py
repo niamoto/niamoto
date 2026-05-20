@@ -29,7 +29,7 @@ def open_database(
             result = db.execute_sql("SELECT * FROM table")
         # Connections automatically closed here
     """
-    db = Database(str(path), read_only=read_only)
+    db = Database(str(path), read_only=read_only, optimize=not read_only)
     try:
         yield db
     finally:

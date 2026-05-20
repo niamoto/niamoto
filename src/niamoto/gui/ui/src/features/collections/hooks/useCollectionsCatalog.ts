@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch } from '@/shared/lib/api/fetch'
 
 const API_BASE = '/api/collections'
 export const collectionsCatalogQueryKey = ['collections-catalog'] as const
@@ -86,7 +87,7 @@ async function updateCollection(
   collectionName: string,
   update: CollectionUpdate,
 ): Promise<CollectionMutationResponse> {
-  const response = await fetch(`${API_BASE}/${encodeURIComponent(collectionName)}`, {
+  const response = await apiFetch(`${API_BASE}/${encodeURIComponent(collectionName)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(update),
@@ -97,7 +98,7 @@ async function updateCollection(
 async function createCollection(
   payload: CollectionCreate,
 ): Promise<CollectionMutationResponse> {
-  const response = await fetch(API_BASE, {
+  const response = await apiFetch(API_BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

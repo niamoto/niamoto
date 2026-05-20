@@ -15,6 +15,9 @@ from niamoto.core.plugins.transformers.chains.transform_chain import (
     TransformChain,
     TransformChainConfig,
 )
+from niamoto.core.plugins.transformers.aggregation.statistical_summary import (
+    StatisticalSummary,
+)
 from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.common.exceptions import DataTransformError
@@ -111,6 +114,33 @@ class TestTransformChain:
             transform_chain.validate_config(config)
 
         assert "steps list cannot be empty" in str(exc_info.value)
+
+    def test_validate_config_rejects_duplicate_output_keys(self, transform_chain):
+        """Duplicate output keys would overwrite earlier step results."""
+        config = {
+            "plugin": "transform_chain",
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "count_transformer",
+                        "params": {},
+                        "output_key": "summary",
+                    },
+                    {
+                        "plugin": "statistics_transformer",
+                        "params": {},
+                        "output_key": "summary",
+                    },
+                ],
+            },
+        }
+
+        with pytest.raises(DataTransformError) as exc_info:
+            transform_chain.validate_config(config)
+
+        message = str(exc_info.value)
+        assert "Duplicate output_key 'summary'" in message
+        assert "steps 1 and 2" in message
 
     def test_validate_config_invalid_plugin(self, transform_chain):
         """Test configuration validation with invalid plugin reference."""
@@ -506,12 +536,39 @@ class TestTransformChain:
         assert resolved["nested"]["dict"]["static"] == 42
         assert resolved["simple"] == {"complete": True}
 
-    @pytest.mark.integration
-    def test_real_plugin_integration(self, transform_chain, sample_dataframe):
-        """Integration test with real plugin classes (if available)."""
-        # This test would use actual plugin classes if they're available
-        # For now, it's marked as integration and can be skipped in unit tests
-        pytest.skip("Integration test - requires actual plugin implementations")
+    def test_real_plugin_integration(
+        self, transform_chain, sample_dataframe, clear_registry
+    ):
+        """Test TransformChain with a real registered transformer plugin."""
+        PluginRegistry.register_plugin(
+            "statistical_summary", StatisticalSummary, PluginType.TRANSFORMER
+        )
+        config = {
+            "plugin": "transform_chain",
+            "params": {
+                "steps": [
+                    {
+                        "plugin": "statistical_summary",
+                        "params": {
+                            "field": "value",
+                            "stats": ["mean", "max"],
+                            "units": "items",
+                            "max_value": 10,
+                        },
+                        "output_key": "value_stats",
+                    }
+                ]
+            },
+        }
+
+        result = transform_chain.transform(sample_dataframe, config)
+
+        assert result["value_stats"] == {
+            "mean": 20.0,
+            "max": 30.0,
+            "units": "items",
+            "max_value": 30.0,
+        }
 
     def test_transform_with_result_gdf_key(self, transform_chain, sample_geodataframe):
         """Test handling of result_gdf key in step results."""

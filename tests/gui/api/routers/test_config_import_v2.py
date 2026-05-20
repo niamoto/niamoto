@@ -1,6 +1,9 @@
 """Tests for EntityRegistry v2 import configuration routes."""
 
 from datetime import datetime
+from pathlib import Path
+import threading
+import time
 
 from fastapi.testclient import TestClient
 
@@ -158,6 +161,81 @@ def test_update_config_rejects_invalid_payload_without_writing(monkeypatch, tmp_
         assert files[config_name].read_text(encoding="utf-8") == original[config_name]
 
 
+def test_update_config_uses_export_write_lock(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True)
+    export_path = config_dir / "export.yml"
+    export_path.write_text("exports: []\n", encoding="utf-8")
+    writes = []
+    response_holder = {}
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(config_router, "ensure_config_dir", lambda: config_dir)
+    monkeypatch.setattr(
+        config_router,
+        "_write_yaml_atomic",
+        lambda path, content: writes.append((path, content)),
+    )
+
+    client = TestClient(create_app())
+    config_router.EXPORT_CONFIG_WRITE_LOCK.acquire()
+
+    def update_export():
+        response_holder["response"] = client.put(
+            "/api/config/export",
+            json={"content": {"exports": []}, "backup": False},
+        )
+
+    thread = threading.Thread(target=update_export)
+    try:
+        thread.start()
+        time.sleep(0.05)
+        assert writes == []
+    finally:
+        config_router.EXPORT_CONFIG_WRITE_LOCK.release()
+
+    thread.join(timeout=2)
+
+    assert not thread.is_alive()
+    assert response_holder["response"].status_code == 200
+    assert writes == [(export_path, {"exports": []})]
+
+
+def test_update_config_rejects_structurally_invalid_export_without_writing(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True)
+    export_path = config_dir / "export.yml"
+    original_text = "exports: []\n"
+    export_path.write_text(original_text, encoding="utf-8")
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(config_router, "ensure_config_dir", lambda: config_dir)
+
+    response = TestClient(create_app()).put(
+        "/api/config/export",
+        json={
+            "content": {
+                "exports": [
+                    {
+                        "name": "broken_target",
+                        "enabled": True,
+                    }
+                ]
+            },
+            "backup": False,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["valid"] is False
+    assert "Invalid export configuration" in response.json()["detail"]["errors"][0]
+    assert export_path.read_text(encoding="utf-8") == original_text
+
+
 def test_restore_backup_rejects_paths_outside_backup_directory(monkeypatch, tmp_path):
     work_dir = tmp_path / "project"
     config_dir = work_dir / "config"
@@ -191,6 +269,31 @@ def test_restore_backup_rejects_paths_outside_backup_directory(monkeypatch, tmp_
     assert traversal_response.status_code == 400
     assert config_path.read_text(encoding="utf-8") == "version: '2'\nentities: {}\n"
     assert list(backup_dir.iterdir()) == []
+
+
+def test_restore_backup_rejects_invalid_yaml_without_replacing_config(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    backup_dir = config_dir / "backups"
+    backup_dir.mkdir(parents=True)
+    config_path = config_dir / "import.yml"
+    original_content = "version: '2'\nentities: {}\n"
+    config_path.write_text(original_content, encoding="utf-8")
+    (backup_dir / "import_bad.yml").write_text(
+        "version: '2'\nentities: [\n", encoding="utf-8"
+    )
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    response = TestClient(create_app()).post(
+        "/api/config/import/backup/restore",
+        json={"backup_filename": "import_bad.yml"},
+    )
+
+    assert response.status_code == 500
+    assert config_path.read_text(encoding="utf-8") == original_content
 
 
 def test_save_import_v2_rejects_missing_entities_without_writing(
@@ -236,6 +339,47 @@ entities:
     assert response.status_code == 200
     assert response.json()["success"] is True
     assert (config_dir / "import.yml").read_text(encoding="utf-8") == valid_config
+
+
+def test_save_import_v2_preserves_existing_file_when_atomic_replace_fails(
+    monkeypatch, tmp_path
+):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    import_path = config_dir / "import.yml"
+    original_config = "version: '2'\nentities:\n  datasets: {}\n  references: {}\n"
+    import_path.write_text(original_config, encoding="utf-8")
+    monkeypatch.setattr(config_router, "ensure_config_dir", lambda: config_dir)
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: tmp_path)
+    original_replace = Path.replace
+
+    def fail_replace(temp_path: Path, target_path: Path):
+        if target_path.resolve() == import_path.resolve():
+            raise OSError("disk full")
+        return original_replace(temp_path, target_path)
+
+    monkeypatch.setattr(Path, "replace", fail_replace)
+    valid_config = """
+version: '2'
+entities:
+  datasets:
+    plots:
+      connector:
+        type: file
+        format: csv
+        path: imports/plots.csv
+      schema: {}
+  references: {}
+""".lstrip()
+
+    response = TestClient(create_app()).put(
+        "/api/config/import/v2", json={"config": valid_config}
+    )
+
+    assert response.status_code == 500
+    assert "disk full" in response.json()["detail"]
+    assert import_path.read_text(encoding="utf-8") == original_config
+    assert not list(config_dir.glob("*.tmp"))
 
 
 def test_validate_import_config_accepts_entities_schema():
@@ -342,6 +486,53 @@ entities:
 
     assert response.status_code == 200
     assert response.json() == {"valid": True, "errors": {}, "warnings": {}}
+
+
+def test_validate_import_v2_rejects_empty_entities_config():
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/config/import/v2/validate",
+        json={"config": "entities: {}\n"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "valid": False,
+        "errors": {"_global": ["At least one dataset or reference must be configured"]},
+        "warnings": {},
+    }
+
+
+def test_validate_import_v2_rejects_non_snake_case_entity_names():
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/config/import/v2/validate",
+        json={
+            "config": """
+entities:
+  datasets:
+    Bad Name:
+      connector:
+        type: file
+        format: csv
+        path: imports/occurrences.csv
+      schema:
+        id_field: id
+        fields: []
+""".lstrip()
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "valid": False,
+        "errors": {
+            "dataset.Bad Name": [
+                "Entity keys must be snake_case and start with a lowercase letter"
+            ]
+        },
+        "warnings": {},
+    }
 
 
 def test_validate_import_v2_accepts_reference_without_kind():

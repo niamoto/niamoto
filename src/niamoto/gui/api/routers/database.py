@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+import re
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -61,6 +62,21 @@ class TableStats(BaseModel):
     null_counts: Dict[str, int]
     unique_counts: Dict[str, int]
     data_types: Dict[str, str]
+
+
+def _default_preview_order_clause(db: Any, table_name: str) -> str:
+    """Build a stable default ORDER BY clause for paginated previews."""
+    columns = db.get_columns(table_name)
+    if not columns:
+        return ""
+
+    primary_key = next((col["name"] for col in columns if col.get("primary_key")), None)
+    column_names = [col["name"] for col in columns]
+    order_column = primary_key or next(
+        (col for col in column_names if col.lower() == "id"),
+        column_names[0],
+    )
+    return f" ORDER BY {db.engine.dialect.identifier_preparer.quote(order_column)}"
 
 
 def get_database_path() -> Optional[Path]:
@@ -274,13 +290,17 @@ async def get_table_preview(
                 )
 
             quoted_table = preparer.quote(table_name)
+            order_clause = _default_preview_order_clause(db, table_name)
 
             with db.engine.connect() as conn:
                 result = conn.execute(text(f"SELECT COUNT(*) FROM {quoted_table}"))
                 total_rows = result.scalar() or 0
 
                 result = conn.execute(
-                    text(f"SELECT * FROM {quoted_table} LIMIT :limit OFFSET :offset"),
+                    text(
+                        f"SELECT * FROM {quoted_table}{order_clause} "
+                        "LIMIT :limit OFFSET :offset"
+                    ),
                     {"limit": limit, "offset": offset},
                 )
 
@@ -313,7 +333,7 @@ async def get_table_preview(
 
 
 @router.get("/tables/{table_name}/stats", response_model=TableStats)
-async def get_table_stats(table_name: str):
+def get_table_stats(table_name: str):
     """
     Get statistics for a specific table.
 
@@ -329,7 +349,7 @@ async def get_table_stats(table_name: str):
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path) as db:
+        with open_database(db_path, read_only=True) as db:
             preparer = db.engine.dialect.identifier_preparer
 
             if table_name not in db.get_table_names():
@@ -424,8 +444,9 @@ async def execute_query(
         "create",
         "pragma",
     ]
+    keyword_scan = re.sub(r"'(?:''|[^'])*'|\"(?:\"\"|[^\"])*\"", "", query_lower)
     for keyword in dangerous_keywords:
-        if keyword in query_lower:
+        if re.search(rf"\b{keyword}\b", keyword_scan):
             raise HTTPException(
                 status_code=400, detail=f"Query contains forbidden keyword: {keyword}"
             )
@@ -435,7 +456,7 @@ async def execute_query(
         raise HTTPException(status_code=404, detail="Database not found")
 
     try:
-        with open_database(db_path) as db:
+        with open_database(db_path, read_only=True) as db:
             with db.engine.connect() as conn:
                 params: Dict[str, Any] = {"_limit": max(1, int(limit))}
                 query_to_run = (

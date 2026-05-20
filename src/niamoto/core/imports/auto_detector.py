@@ -192,15 +192,15 @@ class AutoDetector:
         # Process each profile
         for profile in profiles:
             # Determine category based on type and name
-            if self._is_reference_entity(profile):
+            if self._is_shape_entity(profile):
+                config["shapes"].append(self._create_shape_config(profile))
+            elif self._is_reference_entity(profile):
                 # Skip if this is a taxonomy file and we already extracted from occurrences
                 if taxonomy_extracted and profile.detected_type == "hierarchical":
                     continue
                 config["references"][profile.suggested_name] = (
                     self._create_reference_config(profile)
                 )
-            elif self._is_shape_entity(profile):
-                config["shapes"].append(self._create_shape_config(profile))
             elif self._is_layer_entity(profile):
                 config["layers"].append(self._create_layer_config(profile))
             else:
@@ -240,8 +240,11 @@ class AutoDetector:
                         return True
 
         # Plot/location files are references
-        if matches_entity_name(profile.suggested_name, "plot") or matches_entity_name(
-            profile.suggested_name, "locality"
+        suggested_name = (profile.suggested_name or "").lower()
+        if (
+            matches_entity_name(profile.suggested_name, "plot")
+            or matches_entity_name(profile.suggested_name, "locality")
+            or suggested_name in {"plots", "locations", "localities"}
         ):
             # Small plot files are references
             if profile.record_count < 10000:

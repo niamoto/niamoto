@@ -33,6 +33,7 @@ class _FakeResponse:
 class _FakeClient:
     def __init__(self, response: _FakeResponse):
         self._response = response
+        self.calls = []
 
     async def __aenter__(self):
         return self
@@ -40,10 +41,12 @@ class _FakeClient:
     async def __aexit__(self, exc_type, exc, tb):
         return False
 
-    async def post(self, *_args, **_kwargs):
+    async def post(self, *args, **kwargs):
+        self.calls.append(("post", args, kwargs))
         return self._response
 
-    async def delete(self, *_args, **_kwargs):
+    async def delete(self, *args, **kwargs):
+        self.calls.append(("delete", args, kwargs))
         return self._response
 
 
@@ -79,9 +82,17 @@ def test_netlify_deployer_reports_live_url(monkeypatch, tmp_path: Path) -> None:
         "niamoto.core.plugins.deployers.netlify.CredentialService.get",
         lambda *_args, **_kwargs: "netlify-token",
     )
+    created_clients = []
+
+    def fake_async_client(**kwargs):
+        client = _FakeClient(_FakeResponse(201, {"id": "deploy-123"}))
+        client.init_kwargs = kwargs
+        created_clients.append(client)
+        return client
+
     monkeypatch.setattr(
         "niamoto.core.plugins.deployers.netlify.httpx.AsyncClient",
-        lambda **_kwargs: _FakeClient(_FakeResponse(201, {"id": "deploy-123"})),
+        fake_async_client,
     )
 
     async def fake_poll(*_args, **_kwargs):
@@ -106,6 +117,44 @@ def test_netlify_deployer_reports_live_url(monkeypatch, tmp_path: Path) -> None:
     assert any("SUCCESS: Deployment is live!" in line for line in lines)
     assert any("URL: https://niamoto-test.netlify.app" in line for line in lines)
     assert lines[-1].strip() == "data: DONE"
+    client = created_clients[0]
+    assert client.init_kwargs["base_url"] == "https://api.netlify.com"
+    assert client.init_kwargs["headers"] == {"Authorization": "Bearer netlify-token"}
+    method, args, kwargs = client.calls[0]
+    assert method == "post"
+    assert args == ("/api/v1/sites/site-123/deploys",)
+    assert kwargs["headers"] == {"Content-Type": "application/zip"}
+    with zipfile.ZipFile(io.BytesIO(kwargs["content"])) as archive:
+        assert archive.read("index.html") == b"hello"
+
+
+def test_netlify_deployer_rejects_missing_exports_before_http(
+    monkeypatch, tmp_path: Path
+) -> None:
+    calls = []
+
+    def fail_async_client(**_kwargs):
+        calls.append("called")
+        raise AssertionError("Netlify client should not be created")
+
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.netlify.httpx.AsyncClient",
+        fail_async_client,
+    )
+
+    deployer = NetlifyDeployer()
+    config = DeployConfig(
+        platform="netlify",
+        exports_dir=tmp_path / "missing",
+        project_name="niamoto-test",
+        extra={"site_id": "site-123"},
+    )
+
+    lines = asyncio.run(_collect_lines(deployer.deploy(config)))
+
+    assert any("ERROR: Export directory not found" in line for line in lines)
+    assert lines[-1].strip() == "data: DONE"
+    assert calls == []
 
 
 def test_netlify_unpublish_reports_network_errors(monkeypatch, tmp_path: Path) -> None:

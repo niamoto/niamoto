@@ -18,6 +18,7 @@ from niamoto.gui.api.services.preview_engine import (
     PreviewMode,
     PreviewRequest,
 )
+from niamoto.gui.api.desktop_auth import require_desktop_mutation_auth
 from niamoto.gui.api.services.preview_engine.engine import get_preview_engine
 from niamoto.gui.api.services.preview_utils import error_html, wrap_html_response
 
@@ -157,8 +158,10 @@ async def get_preview(
 
 
 @router.post("/preview", response_class=HTMLResponse)
-async def post_preview(body: InlinePreviewBody):
+async def post_preview(body: InlinePreviewBody, http_request: Request):
     """Génère une preview HTML à partir d'une config inline ou d'un template_id."""
+    require_desktop_mutation_auth(http_request)
+
     engine = get_preview_engine()
     if engine is None:
         return _error_html("Projet Niamoto non configuré")

@@ -382,6 +382,72 @@ def test_pipeline_history_merges_terminal_import_jobs(monkeypatch):
     assert history[0]["group_by"] == "occurrences"
 
 
+def test_pipeline_status_reports_active_in_memory_import_job(tmp_path, monkeypatch):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    db_dir = work_dir / "db"
+    config_dir.mkdir(parents=True)
+    db_dir.mkdir(parents=True)
+    (config_dir / "transform.yml").write_text("[]\n", encoding="utf-8")
+    (config_dir / "export.yml").write_text("exports: []\n", encoding="utf-8")
+
+    class DummyStore:
+        def get_running_job(self):
+            return None
+
+        def get_last_run(self, *args, **kwargs):
+            return None
+
+    import_jobs = {
+        "import-running": {
+            "id": "import-running",
+            "status": "running",
+            "import_type": "dataset",
+            "entity_name": "occurrences",
+            "created_at": "2026-04-25T09:00:00+00:00",
+            "started_at": "2026-04-25T09:00:00+00:00",
+            "progress": 42,
+            "message": "Importing occurrences",
+        }
+    }
+    monkeypatch.setattr(pipeline_router, "import_jobs", import_jobs)
+    monkeypatch.setattr(pipeline_router, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(
+        pipeline_router, "get_database_path", lambda: db_dir / "niamoto.duckdb"
+    )
+
+    app = FastAPI()
+    app.state.job_store = DummyStore()
+    app.state.job_store_work_dir = work_dir
+    monkeypatch.setattr(
+        pipeline_router, "resolve_job_store", lambda app: app.state.job_store
+    )
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/pipeline/status",
+            "headers": [],
+            "app": app,
+        }
+    )
+
+    response = asyncio.run(pipeline_router.get_pipeline_status(request))
+
+    assert response.data.status == "running"
+    assert response.data.items[0].name == "occurrences"
+    assert response.data.items[0].status == "running"
+    assert response.running_job == {
+        "id": "import-running",
+        "type": "import",
+        "group_by": "occurrences",
+        "group_bys": None,
+        "progress": 42,
+        "message": "Importing occurrences",
+        "started_at": "2026-04-25T09:00:00+00:00",
+    }
+
+
 def test_pipeline_history_survives_import_jobs_mutation_during_snapshot(monkeypatch):
     class MutatingImportJobs(dict):
         def __init__(self, *args, **kwargs):

@@ -451,7 +451,11 @@ class InteractiveMapWidget(WidgetPlugin):
         ]
 
     def _prepare_polygon_feature_collection(
-        self, geojson_data: dict
+        self,
+        geojson_data: dict,
+        id_prefix: Optional[str] = None,
+        layer: Optional[str] = None,
+        start_value: int = 1,
     ) -> tuple[Optional[pd.DataFrame], Optional[dict]]:
         """Prepare polygon GeoJSON for choropleth outline rendering."""
         if (
@@ -470,9 +474,14 @@ class InteractiveMapWidget(WidgetPlugin):
                 continue
             prepared_feature = copy.deepcopy(feature)
             feature_id = prepared_feature.get("id", index)
+            if id_prefix:
+                feature_id = f"{id_prefix}_{feature_id}"
             prepared_feature["id"] = feature_id
             prepared_features.append(prepared_feature)
-            rows.append({"shape_id": feature_id, "value": index + 1})
+            row = {"shape_id": feature_id, "value": start_value + len(rows)}
+            if layer:
+                row["layer"] = layer
+            rows.append(row)
 
         if not prepared_features:
             return None, None
@@ -1051,6 +1060,8 @@ class InteractiveMapWidget(WidgetPlugin):
         if isinstance(data, pd.DataFrame):
             if not data.empty:
                 df_plot = data.copy()
+                if params.geojson_source:
+                    geojson_plot_data = self._prepare_geojson(df_plot, params)
         elif isinstance(data, dict):
             # Check for TopoJSON structure first (e.g., from 'shape' table 'geography')
             if (
@@ -1067,15 +1078,14 @@ class InteractiveMapWidget(WidgetPlugin):
                     ).to_geojson()
                     geojson_plot_data = json.loads(geojson_str)  # Parse string to dict
                     map_mode = "choropleth_outline"
-                    # Create a dummy DataFrame needed by choropleth_map
-                    # Add an 'id' property to the first feature for matching
-                    if geojson_plot_data and geojson_plot_data.get("features"):
-                        geojson_plot_data["features"][0]["id"] = (
-                            0  # Add id for matching
+                    df_plot, geojson_plot_data = (
+                        self._prepare_polygon_feature_collection(
+                            geojson_plot_data,
+                            id_prefix="shape",
+                            layer="shape",
                         )
-                        df_plot = pd.DataFrame(
-                            {"shape_id": [0], "value": [1]}
-                        )  # Dummy df
+                    )
+                    if df_plot is not None and geojson_plot_data is not None:
                         # Also handle forest_cover_coords if present
                         if (
                             "forest_cover_coords" in data
@@ -1088,26 +1098,23 @@ class InteractiveMapWidget(WidgetPlugin):
                                     forest_topo_data, object_name="data"
                                 ).to_geojson()
                                 forest_geojson_data = json.loads(forest_geojson_str)
-                                # Add forest data as an additional feature with distinct ID
-                                if forest_geojson_data and forest_geojson_data.get(
-                                    "features"
+                                forest_df, forest_geojson_data = (
+                                    self._prepare_polygon_feature_collection(
+                                        forest_geojson_data,
+                                        id_prefix="forest",
+                                        layer="forest",
+                                        start_value=len(df_plot) + 1,
+                                    )
+                                )
+                                if (
+                                    forest_df is not None
+                                    and forest_geojson_data is not None
                                 ):
-                                    # Assign a different ID for the forest layer
-                                    for feature in forest_geojson_data.get(
-                                        "features", []
-                                    ):
-                                        feature["id"] = 1  # Different ID than the shape
-                                    # Add forest features to the main GeoJSON
                                     geojson_plot_data["features"].extend(
                                         forest_geojson_data["features"]
                                     )
-                                    # Update DataFrame to include forest layer
-                                    df_plot = pd.DataFrame(
-                                        {
-                                            "shape_id": [0, 1],
-                                            "value": [1, 2],
-                                            "layer": ["shape", "forest"],
-                                        }
+                                    df_plot = pd.concat(
+                                        [df_plot, forest_df], ignore_index=True
                                     )
                             except Exception as e:
                                 logger.error(
@@ -1230,6 +1237,8 @@ class InteractiveMapWidget(WidgetPlugin):
                 if not params.location_field:
                     return "<p class='error'>Configuration Error: Location field is required for choropleth_map.</p>"
                 required_cols.add(params.location_field)
+                if params.geojson_source and geojson_plot_data is None:
+                    return "<p class='error'>Configuration Error: GeoJSON source data is required for choropleth_map.</p>"
 
         # Check for missing columns *in the DataFrame used for plotting*
         # For choropleth_outline, df_plot is dummy, so skip this check

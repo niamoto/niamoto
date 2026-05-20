@@ -9,6 +9,7 @@ data processing, content generation, and deployment.
 """
 
 import click
+from typing import Callable, Optional
 from .base import RichCLI
 from .initialize import init_environment  # Import de la commande unique
 from .imports import import_commands
@@ -22,7 +23,7 @@ from .gui import gui
 from .optimize import optimize_command
 
 
-def create_cli() -> click.Group:
+def create_cli(startup_callback: Optional[Callable[[], None]] = None) -> click.Group:
     """Create and configure the main CLI group with all commands.
 
     This function initializes the Niamoto command-line interface (CLI)
@@ -42,7 +43,8 @@ def create_cli() -> click.Group:
     @click.group(cls=RichCLI)
     def cli():
         """Command line interface for Niamoto."""
-        pass
+        if startup_callback is not None:
+            startup_callback()
 
     # Register individual commands or command groups
     cli.add_command(init_environment, name="init")

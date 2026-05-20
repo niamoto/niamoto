@@ -227,7 +227,7 @@ class TestTableViewWidget(NiamotoTestCase):
         self.assertIn("<table", result)
         self.assertLess(result.find("Species A"), result.find("100"))
         self.assertLess(result.find("100"), result.find("Species B"))
-        self.assertLess(result.find("300"), result.find("200"))
+        self.assertLess(result.find("200"), result.find("300"))
 
     def test_render_with_all_missing_sort_columns(self):
         """Test rendering when all sort columns are missing."""

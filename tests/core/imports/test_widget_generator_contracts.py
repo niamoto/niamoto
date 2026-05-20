@@ -112,9 +112,7 @@ class TestWidgetGeneratorByCategory:
         suggestions = gen.generate_for_columns([profile])
         assert len(suggestions) >= 1
         transformers = {s.transformer_plugin for s in suggestions}
-        assert (
-            "categorical_distribution" in transformers or "top_ranking" in transformers
-        )
+        assert "categorical_distribution" in transformers
 
     def test_binary_suggests_binary_counter(self, gen):
         """BOOLEAN → binary_counter + donut_chart."""
@@ -284,8 +282,7 @@ class TestSemanticProfileShape:
         # schema_version >= 2
         assert profile["schema_version"] >= 2
 
-        # profiling_status is valid
-        assert profile["profiling_status"] in ("complete", "partial", "failed")
+        assert profile["profiling_status"] == "complete"
 
         # columns is a list of dicts
         assert isinstance(profile["columns"], list)
@@ -300,6 +297,9 @@ class TestSemanticProfileShape:
 
         # transformer_suggestions is a dict
         assert isinstance(profile["transformer_suggestions"], dict)
+        assert {"height", "species"}.issubset(profile["transformer_suggestions"])
+        assert profile["transformer_suggestions"]["height"]
+        assert profile["transformer_suggestions"]["species"]
 
     def test_suggestion_has_required_fields(self, tmp_path):
         """Each suggestion in transformer_suggestions has required fields."""
@@ -324,7 +324,13 @@ class TestSemanticProfileShape:
             df=df, csv_path=csv_path, entity_name="test"
         )
 
+        assert profile["profiling_status"] == "complete"
+        assert {"height", "species"}.issubset(profile["transformer_suggestions"])
+        assert profile["transformer_suggestions"]["height"]
+        assert profile["transformer_suggestions"]["species"]
+
         for col_name, suggestions in profile["transformer_suggestions"].items():
+            assert suggestions, f"Expected suggestions for {col_name}"
             for s in suggestions:
                 assert "transformer" in s, (
                     f"Missing 'transformer' in suggestion for {col_name}"

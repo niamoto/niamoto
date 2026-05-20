@@ -7,6 +7,7 @@ shared definitions instead of scattering strings across the codebase.
 
 from __future__ import annotations
 
+import re
 from typing import Iterable, Optional, Sequence
 
 
@@ -15,6 +16,7 @@ STABLE_ENTITY_SYNONYMS = {
     "taxon": (
         "taxon",
         "taxa",
+        "taxonref",
     ),
     "locality": ("locality", "location", "site", "localite", "lieu"),
 }
@@ -133,6 +135,12 @@ DERIVED_TAXON_NAME_PATTERNS = (
 )
 
 
+def _normalized_tokens(value: str) -> set[str]:
+    """Split a domain identifier into explicit lowercase tokens."""
+    normalized = value.lower().replace("-", "_")
+    return {token for token in re.split(r"[^a-z0-9]+", normalized) if token}
+
+
 def matches_entity_name(
     value: Optional[str], entity: str, *, include_fallback: bool = True
 ) -> bool:
@@ -141,12 +149,14 @@ def matches_entity_name(
         return False
 
     normalized = value.lower().replace("-", "_")
+    tokens = _normalized_tokens(normalized)
     synonyms = list(STABLE_ENTITY_SYNONYMS.get(entity, ()))
     if include_fallback:
         synonyms.extend(FALLBACK_ENTITY_SYNONYMS.get(entity, ()))
 
     for synonym in synonyms:
-        if synonym in normalized:
+        synonym_normalized = synonym.lower().replace("-", "_")
+        if synonym_normalized == normalized or synonym_normalized in tokens:
             return True
     return False
 
@@ -181,7 +191,10 @@ def find_taxon_identifier_column(columns: Sequence[str]) -> Optional[str]:
     """Find the most likely taxon identifier column in a source dataset."""
     for column in columns:
         lower = column.lower()
-        if "id" in lower and matches_entity_name(lower, "taxon"):
+        tokens = _normalized_tokens(lower)
+        if lower in RELATIONSHIP_IDENTIFIER_TARGETS["taxon"] or (
+            "id" in tokens and matches_entity_name(lower, "taxon")
+        ):
             return column
     return None
 

@@ -58,6 +58,22 @@ class CompatibilityResult(BaseModel):
     suggestions: List[str] = []
 
 
+def _validate_plugin_config(
+    plugin_class: type, config: Optional[Dict[str, Any]]
+) -> str | None:
+    """Return a validation error string when the submitted plugin config is invalid."""
+    schema = getattr(plugin_class, "param_schema", None) or getattr(
+        plugin_class, "config_model", None
+    )
+    if schema is None:
+        return None
+    try:
+        schema.model_validate(config or {})
+    except Exception as exc:
+        return str(exc)
+    return None
+
+
 def load_all_plugins():
     """
     Load all plugins from the plugin directories to populate the registry.
@@ -169,9 +185,11 @@ def get_plugin_info_from_class(
             # Get the UI widget type from json_schema_extra if available
             ui_widget = None
             if isinstance(field_info, dict):
-                extra = field_info.get("json_schema_extra", {})
-                if isinstance(extra, dict):
-                    ui_widget = extra.get("ui:widget")
+                ui_widget = field_info.get("ui:widget")
+                if not ui_widget:
+                    extra = field_info.get("json_schema_extra", {})
+                    if isinstance(extra, dict):
+                        ui_widget = extra.get("ui:widget")
 
             # Map JSON schema type to our simplified type
             json_type = field_info.get("type", "string")
@@ -298,37 +316,6 @@ async def get_plugin_json_schema_priority_route(plugin_id: str):
     return await get_plugin_json_schema(plugin_id)
 
 
-@router.get("/{plugin_id}", response_model=PluginInfo)
-async def get_plugin(plugin_id: str):
-    """
-    Get detailed information about a specific plugin.
-
-    Args:
-        plugin_id: ID of the plugin
-
-    Returns:
-        Detailed plugin information
-    """
-    try:
-        # Ensure all plugins are loaded
-        load_all_plugins()
-
-        # Try to find the plugin in any type
-        for plugin_type in PluginType:
-            if PluginRegistry.has_plugin(plugin_id, plugin_type):
-                plugin_class = PluginRegistry.get_plugin(plugin_id, plugin_type)
-                return get_plugin_info_from_class(plugin_id, plugin_class, plugin_type)
-
-        raise HTTPException(status_code=404, detail=f"Plugin '{plugin_id}' not found")
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error retrieving plugin: {str(e)}"
-        )
-
-
 @router.get("/categories/list")
 async def list_categories():
     """
@@ -429,6 +416,14 @@ async def check_compatibility(check: CompatibilityCheck):
                 suggestions=["Use one of: " + ", ".join(plugin_info.compatible_inputs)],
             )
 
+        config_error = _validate_plugin_config(plugin_class, check.config)
+        if config_error:
+            return CompatibilityResult(
+                compatible=False,
+                reason=f"Plugin config is invalid: {config_error}",
+                suggestions=["Provide a config that matches the plugin schema."],
+            )
+
         result = CompatibilityResult(
             compatible=True,
             reason=f"Plugin '{check.plugin_id}' accepts the provided source data.",
@@ -442,6 +437,37 @@ async def check_compatibility(check: CompatibilityCheck):
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error checking compatibility: {str(e)}"
+        )
+
+
+@router.get("/{plugin_id}", response_model=PluginInfo)
+async def get_plugin(plugin_id: str):
+    """
+    Get detailed information about a specific plugin.
+
+    Args:
+        plugin_id: ID of the plugin
+
+    Returns:
+        Detailed plugin information
+    """
+    try:
+        # Ensure all plugins are loaded
+        load_all_plugins()
+
+        # Try to find the plugin in any type
+        for plugin_type in PluginType:
+            if PluginRegistry.has_plugin(plugin_id, plugin_type):
+                plugin_class = PluginRegistry.get_plugin(plugin_id, plugin_type)
+                return get_plugin_info_from_class(plugin_id, plugin_class, plugin_type)
+
+        raise HTTPException(status_code=404, detail=f"Plugin '{plugin_id}' not found")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error retrieving plugin: {str(e)}"
         )
 
 

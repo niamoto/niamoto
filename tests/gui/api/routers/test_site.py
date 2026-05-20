@@ -1,5 +1,6 @@
 """Integration tests for site router endpoints."""
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from pathlib import Path
 from unittest.mock import patch
 from datetime import datetime
@@ -88,6 +89,82 @@ def test_export_bibtex_escapes_structural_field_values():
     assert "title     = {Safe title \\} @misc\\{injected,}," in response.text
     assert "journal   = {Journal \\{with braces\\}}," in response.text
     assert "url       = {https://example.test/a?x=\\{y\\}\\&z=1}," in response.text
+
+
+def test_export_bibtex_suffixes_duplicate_keys_in_linear_counter_order():
+    client = TestClient(create_app())
+    reference = {
+        "type": "article",
+        "authors": "Doe, Jane",
+        "title": "Same title",
+        "year": "2024",
+    }
+
+    response = client.post(
+        "/api/site/export-bibtex",
+        json=[reference, reference, reference],
+    )
+
+    assert response.status_code == 200, response.text
+    assert "@article{doe2024same," in response.text
+    assert "@article{doe2024same2," in response.text
+    assert "@article{doe2024same3," in response.text
+
+
+def test_export_bibtex_rejects_too_many_references(monkeypatch):
+    monkeypatch.setattr(site_router, "MAX_BIBTEX_EXPORT_REFERENCES", 1)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/site/export-bibtex",
+        json=[
+            {"type": "article", "title": "First"},
+            {"type": "article", "title": "Second"},
+        ],
+    )
+
+    assert response.status_code == 413
+    assert response.json()["detail"] == "Too many references to export. Maximum is 1."
+
+
+def test_import_bibtex_resolves_string_macros():
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/site/import-bibtex",
+        files={
+            "file": (
+                "references.bib",
+                b"""
+@string{jeco = {Journal of Ecology}}
+
+@article{doe2024,
+  author = {Doe, Jane},
+  title = {A study},
+  journal = jeco,
+  year = {2024}
+}
+""",
+                "application/x-bibtex",
+            )
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "success": True,
+        "data": [
+            {
+                "type": "article",
+                "title": "A study",
+                "authors": "Doe, Jane",
+                "year": "2024",
+                "journal": "Journal of Ecology",
+            }
+        ],
+        "count": 1,
+        "errors": [],
+    }
 
 
 def test_import_bibtex_rejects_oversized_upload(monkeypatch):
@@ -400,6 +477,18 @@ def test_preview_markdown_sanitizes_user_controlled_html():
     assert "alert(1)" in html
 
 
+def test_preview_markdown_rejects_oversized_content(monkeypatch):
+    client = TestClient(create_app())
+    oversized_content = "x" * (site_router.MAX_MARKDOWN_PREVIEW_SIZE_BYTES + 1)
+
+    response = client.post(
+        "/api/site/preview-markdown",
+        json={"content": oversized_content},
+    )
+
+    assert response.status_code == 413
+
+
 class TestSiteGroups:
     """Regression tests for group listing in the Site Builder."""
 
@@ -615,6 +704,51 @@ class TestSiteGroups:
             assert data["navigation"][0]["url"] == "/index.html"
             assert data["footer_navigation"][0]["links"][0]["url"] == "/index.html"
 
+    def test_get_site_config_preserves_static_page_extra_fields(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(
+                config_dir / "export.yml",
+                {
+                    "exports": [
+                        {
+                            "name": "web_pages",
+                            "enabled": True,
+                            "exporter": "html_page_exporter",
+                            "params": {},
+                            "static_pages": [
+                                {
+                                    "name": "Legal",
+                                    "template": "page.html",
+                                    "output_file": "legal.html",
+                                    "layout": "narrow",
+                                    "context": {
+                                        "title": "Legal",
+                                        "content_source": "content/legal.md",
+                                    },
+                                }
+                            ],
+                            "groups": [],
+                        }
+                    ]
+                },
+            )
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.get("/api/site/config")
+                assert response.status_code == 200, response.text
+
+            page = response.json()["static_pages"][0]
+            assert page["layout"] == "narrow"
+            assert page["context"]["content_source"] == "content/legal.md"
+
     def test_get_site_config_keeps_empty_static_pages_when_missing(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir)
@@ -805,6 +939,43 @@ class TestSiteGroups:
                 "content_source": "content/legal.md",
             }
 
+    def test_update_site_config_waits_for_export_config_write_lock(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(config_dir / "export.yml", {"exports": []})
+            payload = {
+                "site": {"title": "Niamoto", "lang": "fr"},
+                "navigation": [],
+                "footer_navigation": [],
+                "static_pages": [],
+            }
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                site_router.SITE_CONFIG_WRITE_LOCK.acquire()
+                try:
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        future = executor.submit(
+                            client.put, "/api/site/config", json=payload
+                        )
+                        with pytest.raises(TimeoutError):
+                            future.result(timeout=0.1)
+
+                        site_router.SITE_CONFIG_WRITE_LOCK.release()
+                        response = future.result(timeout=5)
+                finally:
+                    if site_router.SITE_CONFIG_WRITE_LOCK._is_owned():
+                        site_router.SITE_CONFIG_WRITE_LOCK.release()
+
+            assert response.status_code == 200, response.text
+            assert not list(config_dir.glob("*.tmp"))
+
     def test_update_site_config_rejects_multiple_home_templates(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir)
@@ -981,6 +1152,39 @@ class TestSiteGroups:
             assert response.status_code == 403
             assert response.json()["detail"] == "Access denied: path outside project"
 
+    def test_preview_template_rejects_content_source_outside_site_content_roots(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            project.mkdir()
+            (project / ".env").write_text("SECRET=1", encoding="utf-8")
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+
+                response = client.post(
+                    "/api/site/preview-template",
+                    json={
+                        "template": "page.html",
+                        "context": {
+                            "title": "Methodology",
+                            "content_source": ".env",
+                        },
+                        "site": {"title": "Niamoto", "lang": "fr"},
+                        "navigation": [],
+                        "footer_navigation": [],
+                    },
+                )
+
+            assert response.status_code == 403
+            assert (
+                response.json()["detail"]
+                == "Path is not allowed for site content access"
+            )
+
     def test_preview_template_rejects_json_source_traversal(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir) / "project"
@@ -1114,6 +1318,39 @@ class TestSiteGroups:
             )
             assert not list((project / "files").glob("*.tmp"))
 
+    def test_upload_publish_retries_when_target_appears_concurrently(self, monkeypatch):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            target_dir = Path(temp_dir)
+            temp_path = target_dir / ".field_notes.md.tmp"
+            temp_path.write_bytes(b"second upload")
+            original_open = site_router.os.open
+            raced = False
+
+            def racing_open(path, flags, mode=0o777, *args, **kwargs):
+                nonlocal raced
+                candidate = Path(path)
+                if (
+                    not raced
+                    and candidate.name == "field_notes.md"
+                    and not args
+                    and not kwargs
+                ):
+                    raced = True
+                    candidate.write_bytes(b"first upload")
+                    raise FileExistsError(candidate)
+                return original_open(path, flags, mode, *args, **kwargs)
+
+            monkeypatch.setattr(site_router.os, "open", racing_open)
+
+            published_path = site_router._publish_upload_without_overwrite(
+                temp_path, target_dir, "field_notes.md", ".md"
+            )
+
+            assert published_path.name == "field_notes_1.md"
+            assert (target_dir / "field_notes.md").read_bytes() == b"first upload"
+            assert published_path.read_bytes() == b"second upload"
+            assert not temp_path.exists()
+
     def test_upload_rejects_oversized_file_without_partial_output(self, monkeypatch):
         monkeypatch.setattr(site_router, "MAX_SITE_UPLOAD_SIZE_BYTES", 5)
         monkeypatch.setattr(site_router, "SITE_UPLOAD_CHUNK_SIZE_BYTES", 4)
@@ -1195,6 +1432,26 @@ class TestSiteGroups:
             assert response.status_code == 400
             assert response.json()["detail"] == "JSON file must contain an array"
 
+    def test_data_content_rejects_array_with_non_object_items(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            data_dir = project / "data"
+            data_dir.mkdir(parents=True)
+            (data_dir / "items.json").write_text('["bad"]', encoding="utf-8")
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                response = TestClient(create_app()).get(
+                    "/api/site/data-content", params={"path": "data/items.json"}
+                )
+
+            assert response.status_code == 400
+            assert response.json()["detail"] == (
+                "JSON file must contain an array of objects"
+            )
+
     def test_file_content_put_accepts_readable_text_extensions(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir) / "project"
@@ -1221,6 +1478,133 @@ class TestSiteGroups:
             assert put_response.status_code == 200, put_response.text
             assert file_path.read_text(encoding="utf-8") == "title: new\n"
 
+    def test_file_content_put_preserves_live_file_when_replace_fails(self, monkeypatch):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            files_dir = project / "files"
+            files_dir.mkdir(parents=True)
+            file_path = files_dir / "settings.yml"
+            file_path.write_text("title: old\n", encoding="utf-8")
+            original_replace = Path.replace
+
+            def fail_replace(temp_path: Path, target_path: Path):
+                if target_path.resolve() == file_path.resolve():
+                    raise OSError("disk full")
+                return original_replace(temp_path, target_path)
+
+            monkeypatch.setattr(Path, "replace", fail_replace)
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                response = client.put(
+                    "/api/site/file-content",
+                    json={"path": "files/settings.yml", "content": "title: new\n"},
+                )
+
+            assert response.status_code == 500
+            assert "disk full" in response.json()["detail"]
+            assert file_path.read_text(encoding="utf-8") == "title: old\n"
+            assert not list(files_dir.glob("*.tmp"))
+
+    def test_file_content_put_rejects_oversized_content(self, monkeypatch):
+        monkeypatch.setattr(site_router, "MAX_SITE_UPLOAD_SIZE_BYTES", 5)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            files_dir = project / "files"
+            files_dir.mkdir(parents=True)
+            file_path = files_dir / "settings.yml"
+            file_path.write_text("title: old\n", encoding="utf-8")
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                response = client.put(
+                    "/api/site/file-content",
+                    json={
+                        "path": "files/settings.yml",
+                        "content": "123456",
+                    },
+                )
+
+            assert response.status_code == 413
+            assert file_path.read_text(encoding="utf-8") == "title: old\n"
+            assert not list(files_dir.glob("*.tmp"))
+
+    def test_files_listing_rejects_non_site_content_folders(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            config_dir = project / "config"
+            config_dir.mkdir(parents=True)
+            (config_dir / "import.yml").write_text("imports: []\n", encoding="utf-8")
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                response = client.get("/api/site/files", params={"folder": "config"})
+
+            assert response.status_code == 403
+
+    def test_files_listing_allows_site_content_roots(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            files_dir = project / "files"
+            content_dir = project / "templates" / "content"
+            files_dir.mkdir(parents=True)
+            content_dir.mkdir(parents=True)
+            (files_dir / "logo.png").write_bytes(b"logo")
+            (content_dir / "home.md").write_text("# Home\n", encoding="utf-8")
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                files_response = client.get(
+                    "/api/site/files", params={"folder": "files"}
+                )
+                content_response = client.get(
+                    "/api/site/files", params={"folder": "templates/content"}
+                )
+
+            assert files_response.status_code == 200, files_response.text
+            assert content_response.status_code == 200, content_response.text
+            assert [item["path"] for item in files_response.json()["files"]] == [
+                "files/logo.png"
+            ]
+            assert [item["path"] for item in content_response.json()["files"]] == [
+                "templates/content/home.md"
+            ]
+
+    @pytest.mark.parametrize("folder", [".", "files/../config"])
+    def test_files_listing_rejects_project_root_and_traversal_aliases(self, folder):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            config_dir = project / "config"
+            config_dir.mkdir(parents=True)
+            (config_dir / "export.yml").write_text("exports: []\n", encoding="utf-8")
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                response = client.get("/api/site/files", params={"folder": folder})
+
+            assert response.status_code == 403
+
     def test_files_serves_svg_as_attachment_with_defensive_headers(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project = Path(temp_dir) / "project"
@@ -1241,6 +1625,29 @@ class TestSiteGroups:
 
             assert response.status_code == 200
             assert response.headers["content-type"].startswith("image/svg+xml")
+            assert response.headers["content-disposition"].startswith("attachment;")
+            assert response.headers["x-content-type-options"] == "nosniff"
+            assert response.headers["content-security-policy"] == "sandbox"
+
+    def test_files_serves_html_as_attachment_with_defensive_headers(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            files_dir = project / "files" / "data"
+            files_dir.mkdir(parents=True)
+            (files_dir / "payload.html").write_text(
+                "<script>alert(1)</script>",
+                encoding="utf-8",
+            )
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                response = TestClient(create_app()).get(
+                    "/api/site/files/data/payload.html"
+                )
+
+            assert response.status_code == 200
             assert response.headers["content-disposition"].startswith("attachment;")
             assert response.headers["x-content-type-options"] == "nosniff"
             assert response.headers["content-security-policy"] == "sandbox"
@@ -1473,6 +1880,70 @@ class TestSiteGroups:
             assert "Docs" in html
             assert 'href="resources.html"' in html
             assert "Ressources" not in html
+
+    def test_preview_group_index_honors_empty_draft_navigation_and_footer(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            config_dir = project / "config"
+            _write_config(
+                config_dir / "export.yml",
+                {
+                    "exports": [
+                        {
+                            "name": "web_pages",
+                            "enabled": True,
+                            "exporter": "html_page_exporter",
+                            "params": {
+                                "site": {"title": "Niamoto", "lang": "fr"},
+                                "navigation": [
+                                    {"text": "Saved navigation", "url": "saved.html"}
+                                ],
+                                "footer_navigation": [
+                                    {
+                                        "title": "Saved footer",
+                                        "links": [
+                                            {
+                                                "text": "Saved footer link",
+                                                "url": "footer.html",
+                                            }
+                                        ],
+                                    }
+                                ],
+                            },
+                            "groups": [
+                                {
+                                    "group_by": "plots",
+                                    "index_generator": {
+                                        "enabled": True,
+                                        "template": "_group_index.html",
+                                        "page_config": {"title": "Plots"},
+                                        "filters": [],
+                                        "display_fields": [],
+                                        "views": [{"type": "grid", "default": True}],
+                                    },
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                app = create_app()
+                client = TestClient(app)
+                response = client.post(
+                    "/api/site/preview-group-index/plots",
+                    json={"navigation": [], "footer_navigation": []},
+                )
+                assert response.status_code == 200, response.text
+
+            html = response.json()["html"]
+            assert "Saved navigation" not in html
+            assert "Saved footer" not in html
+            assert "Saved footer link" not in html
 
     def test_preview_group_index_uses_request_config_before_save(self):
         with tempfile.TemporaryDirectory() as temp_dir:

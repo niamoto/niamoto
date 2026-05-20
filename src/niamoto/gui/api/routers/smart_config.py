@@ -19,6 +19,7 @@ import zipfile
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from starlette.datastructures import UploadFile as StarletteUploadFile
 import yaml
 
 from niamoto.core.imports.auto_config_service import AutoConfigService
@@ -109,8 +110,9 @@ class UploadedFileInfo(BaseModel):
 class _AutoConfigureJob:
     """In-memory auto-config job state."""
 
-    def __init__(self, job_id: str) -> None:
+    def __init__(self, job_id: str, project_path: Optional[str] = None) -> None:
         self.job_id = job_id
+        self.project_path = project_path
         self.status: Literal["pending", "running", "completed", "failed"] = "pending"
         self.events: List[Dict[str, Any]] = []
         self.result: Optional[Dict[str, Any]] = None
@@ -129,12 +131,14 @@ class _AutoConfigureJobStore:
         terminal_ttl_seconds: float = 15 * 60,
         max_terminal_jobs: int = 100,
         max_events_per_job: int = 500,
+        max_active_jobs_per_project: int = 1,
     ) -> None:
         self._jobs: Dict[str, _AutoConfigureJob] = {}
         self._lock = threading.Lock()
         self.terminal_ttl_seconds = terminal_ttl_seconds
         self.max_terminal_jobs = max_terminal_jobs
         self.max_events_per_job = max_events_per_job
+        self.max_active_jobs_per_project = max_active_jobs_per_project
 
     def _now(self) -> float:
         return time.time()
@@ -163,10 +167,34 @@ class _AutoConfigureJobStore:
             ]:
                 self._jobs.pop(job.job_id, None)
 
-    def create_job(self) -> _AutoConfigureJob:
-        job = _AutoConfigureJob(job_id=str(uuid.uuid4()))
+    def _active_jobs_for_project_locked(
+        self, project_path: Optional[str]
+    ) -> list[_AutoConfigureJob]:
+        if project_path is None:
+            return []
+        return [
+            job
+            for job in self._jobs.values()
+            if job.project_path == project_path and job.status in {"pending", "running"}
+        ]
+
+    def create_job(self, project_path: Optional[str] = None) -> _AutoConfigureJob:
+        resolved_project_path = (
+            str(Path(project_path).resolve()) if project_path else None
+        )
+        job = _AutoConfigureJob(
+            job_id=str(uuid.uuid4()),
+            project_path=resolved_project_path,
+        )
         with self._lock:
             self._prune_locked()
+            active_jobs = self._active_jobs_for_project_locked(resolved_project_path)
+            if len(active_jobs) >= self.max_active_jobs_per_project:
+                active_job = sorted(active_jobs, key=lambda item: item.created_at)[0]
+                raise ValueError(
+                    "An auto-config job is already pending or running "
+                    f"for this project: {active_job.job_id}"
+                )
             self._jobs[job.job_id] = job
         return job
 
@@ -233,6 +261,56 @@ class _AutoConfigureJobStore:
 
 
 _AUTO_CONFIG_JOB_STORE = _AutoConfigureJobStore()
+
+
+def _validate_import_file_paths(work_dir: Path, files: List[str]) -> None:
+    """Ensure auto-config input files stay under the project imports directory."""
+    imports_dir = (work_dir / "imports").resolve()
+    for file_path in files:
+        requested_path = Path(file_path)
+        if requested_path.is_absolute() or any(
+            part in {"", ".", ".."} for part in requested_path.parts
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="File path outside project imports directory",
+            )
+
+        resolved_path = (work_dir / file_path).resolve()
+        try:
+            resolved_path.relative_to(imports_dir)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail="File path outside project imports directory",
+            ) from exc
+
+
+def _validate_bulk_config_paths(value: Any) -> None:
+    """Reject absolute or traversing source paths before persisting import.yml."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key in {"source", "data", "path", "file"} and isinstance(child, str):
+                requested_path = Path(child)
+                if requested_path.is_absolute() or ".." in requested_path.parts:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Source paths must be relative project paths",
+                    )
+            _validate_bulk_config_paths(child)
+    elif isinstance(value, list):
+        for child in value:
+            _validate_bulk_config_paths(child)
+
+
+def _get_project_scoped_auto_config_job(job_id: str) -> _AutoConfigureJob:
+    """Return a job only when it belongs to the current project."""
+    job = _AUTO_CONFIG_JOB_STORE.get_job(job_id)
+    work_dir = get_working_directory()
+    current_project = str(Path(work_dir).resolve()) if work_dir else None
+    if not job or job.project_path != current_project:
+        raise HTTPException(status_code=404, detail="Auto-config job not found")
+    return job
 
 
 def _make_progress_event(
@@ -333,7 +411,7 @@ async def _read_uploaded_content(uploaded_file: UploadFile) -> bytes:
 
 @router.post("/upload-files")
 async def upload_files(
-    files: List[UploadFile] = File(...), overwrite: bool = False
+    files: List[Any] = File(...), overwrite: bool = False
 ) -> Dict[str, Any]:
     """Upload multiple files to the imports directory.
 
@@ -362,6 +440,9 @@ async def upload_files(
 
         for uploaded_file in files:
             try:
+                if not isinstance(uploaded_file, StarletteUploadFile):
+                    errors.append("File without name skipped")
+                    continue
                 raw_filename = uploaded_file.filename
                 if not raw_filename:
                     errors.append("File without name skipped")
@@ -503,14 +584,45 @@ async def _handle_zip_upload(
             shapefile_dir.mkdir(exist_ok=True)
 
             # Copy extracted files
+            shapefile_dir_resolved = shapefile_dir.resolve()
             for extracted_file in extracted_files:
                 dest = shapefile_dir / extracted_file.name
+                try:
+                    dest.resolve(strict=False).relative_to(shapefile_dir_resolved)
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Invalid destination path in archive: {extracted_file.name}"
+                    ) from exc
+
+                if dest.is_symlink():
+                    raise ValueError(
+                        f"Cannot overwrite symlinked archive member: {extracted_file.name}"
+                    )
+
                 relative_extracted_path = f"{shapefile_name}/{extracted_file.name}"
                 if dest.exists() and not overwrite:
                     existing_files.append(relative_extracted_path)
                     continue
 
-                shutil.copy2(extracted_file, dest)
+                temp_dest: Path | None = None
+                try:
+                    with tempfile.NamedTemporaryFile(
+                        "wb",
+                        dir=shapefile_dir,
+                        prefix=f".{extracted_file.name}.",
+                        suffix=".tmp",
+                        delete=False,
+                    ) as temp_file:
+                        temp_dest = Path(temp_file.name)
+                        with extracted_file.open("rb") as source:
+                            shutil.copyfileobj(source, temp_file)
+                        temp_file.flush()
+                        os.fsync(temp_file.fileno())
+                    temp_dest.replace(dest)
+                    shutil.copystat(extracted_file, dest)
+                finally:
+                    if temp_dest and temp_dest.exists():
+                        temp_dest.unlink()
 
                 uploaded_files.append(
                     UploadedFileInfo(
@@ -560,7 +672,11 @@ async def analyze_file_smart(request: FileInfo) -> Dict[str, Any]:
             raise HTTPException(status_code=400, detail="Working directory not set")
 
         service = AutoConfigService(Path(work_dir))
-        return service.analyze_file(request.filepath, entity_name=request.entity_name)
+        return await asyncio.to_thread(
+            service.analyze_file,
+            request.filepath,
+            entity_name=request.entity_name,
+        )
 
     except HTTPException:
         raise
@@ -596,6 +712,8 @@ async def detect_hierarchy(request: FileInfo) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error detecting hierarchy: {str(e)}"
@@ -658,7 +776,10 @@ async def auto_configure(request: AutoConfigureRequest) -> AutoConfigureResponse
         if not work_dir_str:
             raise HTTPException(status_code=400, detail="Working directory not set")
 
-        service = AutoConfigService(Path(work_dir_str))
+        work_dir = Path(work_dir_str)
+        _validate_import_file_paths(work_dir, request.files)
+
+        service = AutoConfigService(work_dir)
         result = await asyncio.to_thread(service.auto_configure, request.files)
         return AutoConfigureResponse(**result)
 
@@ -681,7 +802,13 @@ async def start_auto_configure_job(
     if not work_dir_str:
         raise HTTPException(status_code=400, detail="Working directory not set")
 
-    job = _AUTO_CONFIG_JOB_STORE.create_job()
+    work_dir = Path(work_dir_str)
+    _validate_import_file_paths(work_dir, request.files)
+
+    try:
+        job = _AUTO_CONFIG_JOB_STORE.create_job(str(work_dir))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     thread = threading.Thread(
         target=_run_auto_config_job,
         args=(job.job_id, str(work_dir_str), request.files),
@@ -696,9 +823,7 @@ async def start_auto_configure_job(
 )
 async def get_auto_configure_job(job_id: str) -> AutoConfigureJobStatusResponse:
     """Return the latest status and result for an auto-config job."""
-    job = _AUTO_CONFIG_JOB_STORE.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Auto-config job not found")
+    job = _get_project_scoped_auto_config_job(job_id)
 
     result = AutoConfigureResponse(**job.result) if job.result else None
     events = [AutoConfigureProgressEvent(**event) for event in job.events]
@@ -720,15 +845,14 @@ async def get_auto_configure_job(job_id: str) -> AutoConfigureJobStatusResponse:
 @router.get("/auto-configure/jobs/{job_id}/events")
 async def stream_auto_configure_job_events(job_id: str, request: Request):
     """Stream auto-config progress events as server-sent events."""
-    job = _AUTO_CONFIG_JOB_STORE.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Auto-config job not found")
+    _get_project_scoped_auto_config_job(job_id)
 
     async def event_stream():
         next_index = 0
         while True:
-            current_job = _AUTO_CONFIG_JOB_STORE.get_job(job_id)
-            if not current_job:
+            try:
+                current_job = _get_project_scoped_auto_config_job(job_id)
+            except HTTPException:
                 break
 
             pending_events = current_job.events[next_index:]
@@ -791,6 +915,9 @@ async def create_entities_bulk(request: CreateEntitiesBulkRequest):
     config_dir.mkdir(parents=True, exist_ok=True)
 
     try:
+        _validate_bulk_config_paths(request.entities)
+        _validate_bulk_config_paths(request.auxiliary_sources)
+
         # Build the import.yml structure
         import_config = {
             "version": "1.0",
@@ -844,6 +971,8 @@ async def create_entities_bulk(request: CreateEntitiesBulkRequest):
             "reference_count": reference_count,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to save import configuration: {str(e)}"

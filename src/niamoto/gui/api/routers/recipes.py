@@ -13,6 +13,7 @@ import importlib
 import logging
 import pkgutil
 import sys
+from copy import deepcopy
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Optional
@@ -799,7 +800,12 @@ def _extract_param_schema(
     additional_props_type = None
     if param_type == "object" and "additionalProperties" in prop_info:
         add_props = prop_info["additionalProperties"]
-        additional_props_type = add_props.get("type", "string")
+        if add_props is True:
+            additional_props_type = "any"
+        elif isinstance(add_props, dict):
+            additional_props_type = add_props.get("type", "string")
+        else:
+            additional_props_type = None
 
     return ParamSchema(
         type=param_type,
@@ -1103,11 +1109,16 @@ def _extract_json_fields(
             WHERE {quoted_json_column} IS NOT NULL
             LIMIT 100
         """
-        result = db.execute_sql(sample_sql, fetch=True)
+        result = db.execute_sql(sample_sql, fetch_all=True)
 
         if result:
             for row in result if isinstance(result, list) else [result]:
-                keys = row[0] if isinstance(row, (list, tuple)) else row.get("keys", [])
+                if hasattr(row, "_mapping"):
+                    keys = row._mapping.get("keys", [])
+                elif isinstance(row, (list, tuple)):
+                    keys = row[0]
+                else:
+                    keys = row.get("keys", [])
                 if keys:
                     for key in keys:
                         if key not in seen_keys:
@@ -1167,7 +1178,7 @@ async def list_transformers():
         return list(plugins.keys())
     except Exception as e:
         logger.exception("Error listing transformers: %s", e)
-        return []
+        raise HTTPException(status_code=500, detail="Unable to list transformers")
 
 
 @router.get("/widget-schema/{plugin_name}", response_model=WidgetSchema)
@@ -1232,8 +1243,35 @@ async def list_widgets():
         return []
 
 
-@router.post("/validate", response_model=ValidateRecipeResponse)
-async def validate_recipe(request: SaveRecipeRequest):
+def _export_widget_id_exists(
+    export_config: dict[str, Any], group_by: str, widget_id: str
+) -> bool:
+    """Return whether a web export group already contains this widget id."""
+    for export in export_config.get("exports", []) or []:
+        if not isinstance(export, dict):
+            continue
+        if export.get("exporter") != "html_page_exporter":
+            continue
+        groups = export.get("groups") or export.get("params", {}).get("groups", [])
+        for group in groups or []:
+            if not isinstance(group, dict) or group.get("group_by") != group_by:
+                continue
+            for widget in group.get("widgets", []) or []:
+                if not isinstance(widget, dict):
+                    continue
+                if (
+                    widget.get("data_source") == widget_id
+                    or widget.get("id") == widget_id
+                ):
+                    return True
+    return False
+
+
+async def _validate_recipe_request(
+    request: SaveRecipeRequest,
+    *,
+    allow_existing_widget_id: bool = False,
+) -> ValidateRecipeResponse:
     """
     Validate a widget recipe without saving.
 
@@ -1298,6 +1336,36 @@ async def validate_recipe(request: SaveRecipeRequest):
                 message="Widget ID cannot be empty",
             )
         )
+    else:
+        work_dir = get_working_directory()
+        if work_dir:
+            try:
+                transform_config = load_transform_config(Path(work_dir))
+                group_config = find_transform_group(transform_config, request.group_by)
+                widgets_data = (group_config or {}).get("widgets_data", {})
+                if (
+                    not allow_existing_widget_id
+                    and request.recipe.widget_id in widgets_data
+                ):
+                    errors.append(
+                        ValidationError(
+                            field="widget_id",
+                            message=f"Widget ID '{request.recipe.widget_id}' already exists",
+                        )
+                    )
+                if not allow_existing_widget_id:
+                    export_config = load_export_config(Path(work_dir))
+                    if _export_widget_id_exists(
+                        export_config, request.group_by, request.recipe.widget_id
+                    ):
+                        errors.append(
+                            ValidationError(
+                                field="widget_id",
+                                message=f"Widget ID '{request.recipe.widget_id}' already exists",
+                            )
+                        )
+            except Exception as exc:
+                warnings.append(f"Could not check widget ID uniqueness: {exc}")
 
     # Add warning if no title
     if not request.recipe.widget.title:
@@ -1308,6 +1376,20 @@ async def validate_recipe(request: SaveRecipeRequest):
         errors=errors,
         warnings=warnings,
     )
+
+
+@router.post("/validate", response_model=ValidateRecipeResponse)
+async def validate_recipe(request: SaveRecipeRequest):
+    """
+    Validate a widget recipe without saving.
+
+    Checks:
+    - Transformer plugin exists
+    - Widget plugin exists
+    - Required parameters are provided
+    - Widget ID is unique
+    """
+    return await _validate_recipe_request(request)
 
 
 @router.post("/save", response_model=SaveRecipeResponse)
@@ -1326,7 +1408,7 @@ async def save_widget_recipe(request: SaveRecipeRequest):
     work_dir = Path(work_dir)
 
     # Validate first
-    validation = await validate_recipe(request)
+    validation = await _validate_recipe_request(request, allow_existing_widget_id=True)
     if not validation.valid:
         error_messages = [f"{e.field}: {e.message}" for e in validation.errors]
         raise HTTPException(
@@ -1361,6 +1443,7 @@ async def save_widget_recipe(request: SaveRecipeRequest):
 
         # --- Update export.yml ---
         export_config = load_export_config(work_dir)
+        original_export_config = deepcopy(export_config)
 
         # Find the web_pages export
         web_export = None
@@ -1438,8 +1521,15 @@ async def save_widget_recipe(request: SaveRecipeRequest):
                 }
             )
 
-        save_export_config(work_dir, export_config)
-        save_transform_config(work_dir, transform_config)
+        export_saved = False
+        try:
+            save_export_config(work_dir, export_config)
+            export_saved = True
+            save_transform_config(work_dir, transform_config)
+        except Exception:
+            if export_saved:
+                save_export_config(work_dir, original_export_config)
+            raise
 
     return SaveRecipeResponse(
         success=True,
@@ -1479,52 +1569,61 @@ async def reorder_widgets(group_by: str, request: ReorderWidgetsRequest):
 
     work_dir = Path(work_dir)
 
-    # Load export config
-    export_config = load_export_config(work_dir)
+    with TRANSFORM_CONFIG_WRITE_LOCK:
+        # Load export config
+        export_config = load_export_config(work_dir)
 
-    # Find the group
-    for export in export_config.get("exports", []):
-        for group in export.get("groups", []):
-            if group.get("group_by") == group_by:
-                widgets = group.get("widgets", [])
+        # Find the group in the web page exporter only.
+        for export in export_config.get("exports", []):
+            if export.get("exporter") not in (None, "html_page_exporter"):
+                continue
+            target_group = None
+            for group in export.get("groups", []):
+                if group.get("group_by") == group_by:
+                    target_group = group
+                    break
+            if target_group is None:
+                continue
 
-                indexed_widgets = [
-                    {
-                        "id": _resolve_export_widget_id(group_by, widget),
-                        "widget": widget,
-                        "used": False,
-                    }
-                    for widget in widgets
-                ]
+            widgets = target_group.get("widgets", [])
+            indexed_widgets = [
+                {
+                    "id": _resolve_export_widget_id(group_by, widget),
+                    "widget": widget,
+                    "used": False,
+                }
+                for widget in widgets
+            ]
 
-                # Reorder based on request
-                new_widgets = []
-                for widget_id in request.widget_ids:
-                    match = next(
-                        (
-                            entry
-                            for entry in indexed_widgets
-                            if not entry["used"] and entry["id"] == widget_id
-                        ),
-                        None,
-                    )
-                    if match is not None:
-                        match["used"] = True
-                        new_widgets.append(match["widget"])
+            # Reorder based on request
+            new_widgets = []
+            for widget_id in request.widget_ids:
+                match = next(
+                    (
+                        entry
+                        for entry in indexed_widgets
+                        if not entry["used"] and entry["id"] == widget_id
+                    ),
+                    None,
+                )
+                if match is not None:
+                    match["used"] = True
+                    new_widgets.append(match["widget"])
 
-                # Add any remaining widgets, including unresolved and duplicate-ID leftovers.
-                for entry in indexed_widgets:
-                    if not entry["used"]:
-                        new_widgets.append(entry["widget"])
+            # Add any remaining widgets, including unresolved and duplicate-ID leftovers.
+            for entry in indexed_widgets:
+                if not entry["used"]:
+                    new_widgets.append(entry["widget"])
 
-                for order_idx, widget in enumerate(new_widgets):
-                    if "layout" not in widget:
-                        widget["layout"] = {}
-                    widget["layout"]["order"] = order_idx
+            for order_idx, widget in enumerate(new_widgets):
+                if "layout" not in widget:
+                    widget["layout"] = {}
+                widget["layout"]["order"] = order_idx
 
-                group["widgets"] = new_widgets
+            target_group["widgets"] = new_widgets
+            break
 
-    save_export_config(work_dir, export_config)
+        save_export_config(work_dir, export_config)
 
     return {"success": True, "message": f"Widgets reordered for group '{group_by}'"}
 
@@ -1548,26 +1647,36 @@ async def delete_widget_recipe(group_by: str, widget_id: str):
         if group_config and "widgets_data" in group_config:
             if widget_id in group_config["widgets_data"]:
                 del group_config["widgets_data"][widget_id]
-                save_transform_config(work_dir, transform_config)
 
-    # --- Update export.yml ---
-    export_config = load_export_config(work_dir)
+        # --- Update export.yml ---
+        export_config = load_export_config(work_dir)
+        original_export_config = deepcopy(export_config)
 
-    web_export = None
-    for export in export_config.get("exports", []):
-        if export.get("exporter") == "html_page_exporter":
-            web_export = export
-            break
+        web_export = None
+        for export in export_config.get("exports", []):
+            if export.get("exporter") == "html_page_exporter":
+                web_export = export
+                break
 
-    if web_export:
-        for group in web_export.get("groups", []):
-            if group.get("group_by") != group_by:
-                continue
-            widgets = group.get("widgets", [])
-            group["widgets"] = [w for w in widgets if w.get("data_source") != widget_id]
-            break
+        if web_export:
+            for group in web_export.get("groups", []):
+                if group.get("group_by") != group_by:
+                    continue
+                widgets = group.get("widgets", [])
+                group["widgets"] = [
+                    w for w in widgets if w.get("data_source") != widget_id
+                ]
+                break
 
-    save_export_config(work_dir, export_config)
+        export_saved = False
+        try:
+            save_export_config(work_dir, export_config)
+            export_saved = True
+            save_transform_config(work_dir, transform_config)
+        except Exception:
+            if export_saved:
+                save_export_config(work_dir, original_export_config)
+            raise
 
     return {"success": True, "message": f"Widget '{widget_id}' deleted"}
 

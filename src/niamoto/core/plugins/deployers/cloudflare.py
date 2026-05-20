@@ -26,7 +26,7 @@ CF_API_BASE = "https://api.cloudflare.com/client/v4"
 WORKER_SCRIPT = (
     'import { WorkerEntrypoint } from "cloudflare:workers";'
     " export default class extends WorkerEntrypoint"
-    " { async fetch() { return this.env.ASSETS.fetch(this.ctx.request); } }"
+    " { async fetch(request) { return this.env.ASSETS.fetch(request); } }"
 )
 
 WORKER_METADATA = {

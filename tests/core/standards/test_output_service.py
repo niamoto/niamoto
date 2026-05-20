@@ -9,6 +9,7 @@ import duckdb
 import pytest
 
 from niamoto.core.standards.models import StandardProfileConfig
+from niamoto.core.standards import output_service as output_service_module
 from niamoto.core.standards.output_service import StandardProfileOutputService
 
 
@@ -204,7 +205,7 @@ def test_darwin_core_profile_generators_extract_coordinates_and_properties(tmp_p
                 },
                 "dynamicProperties": {
                     "generator": "format_measurements",
-                    "params": {"fields": ["dbh", "height"]},
+                    "params": {"fields": [{"field": "dbh"}, "height"]},
                 },
             },
             "outputs": [
@@ -521,6 +522,63 @@ def test_darwin_core_archive_draft_output_uses_isolated_location(tmp_path):
     assert result.metadata["retention_policy"]["location"] == "exports/.draft/profiles"
     assert archive_path.exists()
     assert not (tmp_path / "exports" / "profiles" / "final_archive").exists()
+
+
+def test_darwin_core_archive_uses_unique_staging_directory(monkeypatch, tmp_path):
+    profile = StandardProfileConfig.model_validate(
+        {
+            "name": "dwc_occurrences",
+            "standard": "darwin_core_occurrence",
+            "target_grain": "occurrence",
+            "source": {"type": "dataset", "name": "occurrences"},
+            "mappings": {"occurrenceID": {"source": "id"}},
+            "outputs": [
+                {
+                    "type": "dwc_archive",
+                    "params": {
+                        "output_dir": "exports/profiles/dwc_archive",
+                        "archive_name": "profile-dwc.zip",
+                    },
+                }
+            ],
+        }
+    )
+    staging_dirs: list[str] = []
+
+    class FakeDwcArchiveExporter:
+        def __init__(self, db):
+            pass
+
+        def generate_archive_from_occurrences(self, records, output_dir, params):
+            staging_dirs.append(output_dir.name)
+            archive_path = output_dir / params.archive_name
+            archive_path.write_bytes(b"archive")
+            return [archive_path]
+
+    monkeypatch.setattr(
+        output_service_module,
+        "DwcArchiveExporter",
+        FakeDwcArchiveExporter,
+    )
+    service = StandardProfileOutputService(
+        tmp_path, import_config=_occurrence_import_config()
+    )
+
+    service.execute_profile(
+        profile,
+        output_type="dwc_archive",
+        records=[{"id": "occ-1"}],
+    )
+    service.execute_profile(
+        profile,
+        output_type="dwc_archive",
+        records=[{"id": "occ-2"}],
+    )
+
+    assert len(staging_dirs) == 2
+    assert staging_dirs[0] != staging_dirs[1]
+    assert all(name.startswith(".profile-dwc.zip.") for name in staging_dirs)
+    assert not list((tmp_path / "exports" / "profiles" / "dwc_archive").glob("*.tmp"))
 
 
 def test_publication_output_with_critical_validation_errors_is_blocked(tmp_path):

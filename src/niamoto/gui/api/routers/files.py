@@ -41,6 +41,11 @@ SERVE_FILE_IMAGE_EXTENSIONS = {
 
 SPATIAL_IMPORT_ENTITY_TYPES = {"reference", "references", "shape", "shapes", "spatial"}
 SPATIAL_ARCHIVE_EXTENSIONS = (".zip", ".geojson", ".gpkg")
+MAX_ANALYZE_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
+ANALYZE_UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
+MAX_ANALYZE_ZIP_MEMBERS = 256
+MAX_ANALYZE_ZIP_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
+CSV_ANALYSIS_SAMPLE_ROWS = 100
 
 
 def _resolve_path_under_root(root_dir: Path, path: str, *, detail: str) -> Path:
@@ -63,6 +68,9 @@ def _open_regular_file_under_root(
     root_dir: Path, relative_path: str
 ) -> tuple[int, int]:
     """Open a regular file below root_dir without following path symlinks."""
+    if root_dir.is_symlink():
+        raise HTTPException(status_code=400, detail="Symlinks are not allowed")
+
     requested_path = Path(relative_path)
     if requested_path.is_absolute():
         raise HTTPException(
@@ -90,7 +98,7 @@ def _open_regular_file_under_root(
     current_fd: int | None = None
 
     try:
-        root_fd = os.open(root_dir.resolve(strict=True), os.O_RDONLY | directory_flag)
+        root_fd = os.open(root_dir, os.O_RDONLY | directory_flag | nofollow)
         current_fd = root_fd
         root_fd = None
 
@@ -280,6 +288,68 @@ def _validate_api_response_peer(response: requests.Response) -> str | None:
     return None
 
 
+async def _read_upload_content_limited(file: UploadFile) -> bytes:
+    """Read an upload with an explicit size cap for analysis endpoints."""
+    chunks: list[bytes] = []
+    total_size = 0
+    while chunk := await file.read(ANALYZE_UPLOAD_CHUNK_SIZE_BYTES):
+        total_size += len(chunk)
+        if total_size > MAX_ANALYZE_UPLOAD_SIZE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    "Uploaded file exceeds the maximum allowed analysis size "
+                    f"of {MAX_ANALYZE_UPLOAD_SIZE_BYTES} bytes"
+                ),
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _validate_zip_member_path(member_name: str) -> Path:
+    member_path = Path(member_name)
+    if member_path.is_absolute() or any(
+        part in {"", ".", ".."} for part in member_path.parts
+    ):
+        raise ValueError(f"Invalid ZIP member path: {member_name}")
+    return member_path
+
+
+def _extract_zip_safely(zip_ref: zipfile.ZipFile, target_dir: Path) -> None:
+    """Extract a ZIP archive with member count, expanded size, and path limits."""
+    members = zip_ref.infolist()
+    if len(members) > MAX_ANALYZE_ZIP_MEMBERS:
+        raise ValueError(
+            f"Archive contains too many files ({len(members)} > {MAX_ANALYZE_ZIP_MEMBERS})"
+        )
+
+    total_size = 0
+    target_root = target_dir.resolve()
+    for member in members:
+        total_size += member.file_size
+        if total_size > MAX_ANALYZE_ZIP_UNCOMPRESSED_BYTES:
+            raise ValueError(
+                "Archive exceeds maximum uncompressed analysis size "
+                f"of {MAX_ANALYZE_ZIP_UNCOMPRESSED_BYTES} bytes"
+            )
+
+        member_path = _validate_zip_member_path(member.filename)
+        destination = (target_dir / member_path).resolve()
+        try:
+            destination.relative_to(target_root)
+        except ValueError as exc:
+            raise ValueError(f"Invalid ZIP member path: {member.filename}") from exc
+
+        if member.is_dir():
+            destination.mkdir(parents=True, exist_ok=True)
+            continue
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with zip_ref.open(member, "r") as source, destination.open("wb") as dest:
+            while chunk := source.read(1024 * 1024):
+                dest.write(chunk)
+
+
 @router.post("/analyze")
 async def analyze_file(
     file: UploadFile = File(...), entity_type: str = Form(...)
@@ -287,7 +357,7 @@ async def analyze_file(
     """Analyze a file for import configuration."""
     try:
         # Read file content
-        content = await file.read()
+        content = await _read_upload_content_limited(file)
 
         # Basic analysis based on file type
         filename_lower = file.filename.lower()
@@ -309,10 +379,12 @@ async def analyze_file(
         # Add entity_type for compatibility
         result["entity_type"] = entity_type
         # Keep suggestions generic - specific field mapping done in frontend
-        result["suggestions"] = {}
+        result.setdefault("suggestions", {})
 
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -528,7 +600,7 @@ async def analyze_shape(content: bytes, filename: str) -> Dict[str, Any]:
                     f.write(content)
 
                 with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                    zip_ref.extractall(temp_path)
+                    _extract_zip_safely(zip_ref, temp_path)
 
                 # Find the .shp file (search recursively, excluding macOS hidden files)
                 shp_files = [
@@ -660,7 +732,7 @@ async def analyze_csv(content: bytes, filename: str) -> Dict[str, Any]:
     try:
         # Decode content
         text = content.decode("utf-8")
-        lines = text.strip().split("\n")
+        lines = text.strip().splitlines()
 
         if not lines:
             return {"error": "Empty CSV file"}
@@ -669,17 +741,21 @@ async def analyze_csv(content: bytes, filename: str) -> Dict[str, Any]:
         reader = csv.DictReader(lines)
         columns = reader.fieldnames or []
 
-        # Count rows
-        rows = list(reader)
-        row_count = len(rows)
+        # Count rows while retaining only the rows needed for preview/type inference.
+        sampled_rows = []
+        row_count = 0
+        for row in reader:
+            row_count += 1
+            if len(sampled_rows) < CSV_ANALYSIS_SAMPLE_ROWS:
+                sampled_rows.append(row)
 
         # Get sample data (first 5 rows)
-        sample_data = rows[:5]
+        sample_data = sampled_rows[:5]
 
         # Analyze column types
         column_types = {}
         for col in columns:
-            sample_values = [row.get(col, "") for row in rows[:100]]
+            sample_values = [row.get(col, "") for row in sampled_rows]
             column_types[col] = infer_column_type(sample_values)
 
         return {
@@ -1003,6 +1079,10 @@ async def get_exports_structure() -> Dict[str, Any]:
 
         if not exports_dir.exists():
             return {"exists": False, "path": str(exports_dir), "tree": []}
+        if exports_dir.is_symlink():
+            raise HTTPException(status_code=400, detail="Symlinks are not allowed")
+
+        exports_dir_resolved = exports_dir.resolve(strict=True)
 
         def build_tree(
             path: Path, max_depth: int = 3, current_depth: int = 0
@@ -1011,24 +1091,48 @@ async def get_exports_structure() -> Dict[str, Any]:
             if current_depth >= max_depth:
                 return []
 
+            def sort_key(item: Path) -> tuple[bool, str]:
+                try:
+                    item_mode = item.stat(follow_symlinks=False).st_mode
+                    is_dir = stat.S_ISDIR(item_mode)
+                except OSError:
+                    is_dir = False
+                return (not is_dir, item.name)
+
             items = []
             try:
-                for item in sorted(
-                    path.iterdir(), key=lambda x: (not x.is_dir(), x.name)
-                ):
+                for item in sorted(path.iterdir(), key=sort_key):
+                    if item.is_symlink():
+                        continue
+
+                    try:
+                        resolved_item = item.resolve(strict=True)
+                        resolved_item.relative_to(exports_dir_resolved)
+                    except (OSError, ValueError):
+                        continue
+
+                    item_stat = item.stat(follow_symlinks=False)
+                    is_file = stat.S_ISREG(item_stat.st_mode)
+                    is_dir = stat.S_ISDIR(item_stat.st_mode)
                     item_data = {
                         "name": item.name,
-                        "type": "directory" if item.is_dir() else "file",
+                        "type": "directory" if is_dir else "file",
                         "path": str(item.relative_to(exports_dir)),
                     }
 
-                    if item.is_file():
-                        item_data["size"] = item.stat().st_size
+                    if is_file:
+                        item_data["size"] = item_stat.st_size
                         item_data["extension"] = item.suffix
-                    elif item.is_dir():
+                    elif is_dir:
                         # Count items in directory
                         try:
-                            item_data["count"] = len(list(item.iterdir()))
+                            item_data["count"] = len(
+                                [
+                                    child
+                                    for child in item.iterdir()
+                                    if not child.is_symlink()
+                                ]
+                            )
                             # Recursively build children
                             children = build_tree(item, max_depth, current_depth + 1)
                             if children:

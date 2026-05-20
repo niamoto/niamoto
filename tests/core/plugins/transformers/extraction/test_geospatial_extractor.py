@@ -214,6 +214,39 @@ class TestGeospatialExtractorGetData:
         # Verify: Result matches expected data
         pd.testing.assert_frame_equal(result, expected_df)
 
+    def test_get_children_rejects_invalid_hierarchy_fields_before_sql(
+        self, geospatial_extractor_plugin, monkeypatch
+    ):
+        metadata = EntityMetadata(
+            name="plots",
+            kind=EntityKind.DATASET,
+            table_name="plots_table",
+            config={"schema": {"id_field": "id"}},
+        )
+        geospatial_extractor_plugin._test_mock_registry.get.return_value = metadata
+        geospatial_extractor_plugin._test_mock_db.has_table.return_value = True
+        geospatial_extractor_plugin._test_mock_db.get_table_columns.return_value = [
+            "id",
+            "parent_id",
+            "type",
+        ]
+
+        read_sql = MagicMock()
+        monkeypatch.setattr(pd, "read_sql", read_sql)
+
+        with pytest.raises(ValueError, match="Unknown column"):
+            geospatial_extractor_plugin._get_children_from_source(
+                "plots",
+                1,
+                {
+                    "type_field": "type FROM sqlite_master --",
+                    "leaf_type": "plot",
+                    "parent_field": "parent_id",
+                },
+            )
+
+        read_sql.assert_not_called()
+
     def test_get_data_from_vector_import(self, geospatial_extractor_plugin):
         """Test getting data from a vector import via connector."""
         # Setup: Create EntityMetadata with vector connector config
@@ -278,8 +311,8 @@ class TestGeospatialExtractorGetData:
         query, engine = mock_read_sql.call_args[0][:2]
         params = mock_read_sql.call_args.kwargs.get("params")
         query_text = query.text if hasattr(query, "text") else query
-        assert "FROM db_table" in query_text
-        assert "WHERE id = :id" in query_text
+        assert 'FROM "db_table"' in query_text
+        assert 'WHERE "id" = :id' in query_text
         assert params == {"id": 5}
         assert isinstance(result, pd.DataFrame)
 
@@ -307,10 +340,34 @@ class TestGeospatialExtractorGetData:
         query = mock_read_sql.call_args[0][0]
         query_text = query.text if hasattr(query, "text") else query
         params = mock_read_sql.call_args.kwargs.get("params")
-        assert "FROM entity_plots" in query_text
-        assert "WHERE plot_id = :id" in query_text
+        assert 'FROM "entity_plots"' in query_text
+        assert 'WHERE "plot_id" = :id' in query_text
         assert params == {"id": 5}
         pd.testing.assert_frame_equal(result, expected_df)
+
+    def test_get_data_from_registry_table_rejects_unknown_id_field_before_query(
+        self, geospatial_extractor_plugin
+    ):
+        """Test invalid id fields are rejected before SQL execution."""
+        metadata = EntityMetadata(
+            name="plots",
+            kind=EntityKind.DATASET,
+            table_name="entity_plots",
+            config={"schema": {"id_field": 'plot_id"; DROP TABLE entity_plots; --'}},
+        )
+
+        geospatial_extractor_plugin._test_mock_registry.get.return_value = metadata
+        geospatial_extractor_plugin._test_mock_db.has_table.return_value = True
+        geospatial_extractor_plugin._test_mock_db.get_table_columns.return_value = [
+            "plot_id",
+            "geometry",
+        ]
+
+        with patch("pandas.read_sql") as mock_read_sql:
+            with pytest.raises(ValueError):
+                geospatial_extractor_plugin._get_data_from_source("plots", id_value=5)
+
+        mock_read_sql.assert_not_called()
 
     def test_get_data_from_registry_connector_csv(self, geospatial_extractor_plugin):
         """Test getting data from CSV connector with id filtering."""
@@ -374,7 +431,7 @@ class TestGeospatialExtractorGetData:
         query = mock_read_sql.call_args[0][0]
         query_text = query.text if hasattr(query, "text") else query
         params = mock_read_sql.call_args.kwargs.get("params")
-        assert "FROM db_table" in query_text
+        assert 'FROM "db_table"' in query_text
         assert "WHERE" not in query_text  # No filter when id_value is None
         assert params is None
         assert isinstance(result, pd.DataFrame)

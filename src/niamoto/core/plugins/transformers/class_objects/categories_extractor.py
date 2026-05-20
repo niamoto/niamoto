@@ -41,6 +41,14 @@ class CategoriesExtractorParams(BasePluginParams):
         }
     )
 
+    source: str = Field(
+        default="shape_stats",
+        description="Transform source name (from transform.yml sources)",
+        json_schema_extra={
+            "ui:widget": "transform-source-select",
+        },
+    )
+
     class_object: str = Field(
         ...,
         description="Field name to match in class_object column",
@@ -70,14 +78,6 @@ class ClassObjectCategoriesConfig(PluginConfig):
 
     plugin: Literal["class_object_categories_extractor"] = (
         "class_object_categories_extractor"
-    )
-    source: str = Field(
-        default="shape_stats",
-        description="Transform source name (from transform.yml sources)",
-        json_schema_extra={
-            "ui:widget": "transform-source-select",
-            # Will dynamically load sources from current group_by context
-        },
     )
     params: CategoriesExtractorParams
 

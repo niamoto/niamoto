@@ -8,8 +8,6 @@ from niamoto.core.services.importer import ImporterService
 def get_import_method_info(method_name: str) -> Dict[str, Any]:
     """Extract parameter information from an import method."""
     try:
-        # Create a dummy database instance for introspection
-        from niamoto.common.database import Database
         import tempfile
         import os
 
@@ -19,7 +17,6 @@ def get_import_method_info(method_name: str) -> Dict[str, Any]:
 
         importer = None
         try:
-            Database(tmp_path)
             importer = ImporterService(tmp_path)
             method = getattr(importer, method_name, None)
 
@@ -60,7 +57,7 @@ def get_import_method_info(method_name: str) -> Dict[str, Any]:
 
 def get_required_fields_for_import_type(
     import_type: str,
-) -> Dict[str, List[Dict[str, Any]]]:
+) -> Dict[str, Any]:
     """Get required fields for each import type based on method signatures."""
 
     # Map import types to their corresponding methods
@@ -75,7 +72,7 @@ def get_required_fields_for_import_type(
     if import_type == "taxonomy":
         # For import_taxonomy - only non-hierarchical fields
         # Hierarchy levels are handled separately in TaxonomyHierarchyEditor
-        fields = [
+        fields: List[Dict[str, Any]] = [
             {
                 "key": "taxon_id",
                 "label": "Taxon ID",
@@ -162,19 +159,21 @@ def get_required_fields_for_import_type(
                 "key": "taxon_id",
                 "label": "Taxon ID",
                 "description": "Reference to taxonomy",
+                "required": True,
             },
             "location_column": {
                 "key": "location",
                 "label": "Location",
                 "description": "Occurrence coordinates (WKT format)",
+                "required": True,
             },
         }
 
         for param_name, field_info in param_to_field.items():
+            field = field_info.copy()
             if param_name in params:
-                field = field_info.copy()
                 field["required"] = params[param_name]["required"]
-                fields.append(field)
+            fields.append(field)
 
         # Add optional fields
         fields.append(

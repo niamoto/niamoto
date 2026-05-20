@@ -44,10 +44,14 @@ class JsonFormatter(logging.Formatter):
         # Add error information if present
         if record.exc_info:
             exc_type, exc_value, _ = record.exc_info
-            log_data["error"] = {"type": exc_type.__name__, "message": str(exc_value)}
-            # Add extra details for NiamotoError
-            if isinstance(exc_value, NiamotoError) and exc_value.details:
-                log_data["error"]["details"] = exc_value.details
+            if exc_type is not None and exc_value is not None:
+                log_data["error"] = {
+                    "type": exc_type.__name__,
+                    "message": str(exc_value),
+                }
+                # Add extra details for NiamotoError
+                if isinstance(exc_value, NiamotoError) and exc_value.details:
+                    log_data["error"]["details"] = exc_value.details
 
         # Add any extra fields
         if hasattr(record, "error_details"):
@@ -168,7 +172,11 @@ def log_error(
     if additional_info:
         error_info["additional_info"] = additional_info
 
-    logger.error(str(error), extra={"error_details": error_info}, exc_info=True)
+    logger.error(
+        str(error),
+        extra={"error_details": error_info},
+        exc_info=(type(error), error, error.__traceback__),
+    )
 
 
 class LoggerAdapter(logging.LoggerAdapter):

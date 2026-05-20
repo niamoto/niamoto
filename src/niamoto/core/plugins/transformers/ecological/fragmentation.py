@@ -238,10 +238,18 @@ class FragmentationAnalysis(TransformerPlugin):
             # Initialize the result
             result = {}
             metrics = params.metrics
+            patch_dependent_metrics = {
+                "patch_count",
+                "meff",
+                "largest_patch_index",
+                "connectivity_index",
+                "core_area",
+                "size_distribution",
+            }
+            patch_sizes = []
+            total_forest_area = 0.0
 
-            # Calculate basic metrics
-            # 1. Number of patches (patch_count)
-            if "patch_count" in metrics:
+            if patch_dependent_metrics.intersection(metrics):
                 # Get individual patches as separate geometries
                 # Option 1: Use distinct geometries (if the layer already contains separate patches)
                 individual_patches = forest_in_area.geometry
@@ -262,18 +270,21 @@ class FragmentationAnalysis(TransformerPlugin):
                     else individual_patches
                 )
 
-                patch_count = len(patches)
-                result["patch_count"] = patch_count
-
                 # Calculate the sizes of the patches
-                patch_sizes = []
                 for patch in patches:
                     patch_area = patch.area * area_factor
                     patch_sizes.append(float(patch_area))
+                patch_sizes = sorted(patch_sizes, reverse=True)
+                total_forest_area = float(sum(patch_sizes))
 
-                result["patch_sizes"] = sorted(patch_sizes, reverse=True)
-                result["total_forest_area"] = float(sum(patch_sizes))
+            # Calculate basic metrics
+            # 1. Number of patches (patch_count)
+            if "patch_count" in metrics:
+                result["patch_count"] = len(patch_sizes)
+                result["patch_sizes"] = patch_sizes
+                result["total_forest_area"] = total_forest_area
 
+            if "size_distribution" in metrics:
                 # Calculate the size distribution
                 if len(patch_sizes) > 0:
                     # Define the size classes (in the chosen unit)
@@ -308,16 +319,15 @@ class FragmentationAnalysis(TransformerPlugin):
                         "counts": size_class_counts,
                         "areas": [float(area) for area in size_class_areas],
                         "percentages": [
-                            round(area / result["total_forest_area"] * 100, 2)
-                            if result["total_forest_area"] > 0
+                            round(area / total_forest_area * 100, 2)
+                            if total_forest_area > 0
                             else 0
                             for area in size_class_areas
                         ],
                     }
 
             # 2. Effective mesh size (MEFF)
-            if "meff" in metrics and result.get("patch_sizes"):
-                patch_sizes = result["patch_sizes"]
+            if "meff" in metrics and patch_sizes:
                 if landscape_area > 0 and len(patch_sizes) > 0:
                     # Calculate MEFF = sum(patch_area² / total_area)
                     sum_squares = sum(size * size for size in patch_sizes)
@@ -338,8 +348,7 @@ class FragmentationAnalysis(TransformerPlugin):
                 result["landscape_unit"] = area_unit
 
             # 3. Largest patch index (Largest Patch Index)
-            if "largest_patch_index" in metrics and result.get("patch_sizes"):
-                patch_sizes = result["patch_sizes"]
+            if "largest_patch_index" in metrics and patch_sizes:
                 if len(patch_sizes) > 0 and landscape_area > 0:
                     largest_patch = max(patch_sizes)
                     largest_patch_index = largest_patch / landscape_area * 100
@@ -387,8 +396,7 @@ class FragmentationAnalysis(TransformerPlugin):
                 result["edge_unit"] = edge_unit
 
             # 5. Landscape connectivity
-            if "connectivity_index" in metrics and result.get("patch_sizes"):
-                patch_sizes = result["patch_sizes"]
+            if "connectivity_index" in metrics and patch_sizes:
                 if len(patch_sizes) > 1 and landscape_area > 0:
                     # Simple connectivity index: probability that two random points
                     # are in the same patch
@@ -430,10 +438,8 @@ class FragmentationAnalysis(TransformerPlugin):
                 result["total_core_area"] = float(total_core_area)
 
                 # Calculate the core area percentage
-                if result.get("total_forest_area", 0) > 0:
-                    core_percentage = (
-                        total_core_area / result["total_forest_area"] * 100
-                    )
+                if total_forest_area > 0:
+                    core_percentage = total_core_area / total_forest_area * 100
                     result["core_area_percentage"] = float(core_percentage)
                 else:
                     result["core_area_percentage"] = 0.0

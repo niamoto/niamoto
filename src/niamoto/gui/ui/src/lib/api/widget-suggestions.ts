@@ -57,17 +57,21 @@ export interface SemanticGroupsResponse {
 /**
  * Fetch combined widget suggestions for selected fields
  */
-async function getCombinedWidgetSuggestions(
+export async function getCombinedWidgetSuggestions(
   referenceName: string,
   selectedFields: string[],
-  sourceName: string = 'occurrences'
+  sourceName?: string
 ): Promise<CombinedWidgetResponse> {
+  const body: { selected_fields: string[]; source_name?: string } = {
+    selected_fields: selectedFields,
+  }
+  if (sourceName) {
+    body.source_name = sourceName
+  }
+
   const response = await apiClient.post(
     `/templates/${referenceName}/combined-suggestions`,
-    {
-      selected_fields: selectedFields,
-      source_name: sourceName,
-    }
+    body
   )
   return response.data
 }
@@ -75,12 +79,13 @@ async function getCombinedWidgetSuggestions(
 /**
  * Fetch semantic groups for proactive suggestions
  */
-async function getSemanticGroups(
+export async function getSemanticGroups(
   referenceName: string,
-  entity: string = 'occurrences'
+  entity?: string
 ): Promise<SemanticGroupsResponse> {
+  const query = entity ? `?entity=${encodeURIComponent(entity)}` : ''
   const response = await apiClient.get(
-    `/templates/${referenceName}/semantic-groups?entity=${encodeURIComponent(entity)}`
+    `/templates/${referenceName}/semantic-groups${query}`
   )
   return response.data
 }
@@ -92,10 +97,10 @@ async function getSemanticGroups(
 export function useCombinedWidgetSuggestions(
   referenceName: string,
   selectedFields: string[],
-  sourceName: string = 'occurrences'
+  sourceName?: string
 ) {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['combined-suggestions', referenceName, selectedFields, sourceName],
+    queryKey: ['combined-suggestions', referenceName, selectedFields, sourceName ?? null],
     queryFn: () => getCombinedWidgetSuggestions(referenceName, selectedFields, sourceName),
     enabled: !!referenceName && selectedFields.length >= 2,
     staleTime: 30_000,
@@ -116,7 +121,7 @@ export function useCombinedWidgetSuggestions(
  */
 export function useSemanticGroups(
   referenceName: string,
-  entity: string = 'occurrences',
+  entity?: string,
   enabled: boolean = true
 ) {
   const { data, isLoading, error, refetch } = useQuery({

@@ -25,12 +25,15 @@ def _clean_exception_hook(exc_type, exc_value, exc_traceback):
     print(f"Error ({exc_type.__name__}): {exc_value}", file=sys.stderr)
 
 
-# Create the CLI instance that will be used as the entry point
-cli = create_cli()
+def _install_exception_hook():
+    """Install the concise CLI exception hook for command execution."""
+    # Suppress tracebacks by default unless DEBUG is explicitly enabled
+    # Users can enable with: export NIAMOTO_DEBUG=1
+    if os.environ.get("NIAMOTO_DEBUG") != "1":
+        sys.excepthook = _clean_exception_hook
 
-# Suppress tracebacks by default unless DEBUG is explicitly enabled
-# Users can enable with: export NIAMOTO_DEBUG=1
-if os.environ.get("NIAMOTO_DEBUG") != "1":
-    sys.excepthook = _clean_exception_hook
+
+# Create the CLI instance that will be used as the entry point
+cli = create_cli(startup_callback=_install_exception_hook)
 
 __all__ = ["cli"]

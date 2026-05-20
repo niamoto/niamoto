@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 
 from niamoto.core.plugins.transformers.chains.reference_resolver import (
+    ReferenceConfig,
     ReferenceResolver,
 )
 
@@ -179,6 +180,33 @@ class TestReferenceResolver:
 
     def test_resolve_function_filter_null(self):
         assert self.resolver.resolve("@step1.mixed_list|filter_null") == [3, 1, 3, 2]
+
+    def test_allowed_functions_restricts_function_application(self):
+        resolver = ReferenceResolver(
+            self.context,
+            ReferenceConfig(allowed_functions=["length"]),
+        )
+
+        assert resolver.resolve("@step1.simple_list|length") == 3
+        with pytest.raises(ValueError, match="Function 'sum' is not allowed"):
+            resolver.resolve("@step1.simple_list|sum")
+
+    def test_empty_allowed_functions_denies_all_functions(self):
+        resolver = ReferenceResolver(
+            self.context,
+            ReferenceConfig(allowed_functions=[]),
+        )
+
+        with pytest.raises(ValueError, match="Function 'length' is not allowed"):
+            resolver.resolve("@step1.simple_list|length")
+
+    def test_allowed_functions_does_not_block_plain_references(self):
+        resolver = ReferenceResolver(
+            self.context,
+            ReferenceConfig(allowed_functions=[]),
+        )
+
+        assert resolver.resolve("@step1.simple_number") == 123.45
 
     # --- Error Handling Tests (Basic) --- #
 

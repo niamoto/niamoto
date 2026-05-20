@@ -15,6 +15,7 @@ import {
   extractPreviewRenderMs,
   recordCollectionsPerf,
 } from '@/features/collections/performance/collectionsPerf'
+import { apiFetch } from '@/shared/lib/api/fetch'
 
 // --- Constantes ---
 
@@ -160,6 +161,25 @@ function buildPreviewUrl(d: PreviewDescriptor): string {
   return `/api/preview/${d.templateId}${qs ? `?${qs}` : ''}`
 }
 
+export function requestInlinePreview(
+  descriptor: PreviewDescriptor,
+  signal: AbortSignal
+): Promise<Response> {
+  return apiFetch('/api/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      template_id: descriptor.templateId,
+      group_by: descriptor.groupBy,
+      source: descriptor.source,
+      entity_id: descriptor.entityId,
+      mode: descriptor.mode,
+      inline: descriptor.inline,
+    }),
+    signal,
+  })
+}
+
 // --- Hook principal ---
 
 /**
@@ -202,19 +222,7 @@ export function usePreviewFrame(
       }
       try {
         if (descriptor.inline) {
-          const res = await fetch('/api/preview', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              template_id: descriptor.templateId,
-              group_by: descriptor.groupBy,
-              source: descriptor.source,
-              entity_id: descriptor.entityId,
-              mode: descriptor.mode,
-              inline: descriptor.inline,
-            }),
-            signal: combinedSignal,
-          })
+          const res = await requestInlinePreview(descriptor, combinedSignal)
           if (!res.ok) throw new Error(`Preview ${res.status}`)
           const html = await res.text()
           const timingMs = extractPreviewRenderMs(res.headers)

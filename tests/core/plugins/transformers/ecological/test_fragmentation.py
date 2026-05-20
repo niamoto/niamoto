@@ -155,6 +155,29 @@ class TestFragmentationAnalysis:
         mock_read_file.assert_called_once_with(expected_path, engine="pyogrio")
 
     @patch("geopandas.read_file")
+    def test_transform_patch_metrics_without_patch_count(
+        self, mock_read_file, area_of_interest, mock_forest_data
+    ):
+        """Test patch-derived metrics are calculated without requesting patch_count."""
+        mock_read_file.return_value = mock_forest_data
+        config = {
+            "params": {
+                "forest_path": "dummy/forest.shp",
+                "metrics": ["meff", "largest_patch_index", "connectivity_index"],
+                "area_unit": "ha",
+            }
+        }
+
+        result = self.plugin.transform(area_of_interest, config)
+
+        assert "patch_count" not in result
+        assert result["meff"] == pytest.approx(17.0625)
+        assert result["meff_unit"] == "ha"
+        assert result["largest_patch"] == pytest.approx(400.0)
+        assert result["largest_patch_index"] == pytest.approx(4.0)
+        assert result["connectivity_index"] == pytest.approx(170625 / 275625)
+
+    @patch("geopandas.read_file")
     def test_transform_no_intersecting_forest(self, mock_read_file, area_of_interest):
         """Test transformation returns empty results when no forest patches intersect the area."""
         # Mock returns forest data completely outside the AOI

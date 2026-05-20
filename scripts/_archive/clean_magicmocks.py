@@ -18,7 +18,6 @@ def is_magicmock(name):
         r"^<MagicMock.*>$",
         r"^MagicMock$",
         r".*MagicMock.*",
-        r"^\d+$",  # ID directories inside MagicMock directories
     ]
 
     return any(re.match(pattern, name) for pattern in patterns)
@@ -47,7 +46,10 @@ def clean_magicmocks(directory):
         if any(part.startswith(".") for part in rel_path.parts):
             continue
 
-        if is_magicmock(item.name):
+        is_magicmock_child_id = item.name.isdigit() and any(
+            is_magicmock(part) for part in rel_path.parts[:-1]
+        )
+        if is_magicmock(item.name) or is_magicmock_child_id:
             to_remove.append(item)
             count += 1
 

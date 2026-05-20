@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 from fastapi import APIRouter, HTTPException, Query, Request
+from starlette.concurrency import run_in_threadpool
 
 from niamoto.common.exceptions import DatabaseQueryError
 from niamoto.common.transform_config_models import validate_transform_config
@@ -279,9 +280,19 @@ async def get_reference_suggestions(
                 # Validate the source against the reference configuration before
                 # touching registry metadata.
                 if source_name:
-                    # Get entity from registry
                     try:
                         entity_meta = registry.get(source_name)
+                    except Exception as exc:
+                        raise HTTPException(
+                            status_code=404,
+                            detail=(
+                                f"Source entity '{source_name}' is not available "
+                                "in the import registry"
+                            ),
+                        ) from exc
+
+                    # Get stored semantic profiles
+                    try:
                         # Get stored semantic profiles
                         semantic_profile = entity_meta.config.get(
                             "semantic_profile", {}
@@ -318,6 +329,8 @@ async def get_reference_suggestions(
             finally:
                 db.close_db_session()
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.warning(f"Error loading column suggestions: {e}")
 
@@ -405,10 +418,8 @@ async def get_reference_suggestions(
 async def get_enrichment_catalog(reference_name: str):
     """Return enrichment fields grouped by source for one reference."""
 
-    return [
-        EnrichmentSourceCatalogResponse(**catalog)
-        for catalog in get_reference_enrichment_catalog(reference_name)
-    ]
+    catalogs = await run_in_threadpool(get_reference_enrichment_catalog, reference_name)
+    return [EnrichmentSourceCatalogResponse(**catalog) for catalog in catalogs]
 
 
 @router.post("/generate-config", response_model=GenerateConfigResponse)
@@ -423,6 +434,10 @@ async def generate_transform_config(request: GenerateConfigRequest):
     - hierarchical: Uses nested_set plugin for tree traversal
     - flat/spatial: Uses direct_reference plugin for simple FK lookup
     """
+    template_ids = [template.template_id for template in request.templates]
+    if len(template_ids) != len(set(template_ids)):
+        raise HTTPException(status_code=400, detail="Duplicate template_id values")
+
     # Generate widgets_data directly from request
     widgets_data = {}
     for template in request.templates:
@@ -436,9 +451,16 @@ async def generate_transform_config(request: GenerateConfigRequest):
         if isinstance(cfg, dict) and "transformer" in cfg and "widget" in cfg:
             # Combined structure from suggestions — split transformer/widget
             transformer_cfg = cfg["transformer"]
+            widget_cfg = cfg["widget"]
+            if not isinstance(transformer_cfg, dict) or not isinstance(
+                widget_cfg, dict
+            ):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Combined template config requires object transformer and widget sections",
+                )
             params = transformer_cfg.get("params", {})
             # Carry widget config as export_override for _generate_export_config
-            widget_cfg = cfg["widget"]
             export_override = {
                 "plugin": widget_cfg.get("plugin"),
                 "title": cfg.get("title") or template.config.get("title"),
@@ -819,9 +841,21 @@ def _serialize_yaml_to_temp(path: Path, payload: Any) -> Path:
 
 def _replace_serialized_yaml_files(replacements: list[tuple[Path, Path]]) -> None:
     """Commit already serialized YAML temp files in order."""
+    replaced: list[tuple[Path, bytes | None]] = []
     try:
         for target_path, tmp_path in replacements:
+            previous_content = (
+                target_path.read_bytes() if target_path.exists() else None
+            )
             os.replace(tmp_path, target_path)
+            replaced.append((target_path, previous_content))
+    except Exception:
+        for target_path, previous_content in reversed(replaced):
+            if previous_content is None:
+                target_path.unlink(missing_ok=True)
+            else:
+                target_path.write_bytes(previous_content)
+        raise
     finally:
         for _target_path, tmp_path in replacements:
             try:
@@ -1144,7 +1178,7 @@ PLUGIN_SCHEMAS: Dict[str, Dict[str, Any]] = {
         "name": "Extracteur de series",
         "description": "Extrait une serie de valeurs numeriques",
         "complexity": "simple",
-        "applicable_categories": ["numeric_bins"],
+        "applicable_categories": ["numeric_bins", "ternary", "multi_category"],
         "parameters": [
             {
                 "name": "class_object",
@@ -1350,9 +1384,14 @@ async def get_widget_suggestions(
 
         # Filter plugin schemas based on available categories
         available_categories = set(categories_count.keys())
+        suggested_plugins = {
+            suggestion.suggested_plugin
+            for suggestion in class_object_suggestions
+            if suggestion.suggested_plugin
+        }
         applicable_schemas: Dict[str, PluginSchema] = {}
         for plugin_name, schema_dict in PLUGIN_SCHEMAS.items():
-            if any(
+            if plugin_name in suggested_plugins or any(
                 cat in available_categories
                 for cat in schema_dict["applicable_categories"]
             ):

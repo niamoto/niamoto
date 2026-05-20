@@ -1,6 +1,7 @@
 """Tests for the generic top_ranking plugin."""
 
 import pandas as pd
+import pytest
 from unittest.mock import MagicMock
 
 from niamoto.core.plugins.transformers.aggregation.top_ranking import TopRanking
@@ -204,19 +205,16 @@ class TestTopRankingGeneric:
         assert validated.params.aggregate_function == "count"
         assert validated.params.mode == "direct"
 
-    def test_hierarchical_mode_missing_config(self):
-        """Test that hierarchical mode auto-sets hierarchy_table for unknown fields."""
+    def test_hierarchical_mode_requires_hierarchy_table(self):
+        """Test that hierarchical mode requires a hierarchy_table."""
         config = {
             "plugin": "top_ranking",
             "params": {
                 "source": "data",
-                "field": "field",  # Unknown field, won't auto-set hierarchy_table
+                "field": "field",
                 "mode": "hierarchical",
-                # Missing hierarchy_table and target_ranks
             },
         }
 
-        validated = self.plugin.validate_config(config)
-        # Should work because hierarchy_table is optional and target_ranks defaults to empty
-        assert validated.params.mode == "hierarchical"
-        assert validated.params.hierarchy_table is None
+        with pytest.raises(ValueError, match="hierarchy_table is required"):
+            self.plugin.validate_config(config)

@@ -110,6 +110,46 @@ def test_entities_available_filters_by_reference_kind(
     payload = response.json()
     assert payload["datasets"] == []
     assert payload["references"] == ["entity_taxons"]
+
+
+def test_entities_available_uses_logical_registry_names(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_project: Path,
+):
+    class FakeRegistry:
+        def __init__(self, _db):
+            pass
+
+        def list_entities(self):
+            return [
+                SimpleNamespace(
+                    name="occurrences",
+                    table_name="dataset_occurrences",
+                    kind=SimpleNamespace(value="dataset"),
+                ),
+                SimpleNamespace(
+                    name="taxons",
+                    table_name="entity_taxons",
+                    kind=SimpleNamespace(value="reference"),
+                ),
+            ]
+
+    with (
+        patch("niamoto.gui.api.routers.entities.Config") as config_mock,
+        patch("niamoto.gui.api.routers.entities.EntityRegistry", FakeRegistry),
+    ):
+        config_mock.return_value.database_path = (
+            gui_duckdb_project / "db" / "niamoto.duckdb"
+        )
+        response = gui_duckdb_client.get("/api/entities/available")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["datasets"] == ["occurrences"]
+    assert payload["references"] == ["taxons"]
+    all_by_name = {entity["name"]: entity for entity in payload["all"]}
+    assert set(all_by_name) == {"occurrences", "taxons"}
+    assert all_by_name["taxons"]["entity_type"] == "entity_taxons"
     assert {entity["kind"] for entity in payload["all"]} == {"dataset", "reference"}
 
 
@@ -195,6 +235,42 @@ def test_entity_detail_uses_read_only_duckdb_connections(
     assert open_database_mock.call_args.kwargs.get("read_only") is True
 
 
+def test_entity_detail_handles_table_without_general_info(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_project: Path,
+):
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE shapes (
+                shapes_id INTEGER,
+                metrics JSON
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO shapes VALUES (
+                12,
+                '{"area": 42.5}'
+            )
+            """
+        )
+    finally:
+        conn.close()
+
+    response = gui_duckdb_client.get("/api/entities/entity/shapes/12")
+
+    assert response.status_code == 200, response.text
+    detail = response.json()
+    assert detail["id"] == "12"
+    assert detail["name"] == "shapes_12"
+    assert detail["group_by"] == "shapes"
+    assert detail["widgets_data"]["metrics"] == {"area": 42.5}
+
+
 def test_list_entities_rejects_malformed_group_by(gui_duckdb_client: TestClient):
     response = gui_duckdb_client.get(
         "/api/entities/entities/taxon%3Bdrop%20table%20taxon"
@@ -254,6 +330,40 @@ def test_entity_routes_quote_dynamic_table_and_id_names(
     assert detail["name"] == "Plot Seven"
     assert detail["group_by"] == "plots-special"
     assert detail["widgets_data"]["metrics"] == {"count": 42}
+
+
+def test_transformation_preview_accepts_non_object_json_values(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_project: Path,
+):
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE taxons (
+                taxons_id INTEGER,
+                general_info JSON,
+                series JSON
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO taxons VALUES (
+                101,
+                '{"name": {"value": "Araucaria columnaris"}}',
+                '[1, 2, 3]'
+            )
+            """
+        )
+    finally:
+        conn.close()
+
+    response = gui_duckdb_client.get("/api/entities/transformation/taxons/101/series")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["transformation_data"] == [1, 2, 3]
 
 
 def test_render_widget_escapes_missing_widget_transform_key(monkeypatch, tmp_path):
@@ -324,7 +434,9 @@ exports:
     monkeypatch.setattr(entities, "get_working_directory", lambda: work_dir)
     monkeypatch.setattr(entities, "get_database_path", lambda: db_path)
     monkeypatch.setattr(entities, "get_entity_detail", fake_get_entity_detail)
-    monkeypatch.setattr(entities, "open_database", lambda _db_path: FakeDbContext())
+    monkeypatch.setattr(
+        entities, "open_database", lambda _db_path, **_kwargs: FakeDbContext()
+    )
     monkeypatch.setattr(
         entities.PluginRegistry,
         "get_plugin",
@@ -338,3 +450,66 @@ exports:
     assert "Unsafe widget dependency" in response.text
     assert 'onerror="alert(1)' not in response.text
     assert "<script" not in response.text
+
+
+def test_render_widget_uses_read_only_duckdb_connection(monkeypatch, tmp_path):
+    work_dir = tmp_path
+    config_dir = work_dir / "config"
+    config_dir.mkdir()
+    db_path = tmp_path / "niamoto.duckdb"
+    db_path.write_text("", encoding="utf-8")
+    (config_dir / "export.yml").write_text(
+        """
+exports:
+  - groups:
+      - group_by: taxon
+        widgets:
+          - plugin: safe_widget
+            data_source: richness
+            params: {}
+""".lstrip(),
+        encoding="utf-8",
+    )
+    captured = {}
+
+    class FakeDbContext:
+        def __enter__(self):
+            return object()
+
+        def __exit__(self, *_args):
+            return False
+
+    class SafeWidget:
+        def __init__(self, db):
+            self.db = db
+
+        def render(self, _data, _params):
+            return "<div>Widget</div>"
+
+        def get_dependencies(self):
+            return []
+
+    async def fake_get_entity_detail(group_by: str, entity_id: str):
+        return SimpleNamespace(widgets_data={"richness": {"value": 1}})
+
+    def fake_open_database(path, **kwargs):
+        captured["path"] = path
+        captured["kwargs"] = kwargs
+        return FakeDbContext()
+
+    monkeypatch.setattr(entities, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(entities, "get_database_path", lambda: db_path)
+    monkeypatch.setattr(entities, "get_entity_detail", fake_get_entity_detail)
+    monkeypatch.setattr(entities, "open_database", fake_open_database)
+    monkeypatch.setattr(
+        entities.PluginRegistry,
+        "get_plugin",
+        staticmethod(lambda _plugin_id, _plugin_type: SafeWidget),
+    )
+
+    response = TestClient(create_app()).get(
+        "/api/entities/render-widget/taxon/1/richness"
+    )
+
+    assert response.status_code == 200
+    assert captured == {"path": db_path, "kwargs": {"read_only": True}}

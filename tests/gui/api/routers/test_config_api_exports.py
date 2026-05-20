@@ -1,7 +1,6 @@
 import asyncio
 from copy import deepcopy
 import threading
-import time
 from unittest.mock import Mock
 
 import pytest
@@ -11,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers import config as config_router
+from tests.gui.api.routers.concurrency_helpers import TrackingRLock
 
 
 def test_list_export_widgets_reads_groups_under_params(
@@ -93,6 +93,49 @@ def test_get_index_generator_reads_groups_under_params(
     )
 
     response = gui_duckdb_client.get("/api/config/export/plots/index-generator")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == index_generator
+
+
+def test_get_index_generator_skips_non_web_export_group_matches(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    index_generator = {
+        "enabled": True,
+        "template": "group_index.html",
+        "page_config": {"title": "Taxons"},
+        "display_fields": [{"field": "full_name", "label": "Name"}],
+    }
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "json_api",
+                        "exporter": "json_api_exporter",
+                        "groups": [{"group_by": "taxons"}],
+                    },
+                    {
+                        "name": "web_pages",
+                        "exporter": "html_page_exporter",
+                        "groups": [
+                            {
+                                "group_by": "taxons",
+                                "index_generator": index_generator,
+                                "widgets": [],
+                            }
+                        ],
+                    },
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.get("/api/config/export/taxons/index-generator")
 
     assert response.status_code == 200, response.text
     assert response.json() == index_generator
@@ -334,8 +377,9 @@ def test_api_export_suggestions_route_serializes_response(monkeypatch):
         },
     )
 
-    async def fake_suggest_index_fields(group_by: str):
+    async def fake_suggest_index_fields(group_by: str, data_source=None):
         assert group_by == "taxons"
+        assert data_source is None
         return config_router.IndexFieldSuggestions(
             display_fields=[],
             filters=[],
@@ -358,6 +402,51 @@ def test_api_export_suggestions_route_serializes_response(monkeypatch):
         "total_entities": 12,
         "available_fields": [],
     }
+
+
+def test_api_export_suggestions_route_uses_group_data_source(monkeypatch):
+    monkeypatch.setattr(
+        config_router,
+        "_load_export_config",
+        lambda: {
+            "exports": [
+                {
+                    "name": "json_api",
+                    "exporter": "json_api_exporter",
+                    "groups": [{"group_by": "taxons", "data_source": "taxon_stats"}],
+                }
+            ]
+        },
+    )
+
+    async def fake_suggest_index_fields(group_by: str, data_source=None):
+        assert group_by == "taxons"
+        assert data_source == "taxon_stats"
+        return config_router.IndexFieldSuggestions(
+            display_fields=[
+                config_router.SuggestedDisplayField(
+                    name="threat_count",
+                    source="threat_count",
+                    type="number",
+                    label="Threat Count",
+                    priority="high",
+                )
+            ],
+            filters=[],
+            total_entities=4,
+        )
+
+    monkeypatch.setattr(
+        config_router, "suggest_index_fields", fake_suggest_index_fields
+    )
+
+    client = TestClient(create_app())
+    response = client.get(
+        "/api/config/export/api-targets/json_api/groups/taxons/suggestions"
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["display_fields"][0]["source"] == "threat_count"
 
 
 def test_list_api_export_targets_route_summarizes_groups(monkeypatch):
@@ -450,9 +539,33 @@ def test_create_api_export_target_route_rejects_duplicate(monkeypatch):
     assert response.json()["detail"] == "Target 'json_api' already exists"
 
 
+def test_create_api_export_target_rejects_duplicate_name_across_exporters(
+    monkeypatch,
+):
+    saved = Mock()
+    monkeypatch.setattr(
+        config_router,
+        "_load_export_config",
+        lambda: {
+            "exports": [{"name": "web", "exporter": "html_page_exporter", "groups": []}]
+        },
+    )
+    monkeypatch.setattr(config_router, "_save_export_config", saved)
+
+    response = TestClient(create_app()).post(
+        "/api/config/export/api-targets",
+        json={"name": "web", "template": "simple"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Target 'web' already exists"
+    saved.assert_not_called()
+
+
 def test_create_api_export_target_serializes_concurrent_writes(monkeypatch):
     current_export_config = {"exports": []}
     config_lock = threading.Lock()
+    export_write_lock = TrackingRLock()
     first_save_entered = threading.Event()
     release_first_save = threading.Event()
     errors: list[BaseException] = []
@@ -473,6 +586,7 @@ def test_create_api_export_target_serializes_concurrent_writes(monkeypatch):
     monkeypatch.setattr(config_router, "_load_export_config", load_export_config)
     monkeypatch.setattr(config_router, "_validate_export_config_or_raise", Mock())
     monkeypatch.setattr(config_router, "_save_export_config", save_export_config)
+    monkeypatch.setattr(config_router, "EXPORT_CONFIG_WRITE_LOCK", export_write_lock)
 
     def create_target(name: str):
         try:
@@ -493,7 +607,7 @@ def test_create_api_export_target_serializes_concurrent_writes(monkeypatch):
     first.start()
     assert first_save_entered.wait(timeout=2)
     second.start()
-    time.sleep(0.05)
+    assert export_write_lock.contended_acquire.wait(timeout=2)
     release_first_save.set()
     first.join(timeout=2)
     second.join(timeout=2)
@@ -505,6 +619,149 @@ def test_create_api_export_target_serializes_concurrent_writes(monkeypatch):
         "api_one",
         "api_two",
     }
+
+
+def test_update_export_widget_serializes_concurrent_writes(monkeypatch):
+    current_export_config = {
+        "exports": [
+            {
+                "name": "web_pages",
+                "exporter": "html_page_exporter",
+                "groups": [{"group_by": "taxons", "widgets": []}],
+            }
+        ]
+    }
+    config_lock = threading.Lock()
+    export_write_lock = TrackingRLock()
+    first_save_entered = threading.Event()
+    release_first_save = threading.Event()
+    errors: list[BaseException] = []
+
+    def load_export_config():
+        with config_lock:
+            return deepcopy(current_export_config)
+
+    def save_export_config(export_config):
+        nonlocal current_export_config
+        widgets = export_config["exports"][0]["groups"][0]["widgets"]
+        if len(widgets) == 1 and widgets[0]["data_source"] == "first_widget":
+            first_save_entered.set()
+            release_first_save.wait(timeout=2)
+        with config_lock:
+            current_export_config = deepcopy(export_config)
+
+    monkeypatch.setattr(config_router, "_load_export_config", load_export_config)
+    monkeypatch.setattr(config_router, "_save_export_config", save_export_config)
+    monkeypatch.setattr(config_router, "EXPORT_CONFIG_WRITE_LOCK", export_write_lock)
+
+    def update_widget(widget_id: str):
+        try:
+            asyncio.run(
+                config_router.update_export_widget(
+                    "taxons",
+                    widget_id,
+                    config_router.ExportWidgetUpdate(
+                        plugin="bar_plot",
+                        data_source=widget_id,
+                        params={"widget": widget_id},
+                    ),
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=update_widget, args=("first_widget",))
+    second = threading.Thread(target=update_widget, args=("second_widget",))
+
+    first.start()
+    assert first_save_entered.wait(timeout=2)
+    second.start()
+    assert export_write_lock.contended_acquire.wait(timeout=2)
+    release_first_save.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    widgets = current_export_config["exports"][0]["groups"][0]["widgets"]
+    assert {widget["data_source"] for widget in widgets} == {
+        "first_widget",
+        "second_widget",
+    }
+
+
+def test_delete_export_widget_serializes_concurrent_writes(monkeypatch):
+    current_export_config = {
+        "exports": [
+            {
+                "name": "web_pages",
+                "exporter": "html_page_exporter",
+                "groups": [
+                    {
+                        "group_by": "taxons",
+                        "widgets": [
+                            {
+                                "plugin": "bar_plot",
+                                "data_source": "first_widget",
+                                "params": {},
+                            },
+                            {
+                                "plugin": "bar_plot",
+                                "data_source": "second_widget",
+                                "params": {},
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    config_lock = threading.Lock()
+    export_write_lock = TrackingRLock()
+    first_save_entered = threading.Event()
+    release_first_save = threading.Event()
+    errors: list[BaseException] = []
+
+    def load_export_config():
+        with config_lock:
+            return deepcopy(current_export_config)
+
+    def save_export_config(export_config):
+        nonlocal current_export_config
+        widgets = export_config["exports"][0]["groups"][0]["widgets"]
+        if [widget["data_source"] for widget in widgets] == ["second_widget"]:
+            first_save_entered.set()
+            release_first_save.wait(timeout=2)
+        with config_lock:
+            current_export_config = deepcopy(export_config)
+
+    monkeypatch.setattr(config_router, "_load_export_config", load_export_config)
+    monkeypatch.setattr(config_router, "_save_export_config", save_export_config)
+    monkeypatch.setattr(config_router, "EXPORT_CONFIG_WRITE_LOCK", export_write_lock)
+
+    def delete_widget(widget_id: str):
+        try:
+            asyncio.run(config_router.delete_export_widget("taxons", widget_id))
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(target=delete_widget, args=("first_widget",))
+    second = threading.Thread(target=delete_widget, args=("second_widget",))
+
+    first.start()
+    assert first_save_entered.wait(timeout=2)
+    second.start()
+    assert export_write_lock.contended_acquire.wait(timeout=2)
+    release_first_save.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    widgets = current_export_config["exports"][0]["groups"][0]["widgets"]
+    assert widgets == []
 
 
 def test_update_api_export_target_settings_persists_params(monkeypatch):
@@ -569,6 +826,34 @@ def test_update_api_export_target_settings_persists_params(monkeypatch):
                 "index_output_pattern": "/{group}/index.json",
             },
             "index_output_pattern must be relative to the project directory",
+        ),
+        (
+            {
+                "output_dir": "exports/json_api",
+                "detail_output_pattern": "items.json",
+            },
+            "detail_output_pattern must include the {id} placeholder",
+        ),
+        (
+            {
+                "output_dir": "exports/json_api",
+                "index_output_pattern": "index.json",
+            },
+            "index_output_pattern must include the {group} placeholder",
+        ),
+        (
+            {
+                "output_dir": "exports/json_api",
+                "detail_output_pattern": "{group}/{unknown}.json",
+            },
+            "detail_output_pattern contains unsupported placeholder {unknown}",
+        ),
+        (
+            {
+                "output_dir": "exports/json_api",
+                "index_output_pattern": "{unknown}/index.json",
+            },
+            "index_output_pattern contains unsupported placeholder {unknown}",
         ),
     ],
 )
@@ -792,8 +1077,9 @@ def test_api_export_auto_config_route_returns_read_only_simple_proposal(monkeypa
 
     monkeypatch.setattr(config_router, "_save_export_config", fail_if_saved)
 
-    async def fake_suggest_index_fields(group_by: str):
+    async def fake_suggest_index_fields(group_by: str, data_source=None):
         assert group_by == "taxons"
+        assert data_source is None
         return config_router.IndexFieldSuggestions(
             display_fields=[
                 config_router.SuggestedDisplayField(
@@ -843,6 +1129,70 @@ def test_api_export_auto_config_route_returns_read_only_simple_proposal(monkeypa
     }
     assert payload["sections"]["json_options"]["config"] == {"indent": 2}
     assert payload["sections"]["index"]["confidence"] == "high"
+
+
+def test_api_export_auto_config_route_uses_group_data_source_fields(monkeypatch):
+    export_config = {
+        "exports": [
+            {
+                "name": "json_api",
+                "exporter": "json_api_exporter",
+                "groups": [
+                    {
+                        "group_by": "taxons",
+                        "data_source": "taxon_stats",
+                    }
+                ],
+            }
+        ]
+    }
+
+    monkeypatch.setattr(config_router, "_load_export_config", lambda: export_config)
+
+    async def fake_suggest_index_fields(group_by: str, data_source=None):
+        assert group_by == "taxons"
+        assert data_source == "taxon_stats"
+        return config_router.IndexFieldSuggestions(
+            display_fields=[
+                config_router.SuggestedDisplayField(
+                    name="coverage_score",
+                    source="coverage_score",
+                    type="number",
+                    label="Coverage score",
+                    priority="high",
+                )
+            ],
+            filters=[],
+            total_entities=2,
+        )
+
+    def fake_load_preview_items(group_by, data_source, paths=None):
+        assert group_by == "taxons"
+        assert data_source == "taxon_stats"
+        assert paths == []
+        return [{"coverage_score": 0.91}, {"coverage_score": 0.74}]
+
+    monkeypatch.setattr(
+        config_router, "suggest_index_fields", fake_suggest_index_fields
+    )
+    monkeypatch.setattr(
+        config_router, "_load_api_export_preview_items", fake_load_preview_items
+    )
+
+    client = TestClient(create_app())
+    response = client.get(
+        "/api/config/export/api-targets/json_api/groups/taxons/auto-config"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["proposal"]["data_source"] == "taxon_stats"
+    assert payload["proposal"]["detail"]["fields"] == [
+        {"coverage_score": "coverage_score"}
+    ]
+    assert {"coverage_score": "coverage_score"} in payload["proposal"]["index"][
+        "fields"
+    ]
 
 
 def test_api_export_group_config_exposes_detail_url_index_field(monkeypatch):
@@ -952,8 +1302,9 @@ def test_api_export_auto_config_route_marks_dwc_mapping_unresolved(monkeypatch):
         },
     )
 
-    async def fake_suggest_index_fields(group_by: str):
+    async def fake_suggest_index_fields(group_by: str, data_source=None):
         assert group_by == "taxons"
+        assert data_source is None
         return config_router.IndexFieldSuggestions(
             display_fields=[],
             filters=[],
@@ -1041,6 +1392,47 @@ def test_api_export_preview_route_maps_representative_index_data(monkeypatch):
     assert payload["errors"] == []
     assert payload["source"]["general_info"]["name"]["value"] == (
         "Araucaria columnaris"
+    )
+
+
+def test_api_export_preview_rejects_undeclared_data_source(monkeypatch):
+    monkeypatch.setattr(
+        config_router,
+        "_load_export_config",
+        lambda: {
+            "exports": [
+                {
+                    "name": "json_api",
+                    "exporter": "json_api_exporter",
+                    "params": {"output_dir": "exports/json_api"},
+                    "groups": [{"group_by": "taxons"}],
+                }
+            ]
+        },
+    )
+
+    def fail_load_preview_item(*_args, **_kwargs):
+        raise AssertionError("preview should not read undeclared tables")
+
+    monkeypatch.setattr(
+        config_router, "_load_api_export_preview_item", fail_load_preview_item
+    )
+
+    response = TestClient(create_app()).post(
+        "/api/config/export/api-targets/json_api/groups/taxons/preview",
+        json={
+            "enabled": True,
+            "section": "index",
+            "data_source": "internal_table",
+            "detail": {"pass_through": True},
+            "index": {"fields": []},
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "API export preview data_source must match the selected group "
+        "or a saved API export group data_source"
     )
 
 

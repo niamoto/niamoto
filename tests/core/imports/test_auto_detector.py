@@ -575,6 +575,44 @@ class TestGenerateConfig:
         assert "shapes" in config
         assert len(config["shapes"]) > 0
 
+    def test_generate_config_routes_realistic_shape_columns_to_shapes(
+        self, auto_detector, mock_profile
+    ):
+        """Test realistic spatial shape profiles are routed to shapes."""
+        mock_profile.detected_type = "spatial"
+        mock_profile.file_path = Path("/project/data/shapes/provinces.shp")
+        mock_profile.suggested_name = "provinces"
+        mock_profile.geometry_type = "Polygon"
+        mock_profile.columns = [
+            create_column_profile(
+                name="id",
+                dtype="int64",
+                semantic_type="identifier",
+                unique_ratio=1.0,
+                sample_values=[1, 2, 3],
+            ),
+            create_column_profile(
+                name="label",
+                dtype="object",
+                semantic_type="location.name",
+                unique_ratio=0.9,
+                sample_values=["North", "South"],
+            ),
+            create_column_profile(
+                name="geometry",
+                dtype="geometry",
+                semantic_type="geometry",
+                unique_ratio=1.0,
+            ),
+        ]
+
+        config = auto_detector._generate_config([mock_profile])
+
+        assert "shapes" in config
+        assert len(config["shapes"]) == 1
+        assert config["shapes"][0]["name_field"] == "label"
+        assert "provinces" not in config["references"]
+
     def test_generate_config_with_layer(self, auto_detector, mock_profile):
         """Test generating config with layer entity."""
         mock_profile.file_path = Path("/project/data/layers/elevation.tif")

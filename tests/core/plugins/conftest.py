@@ -15,7 +15,7 @@ from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.plugin_loader import PluginLoader
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def mock_db():
     """Create a mock database connection for testing."""
     db = MagicMock()
@@ -81,7 +81,7 @@ def plugin_loader():
 def clear_registry():
     """Clear the plugin registry for the test, then restore original state."""
     saved_plugins = {pt: dict(d) for pt, d in PluginRegistry._plugins.items()}
-    saved_metadata = dict(PluginRegistry._metadata)
+    saved_metadata = {pt: dict(d) for pt, d in PluginRegistry._metadata.items()}
     PluginRegistry.clear()
     yield
     # Restaurer l'état original au lieu de laisser le registre vide
@@ -98,7 +98,7 @@ def _restore_plugin_registry_per_class():
     appellent PluginRegistry.clear(), et restaurer après tearDownClass().
     """
     snapshot_plugins = {pt: dict(d) for pt, d in PluginRegistry._plugins.items()}
-    snapshot_metadata = dict(PluginRegistry._metadata)
+    snapshot_metadata = {pt: dict(d) for pt, d in PluginRegistry._metadata.items()}
     yield
     for pt in PluginRegistry._plugins:
         PluginRegistry._plugins[pt] = snapshot_plugins.get(pt, {})

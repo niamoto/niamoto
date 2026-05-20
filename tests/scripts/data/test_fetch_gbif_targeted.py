@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import csv
 
 import pytest
 
@@ -54,3 +55,16 @@ def test_fetch_occurrences_adds_context_to_page_errors(monkeypatch):
         )
 
     assert "country=NC offset=0 limit=5" in str(exc_info.value)
+
+
+def test_write_csv_preserves_headers_for_empty_records(tmp_path):
+    output_path = tmp_path / "occurrences.csv"
+
+    columns = fetch_gbif_targeted.write_csv(output_path, [])
+
+    with output_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.reader(handle)
+        header = next(reader)
+
+    assert columns == list(fetch_gbif_targeted.PREFERRED_COLUMNS)
+    assert header == list(fetch_gbif_targeted.PREFERRED_COLUMNS)

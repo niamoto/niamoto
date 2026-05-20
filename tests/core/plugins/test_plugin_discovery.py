@@ -90,14 +90,11 @@ class TestPluginDiscovery:
         # Discover plugins
         discovered = plugin_loader.discover_plugins(core_plugins_path)
 
-        # Load the first few plugins (to avoid loading all of them)
-        test_plugins = discovered[:3] if len(discovered) > 3 else discovered
-
-        for plugin_info in test_plugins:
+        for plugin_info in discovered:
             plugin_class = load_discovered_plugin_class(plugin_info)
 
             # Verify that the plugin class was loaded
-            assert plugin_class is not None
+            assert plugin_class is not None, plugin_info["module"]
 
             # Create an instance (with a mock db)
             mock_db = MagicMock()
@@ -105,15 +102,19 @@ class TestPluginDiscovery:
 
             # Check type-specific methods
             if plugin_info["type"] == PluginType.TRANSFORMER.value:
-                assert hasattr(plugin_instance, "validate_config")
-                assert hasattr(plugin_instance, "transform")
+                assert hasattr(plugin_instance, "validate_config"), plugin_info[
+                    "module"
+                ]
+                assert hasattr(plugin_instance, "transform"), plugin_info["module"]
             elif plugin_info["type"] == PluginType.EXPORTER.value:
-                assert hasattr(plugin_instance, "export")
+                assert hasattr(plugin_instance, "export"), plugin_info["module"]
             elif plugin_info["type"] == PluginType.LOADER.value:
-                assert hasattr(plugin_instance, "validate_config")
-                assert hasattr(plugin_instance, "load_data")
+                assert hasattr(plugin_instance, "validate_config"), plugin_info[
+                    "module"
+                ]
+                assert hasattr(plugin_instance, "load_data"), plugin_info["module"]
             elif plugin_info["type"] == PluginType.DEPLOYER.value:
-                assert hasattr(plugin_instance, "deploy")
+                assert hasattr(plugin_instance, "deploy"), plugin_info["module"]
 
     def test_register_discovered_plugins(
         self, plugin_loader, clear_registry, core_plugins_path

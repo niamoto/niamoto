@@ -179,6 +179,10 @@ class CollectionCatalogService:
         source_name = source.get("name", name)
         self._validate_source(source_type, source_name)
         roles = self._validate_roles(metadata.get("roles", ["api"]))
+        review_status = self._validate_review_status(
+            metadata.get("review_status", "accepted"),
+            collection_name=name,
+        )
         return CollectionCatalogEntry(
             name=name,
             label=metadata.get("label") or name,
@@ -187,7 +191,7 @@ class CollectionCatalogService:
             grain=metadata.get("grain", "unknown"),
             roles=roles,
             visible=metadata.get("visible", True),
-            review_status=metadata.get("review_status", "accepted"),
+            review_status=review_status,
             confidence=metadata.get("confidence", 1.0),
             description=metadata.get("description"),
             evidence=[
@@ -208,12 +212,17 @@ class CollectionCatalogService:
             "label",
             "grain",
             "visible",
-            "review_status",
             "confidence",
             "description",
         ):
             if key in metadata:
                 data[key] = deepcopy(metadata[key])
+
+        if "review_status" in metadata:
+            data["review_status"] = self._validate_review_status(
+                metadata["review_status"],
+                collection_name=entry.name,
+            )
 
         if "roles" in metadata:
             data["roles"] = self._validate_roles(metadata["roles"])
@@ -235,11 +244,27 @@ class CollectionCatalogService:
                 normalized[key] = self._validate_roles(value)
                 continue
             if key == "review_status" and value not in self.VALID_REVIEW_STATUSES:
-                allowed = ", ".join(sorted(self.VALID_REVIEW_STATUSES))
-                raise ValueError(f"review_status must be one of: {allowed}")
+                self._raise_invalid_review_status(value)
             if key in {"label", "visible", "review_status", "grain", "description"}:
                 normalized[key] = value
         return normalized
+
+    def _validate_review_status(
+        self, value: str, *, collection_name: str | None = None
+    ) -> str:
+        if value not in self.VALID_REVIEW_STATUSES:
+            self._raise_invalid_review_status(value, collection_name=collection_name)
+        return value
+
+    def _raise_invalid_review_status(
+        self, value: str, *, collection_name: str | None = None
+    ) -> None:
+        allowed = ", ".join(sorted(self.VALID_REVIEW_STATUSES))
+        context = f" for collection '{collection_name}'" if collection_name else ""
+        raise ValueError(
+            f"Invalid review_status{context}: {value!r}. "
+            f"review_status must be one of: {allowed}"
+        )
 
     def _validate_source(self, source_type: str, source_name: str) -> None:
         if source_type not in self.VALID_SOURCE_TYPES:

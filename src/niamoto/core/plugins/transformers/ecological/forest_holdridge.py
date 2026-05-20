@@ -4,6 +4,8 @@ Combines a forest layer with a Holdridge raster to calculate the distribution of
 and non-forest areas in each life zone.
 """
 
+import os
+from pathlib import Path
 from typing import Dict, Any, Literal
 from pydantic import Field, ConfigDict, model_validator
 import numpy as np
@@ -104,6 +106,13 @@ class ForestHoldridgeAnalysis(TransformerPlugin):
 
     config_model = ForestHoldridgeConfig
 
+    def _resolve_input_path(self, path: str) -> str:
+        """Resolve relative inputs against the Niamoto instance directory."""
+        input_path = Path(path)
+        if input_path.is_absolute():
+            return str(input_path)
+        return str(Path(self._get_base_directory()) / input_path)
+
     def validate_config(self, config: Dict[str, Any]) -> ForestHoldridgeConfig:
         """Validate configuration and return typed config."""
         try:
@@ -155,8 +164,11 @@ class ForestHoldridgeAnalysis(TransformerPlugin):
             # Get the correspondence of Holdridge values
             holdridge_values = params.holdridge_values
 
+            holdridge_path = self._resolve_input_path(params.holdridge_path)
+            forest_path = self._resolve_input_path(params.forest_path)
+
             # Open the Holdridge raster
-            with rasterio.open(params.holdridge_path) as src:
+            with rasterio.open(holdridge_path) as src:
                 # Mask the raster with the geometry
                 masked, mask_transform = mask(
                     src, [main_geom], crop=True, nodata=params.nodata
@@ -178,11 +190,11 @@ class ForestHoldridgeAnalysis(TransformerPlugin):
                     }
 
                 # Load the forest layer
-                forest_gdf = gpd.read_file(params.forest_path, engine="pyogrio")
+                forest_gdf = gpd.read_file(forest_path, engine="pyogrio")
 
                 if forest_gdf.empty:
                     raise DataTransformError(
-                        f"No data found in the forest layer: {params.forest_path}"
+                        f"No data found in the forest layer: {forest_path}"
                     )
 
                 # Ensure the CRS matches
@@ -251,3 +263,13 @@ class ForestHoldridgeAnalysis(TransformerPlugin):
                 f"Failed to analyze the Holdridge zones: {str(e)}",
                 details={"config": config},
             )
+
+    def _get_base_directory(self) -> str:
+        """Gets the base directory for relative paths."""
+        try:
+            from niamoto.common.config import Config
+
+            config = Config()
+            return os.path.dirname(config.config_dir)
+        except Exception:
+            return os.getcwd()

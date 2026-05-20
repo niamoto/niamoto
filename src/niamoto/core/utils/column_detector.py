@@ -1260,7 +1260,7 @@ class SpatialMatcher:
 
             # Calculate statistics
             total_points = len(csv_gdf)
-            matched_points = joined["index_right"].notna().sum()
+            matched_points = joined.loc[joined["index_right"].notna()].index.nunique()
             coverage_percent = (
                 (matched_points / total_points * 100) if total_points > 0 else 0
             )

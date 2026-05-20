@@ -17,6 +17,7 @@ import pandas as pd
 
 from niamoto.common.database import Database
 from niamoto.common.exceptions import DataValidationError
+from niamoto.common.table_resolver import quote_identifier
 from niamoto.core.imports.config_models import HierarchyLevel, ExtractionConfig
 
 
@@ -126,22 +127,34 @@ class HierarchyBuilder:
             SQL query string
         """
         levels = config.levels
+        quoted_source_table = quote_identifier(self.db, source_table)
 
         # Build column selections
         level_cols = []
         for level in levels:
+            quoted_level_col = quote_identifier(self.db, level.column)
             if config.incomplete_rows == "fill_unknown":
                 level_cols.append(f"""
-                    COALESCE(NULLIF(TRIM("{level.column}"), ''), 'Unknown {level.name}') as "{level.column}"
+                    COALESCE(NULLIF(TRIM({quoted_level_col}), ''), 'Unknown {level.name}') as {quoted_level_col}
                 """)
             else:
-                level_cols.append(f'"{level.column}"')
+                level_cols.append(quoted_level_col)
 
         level_cols_str = ", ".join(level_cols)
-        id_col = f', "{config.id_column}"' if config.id_column else ""
-        name_col = f', "{config.name_column}"' if config.name_column else ""
+        id_col = (
+            f", {quote_identifier(self.db, config.id_column)}"
+            if config.id_column
+            else ""
+        )
+        name_col = (
+            f", {quote_identifier(self.db, config.name_column)}"
+            if config.name_column
+            else ""
+        )
         additional = (
-            ", ".join([f'"{col}"' for col in config.additional_columns])
+            ", ".join(
+                [quote_identifier(self.db, col) for col in config.additional_columns]
+            )
             if config.additional_columns
             else ""
         )
@@ -150,7 +163,9 @@ class HierarchyBuilder:
         where_clause = ""
         if config.incomplete_rows == "error":
             # Database will fail on NULL constraint - require ALL levels
-            null_checks = " AND ".join([f'"{lv.column}" IS NOT NULL' for lv in levels])
+            null_checks = " AND ".join(
+                [f"{quote_identifier(self.db, lv.column)} IS NOT NULL" for lv in levels]
+            )
             where_clause = f"WHERE {null_checks}"
         # Note: "skip" is handled per-level in UNION clauses below
 
@@ -159,8 +174,11 @@ class HierarchyBuilder:
         union_clauses = []
         deepest_level_idx = len(levels) - 1
         for idx, level in enumerate(levels):
+            quoted_level_col = quote_identifier(self.db, level.column)
             # Build path: concatenate all levels up to current one
-            path_parts = [f'"{levels[i].column}"' for i in range(idx + 1)]
+            path_parts = [
+                quote_identifier(self.db, levels[i].column) for i in range(idx + 1)
+            ]
             path_expr = " || '|' || ".join(path_parts)
 
             # Build null check for this level AND all parent levels
@@ -168,8 +186,9 @@ class HierarchyBuilder:
             null_checks_for_level = []
             for i in range(idx + 1):  # Include all levels up to current
                 if config.incomplete_rows == "skip":
+                    quoted_parent_col = quote_identifier(self.db, levels[i].column)
                     null_checks_for_level.append(
-                        f'"{levels[i].column}" IS NOT NULL AND TRIM("{levels[i].column}") != \'\''
+                        f"{quoted_parent_col} IS NOT NULL AND TRIM({quoted_parent_col}) != ''"
                     )
                 elif config.incomplete_rows == "fill_unknown":
                     # With fill_unknown, we use COALESCE so no need for NULL checks
@@ -190,27 +209,29 @@ class HierarchyBuilder:
 
             if config.id_column:
                 external_id_col_name = f"{entity_name}_id"
-                external_id_expr = (
-                    f', MIN("{config.id_column}") as {external_id_col_name}'
-                )
+                quoted_id_col = quote_identifier(self.db, config.id_column)
+                quoted_external_id_col = quote_identifier(self.db, external_id_col_name)
+                external_id_expr = f", MIN({quoted_id_col}) as {quoted_external_id_col}"
             if config.name_column:
                 if idx == deepest_level_idx:
-                    external_name_expr = f', MIN("{config.name_column}") as full_name'
+                    quoted_name_col = quote_identifier(self.db, config.name_column)
+                    external_name_expr = f", MIN({quoted_name_col}) as full_name"
                 else:
                     level_col = level.column or level.name
-                    external_name_expr = f', MIN("{level_col}") as full_name'
+                    quoted_name_col = quote_identifier(self.db, level_col)
+                    external_name_expr = f", MIN({quoted_name_col}) as full_name"
 
             select_clause = f"""
             SELECT
                 {idx} as level,
                 '{level.name}' as rank_name,
-                "{level.column}" as rank_value,
+                {quoted_level_col} as rank_value,
                 {path_expr} as full_path
                 {external_id_expr}
                 {external_name_expr}
             FROM unique_taxa
             WHERE {null_check}
-            GROUP BY {path_expr}, "{level.column}"
+            GROUP BY {path_expr}, {quoted_level_col}
             """
             union_clauses.append(select_clause)
 
@@ -218,7 +239,9 @@ class HierarchyBuilder:
         union_all = "\n            UNION ALL\n            ".join(union_clauses)
 
         # Generate external ID column name
-        external_id_col_name = f"{entity_name}_id" if config.id_column else None
+        external_id_col_name = (
+            quote_identifier(self.db, f"{entity_name}_id") if config.id_column else None
+        )
 
         sql = f"""
         WITH unique_taxa AS (
@@ -227,7 +250,7 @@ class HierarchyBuilder:
                 {id_col}
                 {name_col}
                 {", " + additional if additional else ""}
-            FROM {source_table}
+            FROM {quoted_source_table}
             {where_clause}
         ),
         exploded_levels AS (

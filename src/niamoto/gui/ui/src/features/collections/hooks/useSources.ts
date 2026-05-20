@@ -9,6 +9,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch } from '@/shared/lib/api/fetch'
 
 const API_BASE = '/api/sources'
 
@@ -82,7 +83,7 @@ async function uploadSource(
   const formData = new FormData()
   formData.append('file', file)
 
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/${referenceName}/upload?source_name=${encodeURIComponent(sourceName)}`,
     {
       method: 'POST',
@@ -102,7 +103,7 @@ async function saveSource(
   referenceName: string,
   request: SaveSourceRequest
 ): Promise<{ success: boolean; message: string; source_name: string }> {
-  const response = await fetch(`${API_BASE}/${referenceName}/save`, {
+  const response = await apiFetch(`${API_BASE}/${referenceName}/save`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
@@ -120,7 +121,7 @@ async function removeSource(
   referenceName: string,
   sourceName: string
 ): Promise<{ success: boolean; message: string }> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/${referenceName}/sources/${encodeURIComponent(sourceName)}`,
     { method: 'DELETE' }
   )

@@ -1,3 +1,5 @@
+import os
+
 from tests.common.base_test import NiamotoTestCase
 
 
@@ -24,3 +26,16 @@ def test_active_patches_are_isolated_per_test_instance():
         assert second._active_patches is not NiamotoTestCase._active_patches
     finally:
         second.tearDown()
+
+
+def test_niamoto_test_mode_is_restored_after_test_case(monkeypatch):
+    monkeypatch.setenv("NIAMOTO_TEST_MODE", "external")
+
+    case = _MinimalNiamotoTestCase()
+    case.setUp()
+    try:
+        assert os.environ["NIAMOTO_TEST_MODE"] == "1"
+    finally:
+        case.tearDown()
+
+    assert os.environ["NIAMOTO_TEST_MODE"] == "external"

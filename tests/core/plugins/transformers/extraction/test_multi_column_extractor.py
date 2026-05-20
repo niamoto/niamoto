@@ -1,6 +1,7 @@
 import pytest
 import pandas as pd
 import numpy as np
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from niamoto.core.plugins.transformers.extraction.multi_column_extractor import (
@@ -189,6 +190,91 @@ class TestMultiColumnExtractorTransform:
             # Check results
             assert result["counts"] == [50, 30, 20]
             assert result["percentages"] == [50.0, 30.0, 20.0]
+
+    def test_transform_loads_configured_source_for_group_id(
+        self, multi_column_extractor_plugin
+    ):
+        """Test transform drives the real source loader with the configured group id."""
+        source_data = pd.DataFrame(
+            {"plot_id": [42], "col1": [50], "col2": [30], "col3": [20]}
+        )
+        multi_column_extractor_plugin.registry.get = MagicMock(
+            return_value=SimpleNamespace(
+                table_name="entity_plots",
+                config={"schema": {"id_field": "plot_id"}},
+            )
+        )
+        multi_column_extractor_plugin.db.has_table.return_value = True
+        multi_column_extractor_plugin.db.get_table_columns.return_value = [
+            "plot_id",
+            "col1",
+            "col2",
+            "col3",
+        ]
+        mock_conn = MagicMock()
+        mock_conn.__enter__.return_value = mock_conn
+        mock_conn.__exit__.return_value = False
+        multi_column_extractor_plugin.db.connection.return_value = mock_conn
+
+        config = {
+            "plugin": "multi_column_extractor",
+            "group_id": 42,
+            "params": {
+                "source": "plots",
+                "columns": ["col1", "col2", "col3"],
+                "include_percentages": True,
+            },
+        }
+
+        with patch("pandas.read_sql", return_value=source_data) as mock_read_sql:
+            result = multi_column_extractor_plugin.transform(pd.DataFrame(), config)
+
+        query = " ".join(str(mock_read_sql.call_args.args[0]).split())
+        assert 'SELECT * FROM "entity_plots" WHERE "plot_id" = :id_value' in query
+        assert mock_read_sql.call_args.args[1] is mock_conn
+        assert mock_read_sql.call_args.kwargs["params"] == {"id_value": 42}
+        assert result["counts"] == [50, 30, 20]
+        assert result["percentages"] == [50.0, 30.0, 20.0]
+
+
+class TestMultiColumnExtractorGetData:
+    """Tests for source loading contracts."""
+
+    def test_get_data_from_source_resolves_registry_table_id_field_and_params(
+        self, multi_column_extractor_plugin
+    ):
+        expected = pd.DataFrame({"plot_id": [7], "col1": [11]})
+        multi_column_extractor_plugin.registry.get = MagicMock(
+            return_value=SimpleNamespace(
+                table_name="entity_plots",
+                config={"schema": {"id_field": "plot_id"}},
+            )
+        )
+        multi_column_extractor_plugin.db.has_table.return_value = True
+        multi_column_extractor_plugin.db.get_table_columns.return_value = [
+            "plot_id",
+            "col1",
+        ]
+        mock_conn = MagicMock()
+        mock_conn.__enter__.return_value = mock_conn
+        mock_conn.__exit__.return_value = False
+        multi_column_extractor_plugin.db.connection.return_value = mock_conn
+
+        with patch("pandas.read_sql", return_value=expected) as mock_read_sql:
+            result = multi_column_extractor_plugin._get_data_from_source("plots", 7)
+
+        pd.testing.assert_frame_equal(result, expected)
+        multi_column_extractor_plugin.registry.get.assert_called_once_with("plots")
+        multi_column_extractor_plugin.db.has_table.assert_called_once_with(
+            "entity_plots"
+        )
+        multi_column_extractor_plugin.db.get_table_columns.assert_called_once_with(
+            "entity_plots"
+        )
+        query = " ".join(str(mock_read_sql.call_args.args[0]).split())
+        assert query == 'SELECT * FROM "entity_plots" WHERE "plot_id" = :id_value'
+        assert mock_read_sql.call_args.args[1] is mock_conn
+        assert mock_read_sql.call_args.kwargs["params"] == {"id_value": 7}
 
     def test_transform_with_derived_columns(self, multi_column_extractor_plugin):
         """Test transformation with derived columns calculation."""
@@ -441,6 +527,30 @@ class TestMultiColumnExtractorTransform:
 
 class TestMultiColumnExtractorErrors:
     """Tests for error handling in MultiColumnExtractor."""
+
+    def test_get_data_from_source_rejects_unknown_id_field_before_query(
+        self, multi_column_extractor_plugin
+    ):
+        """Test invalid id fields are rejected before SQL execution."""
+        multi_column_extractor_plugin.registry.get = MagicMock(
+            return_value=SimpleNamespace(
+                table_name="entity_plots",
+                config={
+                    "schema": {"id_field": 'plot_id"; DROP TABLE entity_plots; --'}
+                },
+            )
+        )
+        multi_column_extractor_plugin.db.has_table.return_value = True
+        multi_column_extractor_plugin.db.get_table_columns.return_value = [
+            "plot_id",
+            "count",
+        ]
+
+        with patch("pandas.read_sql") as mock_read_sql:
+            with pytest.raises(ValueError, match="Error getting data"):
+                multi_column_extractor_plugin._get_data_from_source("plots", 5)
+
+        mock_read_sql.assert_not_called()
 
     def test_invalid_formula_in_derived_column(self, multi_column_extractor_plugin):
         """Test error handling with invalid formula in derived column."""

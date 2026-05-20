@@ -6,7 +6,7 @@ import threading
 from typing import Any, NoReturn
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from niamoto.core.collections import CollectionCatalogService
 from niamoto.core.collections.models import (
@@ -33,6 +33,8 @@ COLLECTION_CONFIG_LOCK = threading.RLock()
 
 class CollectionUpdateRequest(BaseModel):
     """Payload for updating collection review metadata."""
+
+    model_config = ConfigDict(extra="forbid")
 
     label: str | None = None
     roles: list[CollectionRole] | None = None
@@ -112,7 +114,8 @@ async def get_collection_data_options(
     try:
         return _data_options_service().get_options(collection_name)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        message = str(exc.args[0]) if exc.args else str(exc)
+        raise HTTPException(status_code=404, detail=message) from exc
 
 
 @router.patch("/{collection_name}", response_model=CollectionMutationResponse)
@@ -121,12 +124,17 @@ async def update_collection(
     update: CollectionUpdateRequest,
 ) -> dict[str, Any]:
     """Update review metadata for an inferred or explicit collection."""
+    payload = update.model_dump(exclude_unset=True, exclude_none=True)
+    if not payload:
+        raise HTTPException(
+            status_code=400,
+            detail="Collection update must include at least one field",
+        )
+
     with COLLECTION_CONFIG_LOCK:
         service = _catalog_service()
         try:
-            collection = service.update_collection(
-                collection_name, **update.model_dump(exclude_unset=True)
-            )
+            collection = service.update_collection(collection_name, **payload)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
