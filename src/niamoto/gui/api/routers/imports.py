@@ -223,6 +223,16 @@ def _find_active_import_all_job(working_directory: str) -> Dict[str, Any] | None
     return None
 
 
+def _find_active_import_job(working_directory: str) -> Dict[str, Any] | None:
+    for job in import_jobs.values():
+        if (
+            job.get("working_directory") == working_directory
+            and job.get("status") in ACTIVE_IMPORT_STATUSES
+        ):
+            return job
+    return None
+
+
 def _find_active_import_entity_job(
     working_directory: str, import_type: str, entity_name: str
 ) -> Dict[str, Any] | None:
@@ -304,12 +314,16 @@ async def execute_import_all(
         raise HTTPException(status_code=400, detail="Working directory not set")
 
     working_directory = _working_directory_key(work_dir)
-    active_job = _find_active_import_all_job(working_directory)
+    active_job = _find_active_import_job(working_directory)
     if active_job is not None:
+        if active_job.get("import_type") == "all":
+            message = "An import-all job is already pending or running"
+        else:
+            message = "An import job is already pending or running"
         raise HTTPException(
             status_code=409,
             detail={
-                "message": "An import-all job is already pending or running",
+                "message": message,
                 "job_id": active_job.get("id"),
             },
         )
@@ -591,7 +605,13 @@ async def delete_entity(
                         if db.has_table(EntityRegistry.ENTITIES_TABLE):
                             registry = EntityRegistry(db)
                             entity_meta = registry.get(entity_name)
-                            table_names.append(entity_meta.table_name)
+                            expected_kind = (
+                                EntityKind.DATASET
+                                if entity_type == "dataset"
+                                else EntityKind.REFERENCE
+                            )
+                            if entity_meta.kind == expected_kind:
+                                table_names.append(entity_meta.table_name)
                     except (DatabaseQueryError, KeyError):
                         logger.warning(
                             "Entity '%s' not found in registry, using table name fallbacks",

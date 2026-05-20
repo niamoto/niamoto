@@ -463,6 +463,7 @@ class HtmlPageExporter(ExporterPlugin):
             )
 
             # --- Modified Directory Clearing Logic ---
+            output_dir_was_owned = (output_dir / ".niamoto-html-export").exists()
             if (
                 group_filter is None
             ):  # Only clear the whole directory if exporting everything
@@ -605,6 +606,7 @@ class HtmlPageExporter(ExporterPlugin):
                         lang_output_dir,
                         repository,
                         group_filter,
+                        export_root_was_owned=output_dir_was_owned,
                         lang=lang,
                         languages=languages,
                         language_switcher=language_switcher,
@@ -633,6 +635,7 @@ class HtmlPageExporter(ExporterPlugin):
                     output_dir,
                     repository,
                     group_filter,
+                    export_root_was_owned=output_dir_was_owned,
                 )
 
             # Mark completion time
@@ -1365,6 +1368,7 @@ class HtmlPageExporter(ExporterPlugin):
         output_dir: Path,
         repository: Database,
         group_filter: Optional[str] = None,
+        export_root_was_owned: bool = False,
         lang: Optional[str] = None,
         languages: Optional[List[str]] = None,
         language_switcher: bool = False,
@@ -1416,6 +1420,8 @@ class HtmlPageExporter(ExporterPlugin):
                     group_filter == group_by_key
                 ):  # Only clear if this specific group is targeted
                     if group_output_dir.exists() and any(group_output_dir.iterdir()):
+                        if not export_root_was_owned:
+                            _ensure_safe_html_output_dir_for_clear(group_output_dir)
                         logger.warning(
                             f"Clearing specific group directory: {group_output_dir}"
                         )
@@ -1423,6 +1429,7 @@ class HtmlPageExporter(ExporterPlugin):
 
                 # Always ensure the group directory exists (might have been cleared or never existed)
                 group_output_dir.mkdir(parents=True, exist_ok=True)
+                (group_output_dir / ".niamoto-html-export").touch(exist_ok=True)
 
             except OSError as e:
                 logger.error(

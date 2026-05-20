@@ -18,11 +18,12 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field, ValidationError as PydanticValidationError
 
 from niamoto.core.plugins.registry import PluginRegistry
+from niamoto.gui.api.desktop_auth import require_desktop_mutation_auth
 from niamoto.core.plugins.base import PluginType
 from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.gui.api.utils.database import open_database
@@ -1393,7 +1394,7 @@ async def validate_recipe(request: SaveRecipeRequest):
 
 
 @router.post("/save", response_model=SaveRecipeResponse)
-async def save_widget_recipe(request: SaveRecipeRequest):
+async def save_widget_recipe(http_request: Request, request: SaveRecipeRequest):
     """
     Save a widget recipe to transform.yml and export.yml.
 
@@ -1401,6 +1402,7 @@ async def save_widget_recipe(request: SaveRecipeRequest):
     1. A widgets_data entry in transform.yml
     2. A widget entry in export.yml
     """
+    require_desktop_mutation_auth(http_request)
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not configured")
@@ -1555,7 +1557,9 @@ def _resolve_export_widget_id(group_by: str, widget: dict[str, Any]) -> str | No
 
 
 @router.post("/{group_by}/reorder")
-async def reorder_widgets(group_by: str, request: ReorderWidgetsRequest):
+async def reorder_widgets(
+    http_request: Request, group_by: str, request: ReorderWidgetsRequest
+):
     """
     Reorder widgets in export.yml for a group.
 
@@ -1563,6 +1567,7 @@ async def reorder_widgets(group_by: str, request: ReorderWidgetsRequest):
     will be placed at the end in their original order.
     Also updates layout.order property to ensure consistency with LayoutEditor.
     """
+    require_desktop_mutation_auth(http_request)
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not configured")
@@ -1629,10 +1634,11 @@ async def reorder_widgets(group_by: str, request: ReorderWidgetsRequest):
 
 
 @router.delete("/{group_by}/{widget_id}")
-async def delete_widget_recipe(group_by: str, widget_id: str):
+async def delete_widget_recipe(request: Request, group_by: str, widget_id: str):
     """
     Delete a widget recipe from transform.yml and export.yml.
     """
+    require_desktop_mutation_auth(request)
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not configured")

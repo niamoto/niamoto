@@ -18,11 +18,12 @@ from typing import Any, Optional
 
 import pandas as pd
 import yaml
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from niamoto.common.database import Database
+from niamoto.gui.api.desktop_auth import require_desktop_mutation_auth
 from niamoto.common.table_resolver import quote_identifier, resolve_reference_table
 from niamoto.common.transform_config_models import validate_transform_config
 from niamoto.core.imports.class_object_analyzer import ClassObjectAnalyzer
@@ -328,6 +329,7 @@ def _get_reference_entity_info(
 
 @router.post("/{reference_name}/upload", response_model=UploadValidationResponse)
 async def upload_precalc_source(
+    request: Request,
     reference_name: str,
     file: UploadFile = File(...),
     source_name: str = Query(..., description="Name for this source"),
@@ -345,6 +347,7 @@ async def upload_precalc_source(
     This endpoint validates but does NOT save to transform.yml.
     Use POST /{reference_name}/save to persist the configuration.
     """
+    require_desktop_mutation_auth(request)
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not configured")
@@ -502,6 +505,7 @@ async def get_group_sources(reference_name: str):
 
 @router.post("/{reference_name}/save", response_model=SaveSourceResponse)
 async def save_source_config(
+    http_request: Request,
     reference_name: str,
     request: SaveSourceRequest,
 ):
@@ -521,6 +525,7 @@ async def save_source_config(
           match_field: plot_id
     ```
     """
+    require_desktop_mutation_auth(http_request)
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not configured")
@@ -651,6 +656,7 @@ async def save_source_config(
     "/{reference_name}/sources/{source_name}", response_model=RemoveSourceResponse
 )
 async def remove_source_config(
+    request: Request,
     reference_name: str,
     source_name: str,
 ):
@@ -659,6 +665,7 @@ async def remove_source_config(
 
     This removes only the configuration, not the CSV file itself.
     """
+    require_desktop_mutation_auth(request)
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not configured")

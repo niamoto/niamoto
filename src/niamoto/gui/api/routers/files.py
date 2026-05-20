@@ -7,7 +7,6 @@ import json
 import os
 import socket
 import stat
-import threading
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
@@ -24,7 +23,6 @@ from ..context import get_working_directory
 from ..url_security import validate_public_http_url
 
 router = APIRouter()
-_PINNED_DNS_REQUEST_LOCK = threading.Lock()
 
 SERVE_FILE_IMAGE_EXTENSIONS = {
     ".bmp",
@@ -62,6 +60,24 @@ def _resolve_path_under_root(root_dir: Path, path: str, *, detail: str) -> Path:
         raise HTTPException(status_code=400, detail="Invalid path") from exc
 
     return resolved_path
+
+
+def _validate_upload_filename(filename: str | None) -> str:
+    """Return a storage-safe upload filename without path components."""
+    if not filename:
+        raise HTTPException(status_code=400, detail="Missing filename")
+
+    path = Path(filename)
+    if (
+        path.is_absolute()
+        or path.name != filename
+        or any(part in {"", ".", ".."} for part in path.parts)
+        or "/" in filename
+        or "\\" in filename
+    ):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    return filename
 
 
 def _open_regular_file_under_root(
@@ -210,50 +226,26 @@ def _validate_api_test_url(url: str) -> Optional[str]:
     return error
 
 
-def _get_with_pinned_public_dns(
+def _get_after_public_dns_validation(
     url: str,
     *,
     headers: Dict[str, str],
     params: Dict[str, str],
     timeout: float,
 ) -> requests.Response:
-    """Perform a request while pinning DNS to the public addresses we validated."""
+    """Perform a request after validating that DNS resolves to public addresses."""
     validation_error, addresses = _resolve_api_test_url_addresses(url)
     if validation_error:
         raise ValueError(validation_error)
 
-    parsed = urlparse(url)
-    hostname = parsed.hostname.rstrip(".").lower() if parsed.hostname else ""
-    original_getaddrinfo = socket.getaddrinfo
-
-    def pinned_getaddrinfo(host, port, *args, **kwargs):
-        requested_host = str(host).rstrip(".").lower()
-        if requested_host == hostname:
-            return [
-                (
-                    socket.AF_INET6 if ":" in address else socket.AF_INET,
-                    socket.SOCK_STREAM,
-                    0,
-                    "",
-                    (address, port, 0, 0) if ":" in address else (address, port),
-                )
-                for address in addresses
-            ]
-        return original_getaddrinfo(host, port, *args, **kwargs)
-
-    with _PINNED_DNS_REQUEST_LOCK:
-        socket.getaddrinfo = pinned_getaddrinfo
-        try:
-            return requests.get(
-                url,
-                headers=headers,
-                params=params,
-                timeout=timeout,
-                allow_redirects=False,
-                stream=True,
-            )
-        finally:
-            socket.getaddrinfo = original_getaddrinfo
+    return requests.get(
+        url,
+        headers=headers,
+        params=params,
+        timeout=timeout,
+        allow_redirects=False,
+        stream=True,
+    )
 
 
 def _iter_response_peer_addresses(response: requests.Response) -> list[str]:
@@ -360,21 +352,22 @@ async def analyze_file(
         content = await _read_upload_content_limited(file)
 
         # Basic analysis based on file type
-        filename_lower = file.filename.lower()
+        filename = _validate_upload_filename(file.filename)
+        filename_lower = filename.lower()
         is_spatial_entity = entity_type in SPATIAL_IMPORT_ENTITY_TYPES
 
         if is_spatial_entity and filename_lower.endswith(SPATIAL_ARCHIVE_EXTENSIONS):
-            result = await analyze_shape(content, file.filename)
+            result = await analyze_shape(content, filename)
         elif filename_lower.endswith(".csv"):
-            result = await analyze_csv(content, file.filename)
+            result = await analyze_csv(content, filename)
         elif filename_lower.endswith((".xls", ".xlsx")):
-            result = await analyze_excel(content, file.filename)
+            result = await analyze_excel(content, filename)
         elif is_spatial_entity and filename_lower.endswith(".shp"):
             return {
                 "error": "Shapefile analysis requires all component files (.shp, .shx, .dbf). Please upload a ZIP file containing all shapefile components."
             }
         else:
-            return {"error": f"Unsupported file type: {file.filename}"}
+            return {"error": f"Unsupported file type: {filename}"}
 
         # Add entity_type for compatibility
         result["entity_type"] = entity_type
@@ -514,7 +507,7 @@ async def test_api_connection(request: ApiTestRequest) -> ApiTestResponse:
             return ApiTestResponse(success=False, error=validation_error)
 
         response = await run_in_threadpool(
-            _get_with_pinned_public_dns,
+            _get_after_public_dns_validation,
             request.url,
             headers=request.headers,
             params=request.params,

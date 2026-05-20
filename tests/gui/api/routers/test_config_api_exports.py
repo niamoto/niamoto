@@ -377,9 +377,9 @@ def test_api_export_suggestions_route_serializes_response(monkeypatch):
         },
     )
 
-    async def fake_suggest_index_fields(group_by: str, data_source=None):
+    async def fake_suggest_index_fields(group_by: str, table_candidates=None):
         assert group_by == "taxons"
-        assert data_source is None
+        assert table_candidates == ["taxons", "taxons_stats", "taxons_data"]
         return config_router.IndexFieldSuggestions(
             display_fields=[],
             filters=[],
@@ -387,7 +387,7 @@ def test_api_export_suggestions_route_serializes_response(monkeypatch):
         )
 
     monkeypatch.setattr(
-        config_router, "suggest_index_fields", fake_suggest_index_fields
+        config_router, "_suggest_index_fields", fake_suggest_index_fields
     )
 
     client = TestClient(create_app())
@@ -419,9 +419,9 @@ def test_api_export_suggestions_route_uses_group_data_source(monkeypatch):
         },
     )
 
-    async def fake_suggest_index_fields(group_by: str, data_source=None):
+    async def fake_suggest_index_fields(group_by: str, table_candidates=None):
         assert group_by == "taxons"
-        assert data_source == "taxon_stats"
+        assert table_candidates == ["taxon_stats"]
         return config_router.IndexFieldSuggestions(
             display_fields=[
                 config_router.SuggestedDisplayField(
@@ -437,7 +437,7 @@ def test_api_export_suggestions_route_uses_group_data_source(monkeypatch):
         )
 
     monkeypatch.setattr(
-        config_router, "suggest_index_fields", fake_suggest_index_fields
+        config_router, "_suggest_index_fields", fake_suggest_index_fields
     )
 
     client = TestClient(create_app())
@@ -1077,9 +1077,9 @@ def test_api_export_auto_config_route_returns_read_only_simple_proposal(monkeypa
 
     monkeypatch.setattr(config_router, "_save_export_config", fail_if_saved)
 
-    async def fake_suggest_index_fields(group_by: str, data_source=None):
+    async def fake_suggest_index_fields(group_by: str, table_candidates=None):
         assert group_by == "taxons"
-        assert data_source is None
+        assert table_candidates == ["taxons", "taxons_stats", "taxons_data"]
         return config_router.IndexFieldSuggestions(
             display_fields=[
                 config_router.SuggestedDisplayField(
@@ -1095,7 +1095,7 @@ def test_api_export_auto_config_route_returns_read_only_simple_proposal(monkeypa
         )
 
     monkeypatch.setattr(
-        config_router, "suggest_index_fields", fake_suggest_index_fields
+        config_router, "_suggest_index_fields", fake_suggest_index_fields
     )
 
     client = TestClient(create_app())
@@ -1149,9 +1149,9 @@ def test_api_export_auto_config_route_uses_group_data_source_fields(monkeypatch)
 
     monkeypatch.setattr(config_router, "_load_export_config", lambda: export_config)
 
-    async def fake_suggest_index_fields(group_by: str, data_source=None):
+    async def fake_suggest_index_fields(group_by: str, table_candidates=None):
         assert group_by == "taxons"
-        assert data_source == "taxon_stats"
+        assert table_candidates == ["taxon_stats"]
         return config_router.IndexFieldSuggestions(
             display_fields=[
                 config_router.SuggestedDisplayField(
@@ -1173,7 +1173,7 @@ def test_api_export_auto_config_route_uses_group_data_source_fields(monkeypatch)
         return [{"coverage_score": 0.91}, {"coverage_score": 0.74}]
 
     monkeypatch.setattr(
-        config_router, "suggest_index_fields", fake_suggest_index_fields
+        config_router, "_suggest_index_fields", fake_suggest_index_fields
     )
     monkeypatch.setattr(
         config_router, "_load_api_export_preview_items", fake_load_preview_items
@@ -1302,9 +1302,9 @@ def test_api_export_auto_config_route_marks_dwc_mapping_unresolved(monkeypatch):
         },
     )
 
-    async def fake_suggest_index_fields(group_by: str, data_source=None):
+    async def fake_suggest_index_fields(group_by: str, table_candidates=None):
         assert group_by == "taxons"
-        assert data_source is None
+        assert table_candidates == ["taxons", "taxons_stats", "taxons_data"]
         return config_router.IndexFieldSuggestions(
             display_fields=[],
             filters=[],
@@ -1312,7 +1312,7 @@ def test_api_export_auto_config_route_marks_dwc_mapping_unresolved(monkeypatch):
         )
 
     monkeypatch.setattr(
-        config_router, "suggest_index_fields", fake_suggest_index_fields
+        config_router, "_suggest_index_fields", fake_suggest_index_fields
     )
 
     client = TestClient(create_app())

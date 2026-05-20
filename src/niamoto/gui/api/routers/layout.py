@@ -12,13 +12,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from niamoto.common.i18n import LocalizedString
 from niamoto.gui.api.context import get_database_path, get_working_directory
+from niamoto.gui.api.desktop_auth import require_desktop_mutation_auth
 from niamoto.gui.api.routers.config import EXPORT_CONFIG_WRITE_LOCK, _write_yaml_atomic
 from niamoto.gui.api.services.preview_utils import (
     error_html,
@@ -519,13 +520,16 @@ async def get_layout(group_by: str):
 
 
 @router.put("/{group_by}", response_model=LayoutUpdateResponse)
-async def update_layout(group_by: str, request: LayoutUpdateRequest):
+async def update_layout(
+    http_request: Request, group_by: str, request: LayoutUpdateRequest
+):
     """
     Update the widget layout for a group.
 
     Updates order, colspan, and optionally title/description for widgets.
     Changes are saved back to export.yml.
     """
+    require_desktop_mutation_auth(http_request)
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not configured")

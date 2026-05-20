@@ -112,6 +112,38 @@ class TestDeployCommand:
         fake_run_deploy.assert_not_called()
         fake_run_deploy.assert_not_awaited()
 
+    def test_default_deploy_fails_when_stream_reports_error(self, tmp_path) -> None:
+        runner = CliRunner()
+        exports_dir = tmp_path / "exports"
+        exports_dir.mkdir()
+        (exports_dir / "index.html").write_text("<h1>Hello</h1>", encoding="utf-8")
+
+        fake_config = MagicMock()
+        fake_config.get_deploy_config = {
+            "platform": "cloudflare",
+            "project_name": "niamoto-site",
+            "extra": {},
+        }
+        fake_config.get_export_config = {"web": str(exports_dir)}
+
+        class FakeDeployer:
+            def validate_exports(self, config):
+                return []
+
+            async def deploy(self, config):
+                yield "data: ERROR: upload failed\n\n"
+                yield "data: DONE\n\n"
+
+        with patch("niamoto.cli.commands.deploy.Config", return_value=fake_config):
+            with patch(
+                "niamoto.cli.commands.deploy._get_deployer",
+                return_value=FakeDeployer(),
+            ):
+                result = runner.invoke(deploy_commands)
+
+        assert result.exit_code != 0
+        assert "upload failed" in result.output
+
     def test_credentials_set_prompts_for_hidden_value(self) -> None:
         runner = CliRunner()
 

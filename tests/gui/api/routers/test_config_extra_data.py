@@ -837,8 +837,33 @@ def test_index_suggestions_merge_transformed_fields_with_reference_extra_data(
                 )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE private_notes (
+                id BIGINT,
+                secret_note VARCHAR
+            )
+            """
+        )
+        conn.execute("INSERT INTO private_notes VALUES (1, 'super-secret-note')")
     finally:
         conn.close()
+
+    with patch(
+        "niamoto.gui.api.routers.config.get_working_directory",
+        return_value=project_dir,
+    ):
+        client = TestClient(create_app())
+        response = client.get(
+            "/api/config/export/taxons/index-generator/suggestions",
+            params={"data_source": "private_notes"},
+        )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == (
+        "data_source is not accepted on this public suggestions route"
+    )
+    assert "super-secret-note" not in response.text
 
     with patch(
         "niamoto.gui.api.routers.config.get_working_directory",

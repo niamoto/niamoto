@@ -11,7 +11,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any, Iterator, NoReturn
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -41,6 +41,7 @@ from niamoto.core.standards.models import (
 from niamoto.core.standards.output_service import StandardProfileOutputService
 from niamoto.core.standards.validation import StandardProfileValidationService
 from niamoto.gui.api.context import get_database_path, get_working_directory
+from niamoto.gui.api.desktop_auth import require_desktop_mutation_auth
 from niamoto.gui.api.services.templates.config_service import (
     load_export_config,
     load_import_config,
@@ -183,6 +184,20 @@ def _save_store_config(store: StandardProfileStore) -> None:
             detail=f"Invalid export configuration: {str(exc)}",
         ) from exc
     save_export_config(get_working_directory(), store.export_config, create_backup=True)
+
+
+def _execute_profile_draft_locked(
+    profile_name: str,
+    output_type: StandardProfileOutputType,
+    profile: StandardProfileConfig,
+) -> StandardProfileOutputResult:
+    lock = _draft_output_lock(profile_name, output_type)
+    with lock:
+        return _output_service().execute_profile(
+            profile,
+            output_type=output_type,
+            draft=True,
+        )
 
 
 def _draft_output_lock(
@@ -390,10 +405,12 @@ async def get_standard_profile_validation(
     response_model=StandardProfileOutputResult,
 )
 async def execute_standard_profile_output(
+    request: Request,
     profile_name: str,
     output_type: StandardProfileOutputType,
 ) -> StandardProfileOutputResult:
     """Generate one configured output for a standard profile."""
+    require_desktop_mutation_auth(request)
     store = _profile_store()
     try:
         profile = store.get_profile(profile_name)
@@ -413,21 +430,21 @@ async def execute_standard_profile_output(
     response_model=StandardProfileOutputResult,
 )
 async def execute_standard_profile_output_draft(
+    request: Request,
     profile_name: str,
     output_type: StandardProfileOutputType,
 ) -> StandardProfileOutputResult:
     """Generate one draft/test output in an isolated preview location."""
+    require_desktop_mutation_auth(request)
     store = _profile_store()
     try:
         profile = store.get_profile(profile_name)
-        lock = _draft_output_lock(profile_name, output_type)
-        with lock:
-            return await run_in_threadpool(
-                _output_service().execute_profile,
-                profile,
-                output_type=output_type,
-                draft=True,
-            )
+        return await run_in_threadpool(
+            _execute_profile_draft_locked,
+            profile_name,
+            output_type,
+            profile,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -463,9 +480,11 @@ async def preview_standard_profile_output(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_standard_profile(
+    http_request: Request,
     request: StandardProfileCreateRequest,
 ) -> dict[str, Any]:
     """Create a standard profile in export.yml."""
+    require_desktop_mutation_auth(http_request)
     with _standard_profile_config_lock():
         store = _profile_store()
         try:
@@ -479,10 +498,12 @@ async def create_standard_profile(
 
 @router.patch("/{profile_name}", response_model=StandardProfileMutationResponse)
 async def update_standard_profile(
+    request: Request,
     profile_name: str,
     update: StandardProfileUpdateRequest,
 ) -> dict[str, Any]:
     """Update a standard profile in export.yml."""
+    require_desktop_mutation_auth(request)
     _validate_profile_route_name(profile_name)
     with _standard_profile_config_lock():
         store = _profile_store()
@@ -500,8 +521,11 @@ async def update_standard_profile(
 
 
 @router.delete("/{profile_name}")
-async def delete_standard_profile(profile_name: str) -> dict[str, Any]:
+async def delete_standard_profile(
+    request: Request, profile_name: str
+) -> dict[str, Any]:
     """Delete a standard profile from export.yml."""
+    require_desktop_mutation_auth(request)
     _validate_profile_route_name(profile_name)
     with _standard_profile_config_lock():
         store = _profile_store(validate_sources=False)
