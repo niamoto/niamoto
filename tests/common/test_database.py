@@ -239,6 +239,18 @@ def test_duckdb_read_only_request_falls_back_after_writable_open(tmp_path) -> No
     db_write.engine.dispose()
 
 
+def test_duckdb_read_only_missing_path_stays_lazy(tmp_path) -> None:
+    """Read-only DuckDB wrappers should not create or probe missing files eagerly."""
+
+    db_path = tmp_path / "missing.duckdb"
+    db = Database(str(db_path), read_only=True, optimize=False)
+    try:
+        assert db.read_only is True
+        assert not db_path.exists()
+    finally:
+        db.engine.dispose()
+
+
 def test_duckdb_mode_tracking_normalizes_paths(tmp_path, monkeypatch) -> None:
     """Relative and absolute paths to the same DuckDB file share mode state."""
 

@@ -219,6 +219,8 @@ class Database:
 
         if not self.requested_read_only or not self.read_only:
             return
+        if not Path(db_path).expanduser().exists():
+            return
 
         try:
             with self.engine.connect():
