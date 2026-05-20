@@ -55,9 +55,6 @@ def build_relation_config(
             if relation_config.get("reference_key"):
                 ref_field = relation_config["reference_key"]
 
-        if ref_field == "id" and schema.get("id_field"):
-            ref_field = schema["id_field"]
-
         # Références dérivées (ex: taxons extraits des occurrences)
         connector = config.get("connector", {})
         is_derived = connector.get("type") == "derived"
@@ -65,6 +62,8 @@ def build_relation_config(
             extraction = connector.get("extraction", {})
             if extraction.get("id_column"):
                 key_field = extraction["id_column"]
+            if ref_field == "id" and schema.get("id_field"):
+                ref_field = schema["id_field"]
 
         # schema.id_field en fallback si pas de relation explicite ni de dérivation
         if not key_field and not relation_config and not is_derived:

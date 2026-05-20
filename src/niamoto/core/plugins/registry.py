@@ -74,7 +74,11 @@ class PluginRegistry:
                 new_id = f"{plugin_class.__module__}.{plugin_class.__name__}"
 
                 if existing_id == new_id:
-                    # Same plugin class (by module and name), skip registration
+                    # Same plugin class by import path. Module reloads create a fresh
+                    # class object, so keep the registry aligned with the current import.
+                    cls._plugins[actual_type][name] = plugin_class
+                    if metadata:
+                        cls._metadata[actual_type][name] = metadata
                     return
                 else:
                     # Different plugin class with same name - this is an error

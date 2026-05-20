@@ -628,10 +628,19 @@ def _resolve_path_under_root(root_dir: Path, path: str, *, detail: str) -> Path:
 
 def _ensure_site_content_file_path(work_dir: Path, file_path: Path) -> None:
     """Allow Site Builder file editing only in known content roots."""
-    _ensure_site_content_path(work_dir, file_path)
+    _ensure_site_content_path(
+        work_dir,
+        file_path,
+        detail="File path is not allowed for site content editing",
+    )
 
 
-def _ensure_site_content_path(work_dir: Path, file_path: Path) -> None:
+def _ensure_site_content_path(
+    work_dir: Path,
+    file_path: Path,
+    *,
+    detail: str = "Path is not allowed for site content access",
+) -> None:
     """Allow Site Builder access only in known content roots."""
     allowed_roots = {("files",), ("templates", "content")}
     try:
@@ -644,7 +653,7 @@ def _ensure_site_content_path(work_dir: Path, file_path: Path) -> None:
     if not any(relative_path.parts[: len(root)] == root for root in allowed_roots):
         raise HTTPException(
             status_code=403,
-            detail="Path is not allowed for site content access",
+            detail=detail,
         )
 
 
@@ -1453,7 +1462,7 @@ async def preview_template(request: TemplatePreviewRequest, http_request: Reques
             if not isinstance(content_source, str):
                 raise HTTPException(status_code=400, detail="Invalid content source")
             content_path = _resolve_project_file_path(work_dir, content_source)
-            _ensure_site_content_file_path(work_dir, content_path)
+            _ensure_site_content_path(work_dir, content_path)
             if content_path.is_file():
                 try:
                     content = content_path.read_text(encoding="utf-8")
@@ -1503,7 +1512,7 @@ async def preview_template(request: TemplatePreviewRequest, http_request: Reques
                 if not isinstance(source_value, str):
                     raise HTTPException(status_code=400, detail="Invalid JSON source")
                 json_path = _resolve_project_file_path(work_dir, source_value)
-                _ensure_site_content_file_path(work_dir, json_path)
+                _ensure_site_content_path(work_dir, json_path)
                 if json_path.is_file():
                     import json as json_mod
 
