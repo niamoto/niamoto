@@ -21,7 +21,11 @@ from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.deployers.models import DeployConfig
 from niamoto.core.services.credential import CredentialService
-from niamoto.gui.api.url_security import validate_public_http_url
+from niamoto.gui.api.url_security import (
+    pin_public_dns_for_url,
+    resolve_public_http_url_addresses,
+    validate_public_http_url,
+)
 from ..context import get_working_directory
 
 # Import deployer modules to trigger @register decorators at startup
@@ -40,7 +44,10 @@ DESKTOP_TOKEN_HEADER = "x-niamoto-desktop-token"
 def _require_deploy_mutation_auth(request: Request) -> None:
     expected_token = os.environ.get("NIAMOTO_DESKTOP_AUTH_TOKEN")
     if not expected_token:
-        return
+        raise HTTPException(
+            status_code=401,
+            detail="Desktop auth token is not configured.",
+        )
 
     provided_token = request.headers.get(DESKTOP_TOKEN_HEADER)
     if provided_token != expected_token:
@@ -189,7 +196,7 @@ async def deploy(request: DeployRequest):
     return StreamingResponse(deployer.deploy(config), media_type="text/event-stream")
 
 
-@router.post("/validate")
+@router.post("/validate", dependencies=[Depends(_require_deploy_mutation_auth)])
 async def validate_exports(request: DeployRequest):
     """Validate exports directory before deployment (dry run)."""
     working_dir = get_working_directory()
@@ -281,7 +288,12 @@ async def _get_with_validated_redirects(
 ) -> httpx.Response:
     current_url = url
     for _ in range(max_redirects + 1):
-        response = await client.get(current_url)
+        current_url, addresses = resolve_public_http_url_addresses(
+            current_url,
+            detail="Health check URL is not allowed.",
+        )
+        with pin_public_dns_for_url(current_url, addresses):
+            response = await client.get(current_url)
         if response.status_code not in {301, 302, 303, 307, 308}:
             return response
 

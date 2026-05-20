@@ -20,8 +20,8 @@ def test_endemia_catalog_skips_root_source_media_for_mixed_payload() -> None:
                                 "endemic": False,
                                 "protected": False,
                                 "endemia_url": "https://endemia.nc/flore/fiche9314",
-                                "image_small_thumb": "https://img.example/small.jpg",
-                                "image_big_thumb": "https://img.example/big.jpg",
+                                "image_small_thumb": "https://cdn.example/render?id=1",
+                                "image_big_thumb": "https://cdn.example/render?id=2",
                             },
                         }
                     }
@@ -36,6 +36,9 @@ def test_endemia_catalog_skips_root_source_media_for_mixed_payload() -> None:
     assert "." not in field_paths
     assert "image_small_thumb" in field_paths
     assert "image_big_thumb" in field_paths
+    field_formats = {field["path"]: field["format"] for field in endemia["fields"]}
+    assert field_formats["image_small_thumb"] == "image"
+    assert field_formats["image_big_thumb"] == "image"
 
 
 def test_endemia_default_panel_prefers_explicit_image_field() -> None:
@@ -48,8 +51,8 @@ def test_endemia_default_panel_prefers_explicit_image_field() -> None:
                             "label": "Endemia NC",
                             "data": {
                                 "endemic": False,
-                                "image_small_thumb": "https://img.example/small.jpg",
-                                "image_big_thumb": "https://img.example/big.jpg",
+                                "image_small_thumb": "https://cdn.example/render?id=1",
+                                "image_big_thumb": "https://cdn.example/render?id=2",
                             },
                         }
                     }

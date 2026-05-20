@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request
@@ -21,16 +22,21 @@ from niamoto.core.plugins.models import IndexGeneratorConfig
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+SITE_CONFIG_WRITE_LOCK = threading.RLock()
 
 _LANGUAGE_PREFIX_RE = re.compile(r"^[a-z]{2}(?:-[a-z]{2})?$", re.IGNORECASE)
 _ROOT_INDEX_TEMPLATE = "index.html"
 _ROOT_INDEX_OUTPUT = "index.html"
 MAX_BIBTEX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024
 BIBTEX_UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
+MAX_BIBTEX_EXPORT_REFERENCES = 1000
+MAX_BIBTEX_EXPORT_FIELD_LENGTH = 10000
 MAX_CSV_IMPORT_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024
 CSV_IMPORT_UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
 MAX_SITE_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
 SITE_UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
+MAX_MARKDOWN_PREVIEW_SIZE_BYTES = 2 * 1024 * 1024
+ACTIVE_FILE_EXTENSIONS = {".svg", ".html", ".htm", ".js", ".css", ".xml"}
 SITE_CONTENT_TEXT_EXTENSIONS = {
     ".md",
     ".markdown",
@@ -42,6 +48,40 @@ SITE_CONTENT_TEXT_EXTENSIONS = {
     ".yml",
     ".yaml",
 }
+
+
+def _publish_upload_without_overwrite(
+    temp_path: Path,
+    target_dir: Path,
+    safe_filename: str,
+    file_ext: str,
+) -> Path:
+    """Publish a streamed upload without overwriting a concurrently created file."""
+    original_stem = Path(safe_filename).stem
+    counter = 0
+
+    while True:
+        filename = (
+            safe_filename if counter == 0 else f"{original_stem}_{counter}{file_ext}"
+        )
+        target_path = target_dir / filename
+        fd: int | None = None
+        try:
+            fd = os.open(target_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+            with os.fdopen(fd, "wb") as target_file:
+                fd = None
+                with temp_path.open("rb") as source_file:
+                    shutil.copyfileobj(source_file, target_file)
+            temp_path.unlink(missing_ok=True)
+            return target_path
+        except FileExistsError:
+            counter += 1
+            continue
+        except Exception:
+            if fd is not None:
+                os.close(fd)
+            target_path.unlink(missing_ok=True)
+            raise
 
 
 def _normalize_output_alias(output_file: str | None) -> str | None:
@@ -587,6 +627,11 @@ def _resolve_path_under_root(root_dir: Path, path: str, *, detail: str) -> Path:
 
 def _ensure_site_content_file_path(work_dir: Path, file_path: Path) -> None:
     """Allow Site Builder file editing only in known content roots."""
+    _ensure_site_content_path(work_dir, file_path)
+
+
+def _ensure_site_content_path(work_dir: Path, file_path: Path) -> None:
+    """Allow Site Builder access only in known content roots."""
     allowed_roots = {("files",), ("templates", "content")}
     try:
         relative_path = file_path.relative_to(work_dir.resolve())
@@ -598,7 +643,7 @@ def _ensure_site_content_file_path(work_dir: Path, file_path: Path) -> None:
     if not any(relative_path.parts[: len(root)] == root for root in allowed_roots):
         raise HTTPException(
             status_code=403,
-            detail="File path is not allowed for site content editing",
+            detail="Path is not allowed for site content access",
         )
 
 
@@ -633,11 +678,32 @@ def _save_export_config(config: Dict[str, Any]) -> Path:
     # Ensure config directory exists
     export_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Write new configuration
-    with open(export_path, "w", encoding="utf-8") as f:
-        yaml.safe_dump(
-            config, f, default_flow_style=False, sort_keys=False, allow_unicode=True
-        )
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=export_path.parent,
+            prefix=f".{export_path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temp_file:
+            temp_path = Path(temp_file.name)
+            yaml.safe_dump(
+                config,
+                temp_file,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+    except Exception:
+        if temp_path and temp_path.exists():
+            temp_path.unlink()
+        raise
+
+    if temp_path is None:
+        raise RuntimeError("Temporary export config path was not created")
+    os.replace(temp_path, export_path)
 
     return export_path
 
@@ -692,14 +758,7 @@ async def get_site_config():
     for page in static_pages:
         context_data = page.get("context")
         context = StaticPageContext(**context_data) if context_data else None
-        pages.append(
-            StaticPage(
-                name=page.get("name", ""),
-                template=page.get("template", ""),
-                output_file=page.get("output_file", ""),
-                context=context,
-            )
-        )
+        pages.append(StaticPage(**{**page, "context": context}))
 
     return SiteConfigResponse(
         site=site,
@@ -720,65 +779,71 @@ async def update_site_config(update: SiteConfigUpdate):
     Updates site settings, navigation, and static pages in the
     web_pages export configuration. Creates a backup before saving.
     """
-    export_config = _get_export_config()
-    exports = export_config.get("exports", [])
+    with SITE_CONFIG_WRITE_LOCK:
+        export_config = _get_export_config()
+        exports = export_config.get("exports", [])
 
-    web_pages = _find_web_pages_export(exports)
+        web_pages = _find_web_pages_export(exports)
 
-    if not web_pages:
-        # Create new web_pages export
-        web_pages = {
-            "name": "web_pages",
-            "enabled": True,
-            "exporter": "html_page_exporter",
-            "params": {
-                "template_dir": "templates/",
-                "output_dir": "exports/web",
-            },
-            "static_pages": [],
-            "groups": [],
+        if not web_pages:
+            # Create new web_pages export
+            web_pages = {
+                "name": "web_pages",
+                "enabled": True,
+                "exporter": "html_page_exporter",
+                "params": {
+                    "template_dir": "templates/",
+                    "output_dir": "exports/web",
+                },
+                "static_pages": [],
+                "groups": [],
+            }
+            exports.append(web_pages)
+
+        # Update params
+        params = web_pages.setdefault("params", {})
+        params.setdefault("template_dir", "templates/")
+        params.setdefault("output_dir", "exports/web")
+        params["site"] = update.site.model_dump(exclude_none=True)
+        if update.template_dir:
+            params["template_dir"] = update.template_dir
+        if update.output_dir:
+            params["output_dir"] = update.output_dir
+        if update.copy_assets_from is not None:
+            params["copy_assets_from"] = update.copy_assets_from
+
+        # Update static pages
+        raw_static_pages_data = []
+        for page in update.static_pages:
+            raw_static_pages_data.append(page.model_dump(exclude_none=True))
+
+        static_pages_data, output_aliases = _normalize_static_pages(
+            raw_static_pages_data
+        )
+        _validate_static_pages(static_pages_data)
+
+        params["navigation"] = _normalize_navigation_items(
+            [item.model_dump(exclude_none=True) for item in update.navigation],
+            output_aliases,
+        )
+        params["footer_navigation"] = _normalize_footer_sections(
+            [
+                section.model_dump(exclude_none=True)
+                for section in update.footer_navigation
+            ],
+            output_aliases,
+        )
+        web_pages["static_pages"] = static_pages_data
+
+        # Save configuration
+        export_config["exports"] = exports
+        saved_path = _save_export_config(export_config)
+
+        return {
+            "success": True,
+            "message": "Site configuration updated successfully",
+            "path": str(saved_path),
         }
-        exports.append(web_pages)
-
-    # Update params
-    params = web_pages.setdefault("params", {})
-    params.setdefault("template_dir", "templates/")
-    params.setdefault("output_dir", "exports/web")
-    params["site"] = update.site.model_dump(exclude_none=True)
-    if update.template_dir:
-        params["template_dir"] = update.template_dir
-    if update.output_dir:
-        params["output_dir"] = update.output_dir
-    if update.copy_assets_from is not None:
-        params["copy_assets_from"] = update.copy_assets_from
-
-    # Update static pages
-    raw_static_pages_data = []
-    for page in update.static_pages:
-        raw_static_pages_data.append(page.model_dump(exclude_none=True))
-
-    static_pages_data, output_aliases = _normalize_static_pages(raw_static_pages_data)
-    _validate_static_pages(static_pages_data)
-
-    params["navigation"] = _normalize_navigation_items(
-        [item.model_dump(exclude_none=True) for item in update.navigation],
-        output_aliases,
-    )
-    params["footer_navigation"] = _normalize_footer_sections(
-        [section.model_dump(exclude_none=True) for section in update.footer_navigation],
-        output_aliases,
-    )
-    web_pages["static_pages"] = static_pages_data
-
-    # Save configuration
-    export_config["exports"] = exports
-    saved_path = _save_export_config(export_config)
-
-    return {
-        "success": True,
-        "message": "Site configuration updated successfully",
-        "path": str(saved_path),
-    }
 
 
 @router.get("/groups", response_model=GroupsResponse)
@@ -966,12 +1031,14 @@ async def list_project_files(folder: str = "files"):
         return FilesResponse(files=[], folder=folder)
 
     target_dir = _resolve_project_file_path(work_dir, folder)
+    _ensure_site_content_path(work_dir, target_dir)
+    work_dir_resolved = work_dir.resolve()
     files = []
 
     if target_dir.exists() and target_dir.is_dir():
         for f in target_dir.rglob("*"):
             if f.is_file():
-                rel_path = f.relative_to(work_dir)
+                rel_path = f.relative_to(work_dir_resolved)
                 stat = f.stat()
                 files.append(
                     {
@@ -1193,6 +1260,12 @@ async def preview_markdown(request: MarkdownPreviewRequest):
     Supports custom image syntax: ![alt|width](src) for image sizing.
     """
     try:
+        if len(request.content.encode("utf-8")) > MAX_MARKDOWN_PREVIEW_SIZE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail="Markdown preview content exceeds the maximum allowed size",
+            )
+
         import markdown
 
         # Preprocess to handle custom image syntax with widths
@@ -1236,6 +1309,8 @@ async def preview_markdown(request: MarkdownPreviewRequest):
         html = "\n".join(html_lines)
         html = _sanitize_markdown_html(html)
         return MarkdownPreviewResponse(html=html)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error converting markdown: {str(e)}"
@@ -1376,6 +1451,7 @@ async def preview_template(request: TemplatePreviewRequest, http_request: Reques
             if not isinstance(content_source, str):
                 raise HTTPException(status_code=400, detail="Invalid content source")
             content_path = _resolve_project_file_path(work_dir, content_source)
+            _ensure_site_content_file_path(work_dir, content_path)
             if content_path.is_file():
                 try:
                     content = content_path.read_text(encoding="utf-8")
@@ -1425,6 +1501,7 @@ async def preview_template(request: TemplatePreviewRequest, http_request: Reques
                 if not isinstance(source_value, str):
                     raise HTTPException(status_code=400, detail="Invalid JSON source")
                 json_path = _resolve_project_file_path(work_dir, source_value)
+                _ensure_site_content_file_path(work_dir, json_path)
                 if json_path.is_file():
                     import json as json_mod
 
@@ -1829,16 +1906,20 @@ async def preview_group_index(
             site_config = i18n_resolver.resolve_recursive(site_config, lang)
 
         # Navigation — resolve localized strings
-        navigation = request.navigation if request and request.navigation else []
-        if not navigation:
+        navigation = (
+            request.navigation if request and request.navigation is not None else None
+        )
+        if navigation is None:
             params = web_pages.get("params", {})
             navigation = params.get("navigation", [])
         navigation = _resolve_navigation(navigation, lang)
 
         footer_navigation = (
-            request.footer_navigation if request and request.footer_navigation else []
+            request.footer_navigation
+            if request and request.footer_navigation is not None
+            else None
         )
-        if not footer_navigation:
+        if footer_navigation is None:
             params = web_pages.get("params", {})
             footer_navigation = params.get("footer_navigation", [])
         footer_navigation = _resolve_footer_sections(footer_navigation, lang)
@@ -2119,23 +2200,13 @@ async def upload_file(file: UploadFile = File(...), folder: str = "files"):
     # Create target directory if it doesn't exist
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    # Generate safe filename (avoid overwriting)
-    target_path = target_dir / safe_filename
-
-    # If file exists, add a number suffix
-    counter = 1
-    original_stem = target_path.stem
-    while target_path.exists():
-        target_path = target_dir / f"{original_stem}_{counter}{file_ext}"
-        counter += 1
-
     # Save the file without buffering the full upload in memory.
     try:
         temp_file = tempfile.NamedTemporaryFile(
             "wb",
             delete=False,
             dir=target_dir,
-            prefix=f".{target_path.name}.",
+            prefix=f".{safe_filename}.",
             suffix=".tmp",
         )
         temp_path = Path(temp_file.name)
@@ -2155,7 +2226,9 @@ async def upload_file(file: UploadFile = File(...), folder: str = "files"):
                         )
                     temp_file.write(chunk)
 
-            temp_path.replace(target_path)
+            target_path = _publish_upload_without_overwrite(
+                temp_path, target_dir, safe_filename, file_ext
+            )
         except Exception:
             temp_path.unlink(missing_ok=True)
             raise
@@ -2269,6 +2342,11 @@ async def get_data_content(path: str):
             raise HTTPException(
                 status_code=400, detail="JSON file must contain an array"
             )
+        if not all(isinstance(item, dict) for item in data):
+            raise HTTPException(
+                status_code=400,
+                detail="JSON file must contain an array of objects",
+            )
         return DataFileResponse(data=data, path=path, count=len(data))
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {str(e)}")
@@ -2366,6 +2444,12 @@ async def update_file_content(update: FileContentUpdate):
             ),
         )
 
+    if len(update.content.encode("utf-8")) > MAX_SITE_UPLOAD_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="File content exceeds the maximum allowed upload size",
+        )
+
     # Create backup before writing
     if file_path.exists():
         _create_backup(file_path)
@@ -2373,7 +2457,27 @@ async def update_file_content(update: FileContentUpdate):
     try:
         # Ensure parent directory exists
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.write_text(update.content, encoding="utf-8")
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                dir=file_path.parent,
+                prefix=f".{file_path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temp_file:
+                temp_path = Path(temp_file.name)
+                temp_file.write(update.content)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+
+            temp_path.replace(file_path)
+        except Exception:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+            raise
+
         return {
             "success": True,
             "message": "File updated successfully",
@@ -2427,7 +2531,7 @@ async def serve_file(filename: str):
     }
     media_type = media_types.get(extension, "application/octet-stream")
 
-    if extension == ".svg":
+    if extension in ACTIVE_FILE_EXTENSIONS:
         return FileResponse(
             file_path,
             media_type=media_type,
@@ -2558,14 +2662,34 @@ async def _read_csv_import_upload(file: UploadFile) -> bytes:
     return b"".join(chunks)
 
 
-def _parse_bibtex_entry(entry_text: str) -> Optional[Dict[str, Any]]:
+def _normalize_bibtex_value(value: str) -> str:
+    """Normalize a parsed BibTeX scalar value."""
+    return re.sub(r"\s+", " ", value.strip())
+
+
+def _parse_bibtex_string_macro(entry_text: str) -> Optional[tuple[str, str]]:
+    """Parse a BibTeX @string directive into a macro name and value."""
+    macro_match = re.match(
+        r"@\s*string\s*\{\s*(\w+)\s*=\s*(?:\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}|\"([^\"]*)\"|([^}]+))\s*\}\s*$",
+        entry_text,
+        re.IGNORECASE,
+    )
+    if not macro_match:
+        return None
+
+    name = macro_match.group(1).lower()
+    value = macro_match.group(2) or macro_match.group(3) or macro_match.group(4) or ""
+    return name, _normalize_bibtex_value(value)
+
+
+def _parse_bibtex_entry(
+    entry_text: str, string_macros: Optional[Dict[str, str]] = None
+) -> Optional[Dict[str, Any]]:
     """
     Parse a single BibTeX entry into a reference dictionary.
 
     Handles common BibTeX fields and maps them to our reference format.
     """
-    import re
-
     # Extract entry type and key: @article{key,
     entry_match = re.match(r"@(\w+)\s*\{\s*([^,]+)\s*,", entry_text, re.IGNORECASE)
     if not entry_match:
@@ -2593,15 +2717,15 @@ def _parse_bibtex_entry(entry_text: str) -> Optional[Dict[str, Any]]:
 
     # Extract fields using regex
     # Matches: field = {value} or field = "value" or field = value
-    field_pattern = (
-        r"(\w+)\s*=\s*(?:\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}|\"([^\"]*)\"|(\d+))"
-    )
+    field_pattern = r"(\w+)\s*=\s*(?:\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}|\"([^\"]*)\"|([A-Za-z_][\w:.-]*|\d+))"
     fields = {}
+    macros = {key.lower(): value for key, value in (string_macros or {}).items()}
     for match in re.finditer(field_pattern, entry_text, re.IGNORECASE):
         field_name = match.group(1).lower()
         field_value = match.group(2) or match.group(3) or match.group(4) or ""
         # Clean up the value (remove extra braces, normalize whitespace)
-        field_value = re.sub(r"\s+", " ", field_value.strip())
+        field_value = _normalize_bibtex_value(field_value)
+        field_value = macros.get(field_value.lower(), field_value)
         fields[field_name] = field_value
 
     # Build reference object
@@ -2675,6 +2799,7 @@ async def import_bibtex(file: UploadFile = File(...)):
         # This regex finds @type{...} blocks, handling nested braces
         entries = []
         errors = []
+        string_macros: Dict[str, str] = {}
 
         # Find all entry starts
         entry_starts = [m.start() for m in re.finditer(r"@\w+\s*\{", text)]
@@ -2698,10 +2823,21 @@ async def import_bibtex(file: UploadFile = File(...)):
             entry_text = text[start:end]
 
             # Try to parse the entry
+            type_match = re.match(r"@(\w+)\s*\{", entry_text, re.IGNORECASE)
+            entry_type = type_match.group(1).lower() if type_match else ""
+            if entry_type == "string":
+                macro = _parse_bibtex_string_macro(entry_text)
+                if macro:
+                    name, value = macro
+                    string_macros[name] = value
+                continue
+            if entry_type in {"comment", "preamble"}:
+                continue
+
             key_match = re.match(r"@\w+\s*\{\s*([^,]+)", entry_text)
             key = key_match.group(1) if key_match else f"entry_{i + 1}"
             try:
-                ref = _parse_bibtex_entry(entry_text)
+                ref = _parse_bibtex_entry(entry_text, string_macros)
                 if ref and ref.get("title"):  # Valid entry with title
                     entries.append(ref)
                 elif ref:
@@ -2782,14 +2918,17 @@ def _references_to_bibtex(references: List[Dict[str, Any]]) -> str:
 
     lines = []
     used_keys: set[str] = set()
+    next_suffix_by_base_key: Dict[str, int] = {}
     for ref in references:
         bib_type = type_mapping.get(clean_text(ref.get("type"), "other"), "misc")
-        key = make_key(ref)
-        base_key = key
-        suffix = 2
-        while key in used_keys:
+        base_key = make_key(ref)
+        suffix = next_suffix_by_base_key.get(base_key)
+        if suffix is None:
+            key = base_key
+            next_suffix_by_base_key[base_key] = 2
+        else:
             key = f"{base_key}{suffix}"
-            suffix += 1
+            next_suffix_by_base_key[base_key] = suffix + 1
         used_keys.add(key)
 
         lines.append(f"@{bib_type}{{{key},")
@@ -2831,6 +2970,25 @@ async def export_bibtex(references: List[Dict[str, Any]]):
     Accepts a list of reference objects and returns a downloadable .bib file.
     """
     from fastapi.responses import Response
+
+    if len(references) > MAX_BIBTEX_EXPORT_REFERENCES:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                "Too many references to export. "
+                f"Maximum is {MAX_BIBTEX_EXPORT_REFERENCES}."
+            ),
+        )
+    for index, reference in enumerate(references, start=1):
+        for field, value in reference.items():
+            if isinstance(value, str) and len(value) > MAX_BIBTEX_EXPORT_FIELD_LENGTH:
+                raise HTTPException(
+                    status_code=413,
+                    detail=(
+                        f"Reference {index} field '{field}' exceeds the maximum "
+                        f"length of {MAX_BIBTEX_EXPORT_FIELD_LENGTH} characters."
+                    ),
+                )
 
     bibtex_content = _references_to_bibtex(references)
     return Response(

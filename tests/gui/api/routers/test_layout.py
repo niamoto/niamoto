@@ -8,6 +8,8 @@ de preview unifié (PreviewEngine).
 import asyncio
 import inspect
 from pathlib import Path
+import threading
+import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -116,6 +118,53 @@ def test_layout_accepts_localized_widget_metadata(
     }
 
 
+def test_layout_groups_endpoint_documents_path_parameter(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "web_pages",
+                        "exporter": "html_page_exporter",
+                        "groups": [
+                            {
+                                "group_by": "taxons",
+                                "widgets": [{"data_source": "richness"}],
+                            },
+                            {"group_by": "plots", "widgets": []},
+                        ],
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.get("/api/layout/taxons/groups")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "groups": [
+            {"name": "taxons", "widget_count": 1},
+            {"name": "plots", "widget_count": 0},
+        ],
+        "total": 2,
+    }
+
+    openapi = gui_duckdb_client.get("/openapi.json").json()
+    parameters = openapi["paths"]["/api/layout/{group_by}/groups"]["get"]["parameters"]
+    assert {
+        "name": "group_by",
+        "in": "path",
+        "required": True,
+        "schema": {"type": "string", "title": "Group By"},
+    } in parameters
+
+
 def test_layout_update_preserves_widget_index_identity(
     gui_duckdb_client, gui_duckdb_context
 ):
@@ -177,6 +226,52 @@ def test_layout_update_preserves_widget_index_identity(
     assert widgets[0]["title"] == "Updated first"
     assert widgets[1]["title"] == "Original second"
     assert [widget["layout"]["order"] for widget in widgets] == [1, 0]
+
+
+def test_layout_update_uses_export_write_lock(monkeypatch, tmp_path):
+    widgets = [
+        {
+            "plugin": "bar_plot",
+            "data_source": "richness",
+            "title": "Original",
+            "layout": {"order": 0, "colspan": 1},
+        }
+    ]
+    _write_layout_export_config(tmp_path, widgets)
+    writes = []
+    response_holder = {}
+
+    monkeypatch.setattr(layout_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        layout_router,
+        "_write_yaml_atomic",
+        lambda path, content: writes.append((path, content)),
+    )
+
+    client = TestClient(create_app())
+    layout_router.EXPORT_CONFIG_WRITE_LOCK.acquire()
+
+    def update_layout():
+        response_holder["response"] = client.put(
+            "/api/layout/taxons",
+            json={"widgets": [{"index": 0, "order": 1, "title": "Updated"}]},
+        )
+
+    thread = threading.Thread(target=update_layout)
+    try:
+        thread.start()
+        time.sleep(0.05)
+        assert writes == []
+    finally:
+        layout_router.EXPORT_CONFIG_WRITE_LOCK.release()
+
+    thread.join(timeout=2)
+
+    assert not thread.is_alive()
+    assert response_holder["response"].status_code == 200
+    assert len(writes) == 1
+    saved_widgets = writes[0][1]["exports"][0]["groups"][0]["widgets"]
+    assert saved_widgets[0]["title"] == "Updated"
 
 
 def test_layout_update_rejects_invalid_widget_indices_without_saving(

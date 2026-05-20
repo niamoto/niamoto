@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch } from '@/shared/lib/api/fetch'
 
 const API_BASE = '/api/config/export/api-targets'
 
@@ -107,7 +108,7 @@ async function updateApiExportTargetSettings(
   exportName: string,
   config: ApiExportTargetSettings
 ): Promise<ApiExportTargetSettings> {
-  const response = await fetch(`${API_BASE}/${encodeURIComponent(exportName)}/settings`, {
+  const response = await apiFetch(`${API_BASE}/${encodeURIComponent(exportName)}/settings`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config),
@@ -119,7 +120,7 @@ async function fetchApiExportGroupConfig(
   exportName: string,
   groupBy: string
 ): Promise<ApiExportGroupConfig> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/${encodeURIComponent(exportName)}/groups/${encodeURIComponent(groupBy)}`
   )
   return readJson<ApiExportGroupConfig>(response)
@@ -130,7 +131,7 @@ export async function updateApiExportGroupConfig(
   groupBy: string,
   config: ApiExportGroupConfig
 ): Promise<ApiExportGroupConfig> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/${encodeURIComponent(exportName)}/groups/${encodeURIComponent(groupBy)}`,
     {
       method: 'PUT',
@@ -167,7 +168,7 @@ async function fetchApiExportPreview(
   section: ApiExportPreviewSection,
   config: ApiExportGroupConfig
 ): Promise<ApiExportPreviewResponse> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/${encodeURIComponent(exportName)}/groups/${encodeURIComponent(groupBy)}/preview`,
     {
       method: 'POST',
@@ -187,7 +188,7 @@ export interface ApiExportTargetCreate {
 async function createApiExportTarget(
   body: ApiExportTargetCreate
 ): Promise<ApiExportTargetSummary> {
-  const response = await fetch(API_BASE, {
+  const response = await apiFetch(API_BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

@@ -17,6 +17,7 @@ from niamoto.common.transform_config_models import validate_transform_config
 
 logger = logging.getLogger(__name__)
 TRANSFORM_CONFIG_WRITE_LOCK = threading.RLock()
+EXPORT_CONFIG_WRITE_LOCK = threading.RLock()
 
 
 def load_transform_config(work_dir: Path) -> List[Dict[str, Any]]:

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+
+import pytest
 import yaml
 
 from niamoto.gui.api.routers import standard_profiles as standard_profiles_router
@@ -38,6 +41,42 @@ def test_create_standard_profile_persists_under_standard_profiles(
         "name": "occurrences",
     }
     assert saved["standard_profiles"][0]["validation_status"] == "invalid"
+
+
+def test_create_standard_profile_rejects_route_unsafe_name(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text("exports: []\n", encoding="utf-8")
+
+    response = gui_duckdb_client.post(
+        "/api/standard-profiles",
+        json={
+            "name": "dwc/occurrences",
+            "standard": "darwin_core_occurrence",
+            "target_grain": "occurrence",
+            "source": {"type": "dataset", "name": "occurrences"},
+            "outputs": [{"type": "api_json"}],
+        },
+    )
+
+    assert response.status_code == 422
+    assert yaml.safe_load(export_path.read_text(encoding="utf-8")) == {"exports": []}
+
+
+def test_auto_config_standard_profile_rejects_route_unsafe_name(
+    gui_duckdb_client,
+):
+    response = gui_duckdb_client.post(
+        "/api/standard-profiles/auto-config",
+        json={
+            "name": "dwc/occurrences",
+            "standard": "darwin_core_occurrence",
+            "source": {"type": "dataset", "name": "occurrences"},
+        },
+    )
+
+    assert response.status_code == 422
 
 
 def test_update_standard_profile_rejects_empty_target_grain(
@@ -199,6 +238,33 @@ def test_standard_profile_config_lock_requires_process_safe_lock(monkeypatch, tm
         assert "Process-safe export configuration locking" in exc.detail
 
 
+def test_standard_profile_config_lock_rejects_preexisting_symlink(
+    monkeypatch, tmp_path
+):
+    if not hasattr(os, "O_NOFOLLOW"):
+        pytest.skip("O_NOFOLLOW is required for symlink lock-file protection")
+
+    target_path = tmp_path / "target.txt"
+    target_path.write_text("do not truncate", encoding="utf-8")
+    lock_path = tmp_path / "profile.lock"
+    lock_path.symlink_to(target_path)
+
+    monkeypatch.setattr(
+        standard_profiles_router, "get_working_directory", lambda: tmp_path
+    )
+    monkeypatch.setattr(
+        standard_profiles_router, "_standard_profile_lock_path", lambda _: lock_path
+    )
+
+    try:
+        with standard_profiles_router._standard_profile_config_lock():
+            raise AssertionError("lock should not be acquired")
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 503
+        assert "Process-safe export configuration locking" in exc.detail
+    assert target_path.read_text(encoding="utf-8") == "do not truncate"
+
+
 def test_auto_config_standard_profile_returns_reviewable_dwc_proposal(
     gui_duckdb_client, gui_duckdb_context
 ):
@@ -231,6 +297,25 @@ def test_auto_config_standard_profile_returns_reviewable_dwc_proposal(
     assert payload["rows_sampled"] == 3
     assert payload["columns_inspected"] == 4
     assert export_path.read_text(encoding="utf-8") == before
+
+
+def test_auto_config_standard_profile_reports_invalid_project_config(
+    gui_duckdb_client, gui_duckdb_context
+):
+    transform_path = gui_duckdb_context / "config" / "transform.yml"
+    transform_path.write_text("groups: {}\n", encoding="utf-8")
+
+    response = gui_duckdb_client.post(
+        "/api/standard-profiles/auto-config",
+        json={
+            "name": "dwc_occurrences",
+            "standard": "darwin_core_occurrence",
+            "source": {"type": "dataset", "name": "occurrences"},
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "transform.yml must be a list of groups"
 
 
 def test_auto_config_standard_profile_resolves_related_occurrence_source(
@@ -432,6 +517,40 @@ def test_update_and_delete_standard_profile(gui_duckdb_client, gui_duckdb_contex
     assert saved["standard_profiles"] == []
 
 
+def test_delete_standard_profile_ignores_unrelated_transform_config_errors(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [],
+                "standard_profiles": [
+                    {
+                        "name": "dwc_occurrences",
+                        "standard": "darwin_core_occurrence",
+                        "target_grain": "occurrence",
+                        "source": {"type": "dataset", "name": "occurrences"},
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (gui_duckdb_context / "config" / "transform.yml").write_text(
+        "invalid: transform-shape\n",
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.delete("/api/standard-profiles/dwc_occurrences")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"success": True, "deleted": "dwc_occurrences"}
+    saved = yaml.safe_load(export_path.read_text(encoding="utf-8"))
+    assert saved["standard_profiles"] == []
+
+
 def test_create_standard_profile_rejects_unknown_source_without_writing(
     gui_duckdb_client, gui_duckdb_context
 ):
@@ -608,6 +727,44 @@ def test_standard_profile_validation_returns_404_for_unknown_profile(
     assert "missing" in response.json()["detail"]
 
 
+def test_standard_profile_validation_errors_return_client_error(
+    monkeypatch, gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [],
+                "standard_profiles": [
+                    {
+                        "name": "bad_profile",
+                        "standard": "darwin_core_occurrence",
+                        "target_grain": "occurrence",
+                        "source": {"type": "dataset", "name": "occurrences"},
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    class FailingValidationService:
+        def validate(self, profile):
+            raise ValueError("Unsupported validation setup")
+
+    monkeypatch.setattr(
+        standard_profiles_router,
+        "_validation_service",
+        lambda: FailingValidationService(),
+    )
+
+    response = gui_duckdb_client.get("/api/standard-profiles/bad_profile/validation")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Unsupported validation setup"
+
+
 def test_execute_standard_profile_api_json_output(
     gui_duckdb_client, gui_duckdb_context
 ):
@@ -681,6 +838,56 @@ def test_execute_standard_profile_api_json_output(
     assert output_path.exists()
 
 
+def test_execute_standard_profile_output_dispatches_to_threadpool(
+    gui_duckdb_client, monkeypatch
+):
+    profile = standard_profiles_router.StandardProfileConfig(
+        name="dwc_occurrences",
+        standard="darwin_core_occurrence",
+        target_grain="occurrence",
+        source={"type": "dataset", "name": "occurrences"},
+        outputs=[{"type": "api_json"}],
+    )
+    calls = []
+
+    class FakeStore:
+        def get_profile(self, profile_name):
+            assert profile_name == "dwc_occurrences"
+            return profile
+
+    class FakeOutputService:
+        def execute_profile(self, profile_arg, *, output_type):
+            assert profile_arg is profile
+            return standard_profiles_router.StandardProfileOutputResult(
+                profile_name=profile_arg.name,
+                standard=profile_arg.standard,
+                output_type=output_type,
+                status="success",
+                validation_status=profile_arg.validation_status,
+                source_grain=profile_arg.target_grain,
+            )
+
+    async def fake_run_in_threadpool(func, *args, **kwargs):
+        calls.append((func, args, kwargs))
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(standard_profiles_router, "_profile_store", lambda: FakeStore())
+    monkeypatch.setattr(
+        standard_profiles_router, "_output_service", lambda: FakeOutputService()
+    )
+    monkeypatch.setattr(
+        standard_profiles_router, "run_in_threadpool", fake_run_in_threadpool
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/standard-profiles/dwc_occurrences/outputs/api_json"
+    )
+
+    assert response.status_code == 200, response.text
+    assert len(calls) == 1
+    assert calls[0][2]["output_type"] == "api_json"
+
+
 def test_preview_standard_profile_api_json_output(
     gui_duckdb_client, gui_duckdb_context
 ):
@@ -728,6 +935,56 @@ def test_preview_standard_profile_api_json_output(
         / "dwc_occurrences"
         / "dwc_occurrences.json"
     ).exists()
+
+
+def test_preview_standard_profile_output_dispatches_to_threadpool(
+    gui_duckdb_client, monkeypatch
+):
+    profile = standard_profiles_router.StandardProfileConfig(
+        name="dwc_occurrences",
+        standard="darwin_core_occurrence",
+        target_grain="occurrence",
+        source={"type": "dataset", "name": "occurrences"},
+        outputs=[{"type": "api_json"}],
+    )
+    calls = []
+
+    class FakeStore:
+        def get_profile(self, profile_name):
+            assert profile_name == "dwc_occurrences"
+            return profile
+
+    class FakeOutputService:
+        def preview_profile(self, profile_arg, *, output_type):
+            assert profile_arg is profile
+            return standard_profiles_router.StandardProfileOutputPreviewResult(
+                profile_name=profile_arg.name,
+                standard=profile_arg.standard,
+                output_type=output_type,
+                validation_status=profile_arg.validation_status,
+                source_grain=profile_arg.target_grain,
+                preview={"records": []},
+            )
+
+    async def fake_run_in_threadpool(func, *args, **kwargs):
+        calls.append((func, args, kwargs))
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(standard_profiles_router, "_profile_store", lambda: FakeStore())
+    monkeypatch.setattr(
+        standard_profiles_router, "_output_service", lambda: FakeOutputService()
+    )
+    monkeypatch.setattr(
+        standard_profiles_router, "run_in_threadpool", fake_run_in_threadpool
+    )
+
+    response = gui_duckdb_client.get(
+        "/api/standard-profiles/dwc_occurrences/outputs/api_json/preview"
+    )
+
+    assert response.status_code == 200, response.text
+    assert len(calls) == 1
+    assert calls[0][2]["output_type"] == "api_json"
 
 
 def test_execute_standard_profile_publication_output_blocks_invalid_profile(

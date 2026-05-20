@@ -111,6 +111,28 @@ def test_get_reference_enrichment_config_translates_missing_reference(
     )
 
 
+def test_get_legacy_enrichment_config_translates_missing_default(
+    monkeypatch, gui_duckdb_client
+):
+    """Legacy config route should map missing default config to 404."""
+
+    def fake_get_default_enrichment_config():
+        raise ValueError("No enrichment configuration found for default reference")
+
+    monkeypatch.setattr(
+        enrichment_router,
+        "get_default_enrichment_config",
+        fake_get_default_enrichment_config,
+    )
+
+    response = gui_duckdb_client.get("/api/enrichment/config")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == (
+        "No enrichment configuration found for default reference"
+    )
+
+
 def test_preview_legacy_route_forwards_source_id(monkeypatch, gui_duckdb_client):
     """Legacy preview endpoint must keep the optional source scope."""
 
@@ -137,6 +159,31 @@ def test_preview_legacy_route_forwards_source_id(monkeypatch, gui_duckdb_client)
         "taxon_name": "Araucaria columnaris",
         "source_id": "gbif",
     }
+
+
+def test_preview_legacy_route_translates_service_validation_errors(
+    monkeypatch, gui_duckdb_client
+):
+    """Legacy preview validation errors should use the enrichment HTTP contract."""
+
+    async def fake_preview_default(*args, **kwargs):
+        raise ValueError("No enrichment source 'gbif' found for default reference")
+
+    monkeypatch.setattr(
+        enrichment_router,
+        "preview_default_enrichment",
+        fake_preview_default,
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/enrichment/preview",
+        json={"taxon_name": "Araucaria", "source_id": "gbif"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == (
+        "No enrichment source 'gbif' found for default reference"
+    )
 
 
 def test_preview_reference_route_forwards_source_override(
@@ -562,6 +609,44 @@ def test_get_enrichment_stats_uses_worker_thread(monkeypatch):
     }
 
 
+def test_get_enrichment_stats_maps_missing_default_config(
+    monkeypatch, gui_duckdb_client
+):
+    def fake_get_stats():
+        raise ValueError("No enrichment configuration found for default reference")
+
+    monkeypatch.setattr(
+        enrichment_router, "get_default_enrichment_stats", fake_get_stats
+    )
+
+    response = gui_duckdb_client.get("/api/enrichment/stats")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == (
+        "No enrichment configuration found for default reference"
+    )
+
+
+def test_get_reference_enrichment_stats_maps_missing_reference(
+    monkeypatch, gui_duckdb_client
+):
+    def fake_get_stats(reference_name):
+        raise ValueError(
+            f"No enrichment configuration found for reference '{reference_name}'"
+        )
+
+    monkeypatch.setattr(
+        enrichment_router, "get_reference_enrichment_stats", fake_get_stats
+    )
+
+    response = gui_duckdb_client.get("/api/enrichment/stats/unknown_ref")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == (
+        "No enrichment configuration found for reference 'unknown_ref'"
+    )
+
+
 def test_get_results_for_reference_uses_worker_thread(monkeypatch):
     """Heavy result reconstruction should be dispatched off the API loop."""
 
@@ -608,6 +693,71 @@ def test_get_results_for_reference_uses_worker_thread(monkeypatch):
     }
     assert captured["service_kwargs"] == {
         "reference_name": "taxons",
+        "page": 2,
+        "limit": 25,
+        "source_id": "endemia",
+    }
+
+
+def test_get_results_for_reference_maps_service_validation_errors(
+    monkeypatch, gui_duckdb_client
+):
+    def fake_get_results(
+        *,
+        reference_name: str | None = None,
+        page: int = 0,
+        limit: int = 50,
+        source_id: str | None = None,
+    ):
+        raise ValueError(
+            f"No enrichment configuration found for reference '{reference_name}'"
+        )
+
+    monkeypatch.setattr(enrichment_router, "get_results", fake_get_results)
+
+    response = gui_duckdb_client.get("/api/enrichment/results/unknown_ref")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == (
+        "No enrichment configuration found for reference 'unknown_ref'"
+    )
+
+
+def test_get_all_results_rejects_invalid_pagination(gui_duckdb_client):
+    for query in ("page=-1", "limit=0", "limit=-1", "limit=501"):
+        response = gui_duckdb_client.get(f"/api/enrichment/results?{query}")
+
+        assert response.status_code == 422, query
+
+
+def test_get_all_results_forwards_valid_pagination(monkeypatch, gui_duckdb_client):
+    captured = {}
+
+    def fake_get_results(
+        *,
+        reference_name: str | None = None,
+        page: int = 0,
+        limit: int = 50,
+        source_id: str | None = None,
+    ):
+        captured["kwargs"] = {
+            "reference_name": reference_name,
+            "page": page,
+            "limit": limit,
+            "source_id": source_id,
+        }
+        return {"results": [], "total": 0, "page": page, "limit": limit}
+
+    monkeypatch.setattr(enrichment_router, "get_results", fake_get_results)
+
+    response = gui_duckdb_client.get(
+        "/api/enrichment/results?page=2&limit=25&source_id=endemia"
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"results": [], "total": 0, "page": 2, "limit": 25}
+    assert captured["kwargs"] == {
+        "reference_name": None,
         "page": 2,
         "limit": 25,
         "source_id": "endemia",

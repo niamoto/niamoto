@@ -78,6 +78,19 @@ class TestScatterAnalysisTransform:
         assert result["x"].tolist() == [1, 2, 3]
         assert result["y"].tolist() == [10, 20, 30]
 
+    def test_transform_keeps_output_contract_when_axes_share_source_field(
+        self, scatter_plugin
+    ):
+        """Identical configured fields are still returned as x/y columns."""
+        data = pd.DataFrame({"height": [1, 2, 3]})
+        result = scatter_plugin.transform(
+            data, _make_config(x_field="height", y_field="height")
+        )
+
+        assert list(result.columns) == ScatterAnalysis.output_structure["columns"]
+        assert result["x"].tolist() == [1, 2, 3]
+        assert result["y"].tolist() == [1, 2, 3]
+
     def test_transform_drops_nan(self, scatter_plugin):
         """Les lignes avec NaN sont supprimées."""
         data = pd.DataFrame(

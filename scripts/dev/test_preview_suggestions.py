@@ -18,6 +18,8 @@ from urllib.request import Request, urlopen
 from urllib.error import URLError
 import json
 
+import pytest
+
 
 def fetch(url, method="GET", body=None):
     """Fetch URL and return (status, body_text)."""
@@ -87,6 +89,21 @@ def test_classify_html_detects_error_message():
     assert detail == "Broken"
 
 
+def test_main_exits_nonzero_for_empty_suggestions(monkeypatch):
+    """Empty suggestions should fail instead of skipping all preview paths."""
+
+    def fake_fetch(url, method="GET", body=None):
+        return 200, '{"suggestions": []}'
+
+    monkeypatch.setattr(sys, "argv", ["test_preview_suggestions.py"])
+    monkeypatch.setattr(sys.modules[__name__], "fetch", fake_fetch)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
+
+
 def build_inline_body(suggestion, group_by):
     """Build POST inline body from a suggestion."""
     widget_plugin = suggestion.get("widget_plugin")
@@ -140,7 +157,7 @@ def main():
 
     if not suggestions:
         print("  Aucune suggestion. Vérifiez que l'instance a des données importées.")
-        sys.exit(0)
+        sys.exit(1)
 
     # 2. Test each suggestion
     COL_W = 55

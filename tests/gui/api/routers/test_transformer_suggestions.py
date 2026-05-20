@@ -13,6 +13,8 @@ from niamoto.gui.api.app import create_app
 
 
 def test_list_entities_with_suggestions_filters_entities_without_profiles(monkeypatch):
+    open_calls = []
+
     class FakeRegistry:
         def __init__(self, db):
             self.db = db
@@ -45,7 +47,8 @@ def test_list_entities_with_suggestions_filters_entities_without_profiles(monkey
     )
     monkeypatch.setattr(
         "niamoto.gui.api.routers.transformer_suggestions.open_database",
-        lambda db_path: nullcontext(object()),
+        lambda db_path, **kwargs: open_calls.append((db_path, kwargs))
+        or nullcontext(object()),
     )
     monkeypatch.setattr(
         "niamoto.gui.api.routers.transformer_suggestions.EntityRegistry",
@@ -57,6 +60,31 @@ def test_list_entities_with_suggestions_filters_entities_without_profiles(monkey
 
     assert response.status_code == 200
     assert response.json() == ["plots"]
+    assert open_calls == [("/tmp/niamoto.duckdb", {"read_only": True})]
+
+
+def test_list_entities_with_suggestions_rejects_missing_database(monkeypatch):
+    open_called = False
+
+    def fail_if_opened(*_args, **_kwargs):
+        nonlocal open_called
+        open_called = True
+        raise AssertionError("open_database should not be called")
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.transformer_suggestions.get_database_path",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.transformer_suggestions.open_database",
+        fail_if_opened,
+    )
+
+    response = TestClient(create_app()).get("/api/transformer-suggestions/")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Database not found"
+    assert open_called is False
 
 
 def test_get_available_references_reads_entity_registry_v2_config(
@@ -139,7 +167,48 @@ def test_get_available_references_reads_entity_registry_v2_config(
     }
 
 
+def test_get_available_references_does_not_invent_spatial_relation(
+    monkeypatch, tmp_path
+):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "datasets": {"occurrences": {}},
+                    "references": {
+                        "shapes": {
+                            "kind": "spatial",
+                            "description": "Spatial grid",
+                            "schema": {"id_field": "shape_id"},
+                        }
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.transformer_suggestions.get_working_directory",
+        lambda: tmp_path,
+    )
+
+    response = TestClient(create_app()).get("/api/transformer-suggestions/references")
+
+    assert response.status_code == 200
+    assert response.json()["references"] == [
+        {
+            "name": "shapes",
+            "kind": "spatial",
+            "description": "Spatial grid",
+            "relation": None,
+        }
+    ]
+
+
 def test_get_transformer_suggestions_returns_semantic_profile_payload(monkeypatch):
+    open_calls = []
     semantic_profile = {
         "analyzed_at": "2026-04-22T10:00:00Z",
         "columns": [
@@ -184,7 +253,8 @@ def test_get_transformer_suggestions_returns_semantic_profile_payload(monkeypatc
     )
     monkeypatch.setattr(
         "niamoto.gui.api.routers.transformer_suggestions.open_database",
-        lambda db_path: nullcontext(object()),
+        lambda db_path, **kwargs: open_calls.append((db_path, kwargs))
+        or nullcontext(object()),
     )
     monkeypatch.setattr(
         "niamoto.gui.api.routers.transformer_suggestions.EntityRegistry",
@@ -195,6 +265,7 @@ def test_get_transformer_suggestions_returns_semantic_profile_payload(monkeypatc
     response = client.get("/api/transformer-suggestions/occurrences")
 
     assert response.status_code == 200
+    assert open_calls == [("/tmp/niamoto.duckdb", {"read_only": True})]
     assert response.json() == {
         "entity_name": "occurrences",
         "analyzed_at": "2026-04-22T10:00:00Z",
@@ -228,6 +299,30 @@ def test_get_transformer_suggestions_returns_semantic_profile_payload(monkeypatc
     }
 
 
+def test_get_transformer_suggestions_rejects_missing_database(monkeypatch):
+    open_called = False
+
+    def fail_if_opened(*_args, **_kwargs):
+        nonlocal open_called
+        open_called = True
+        raise AssertionError("open_database should not be called")
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.transformer_suggestions.get_database_path",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.transformer_suggestions.open_database",
+        fail_if_opened,
+    )
+
+    response = TestClient(create_app()).get("/api/transformer-suggestions/occurrences")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Database not found"
+    assert open_called is False
+
+
 def test_get_transformer_suggestions_returns_404_without_semantic_profile(monkeypatch):
     class FakeRegistry:
         def __init__(self, db):
@@ -242,7 +337,7 @@ def test_get_transformer_suggestions_returns_404_without_semantic_profile(monkey
     )
     monkeypatch.setattr(
         "niamoto.gui.api.routers.transformer_suggestions.open_database",
-        lambda db_path: nullcontext(object()),
+        lambda db_path, **_kwargs: nullcontext(object()),
     )
     monkeypatch.setattr(
         "niamoto.gui.api.routers.transformer_suggestions.EntityRegistry",
@@ -274,7 +369,7 @@ def test_get_transformer_suggestions_returns_404_for_missing_entity(monkeypatch)
     )
     monkeypatch.setattr(
         "niamoto.gui.api.routers.transformer_suggestions.open_database",
-        lambda db_path: nullcontext(object()),
+        lambda db_path, **_kwargs: nullcontext(object()),
     )
     monkeypatch.setattr(
         "niamoto.gui.api.routers.transformer_suggestions.EntityRegistry",

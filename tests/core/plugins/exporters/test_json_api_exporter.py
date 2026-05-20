@@ -201,6 +201,28 @@ class TestJsonApiExporter:
 
         assert exporter.stats["total_files_generated"] == 1
 
+    def test_generate_detail_file_preserves_zero_id(self, exporter, tmp_path):
+        """Zero is a valid item ID and should produce a detail file."""
+        item = {"id": 0, "name": "Zero Item"}
+        group_config = GroupConfig(
+            group_by="test_group", detail=DetailConfig(pass_through=True)
+        )
+        params = JsonApiExporterParams(output_dir=str(tmp_path))
+        mapper = DataMapper(group_config, params)
+
+        exporter._generate_detail_file(
+            item,
+            "test_group",
+            group_config,
+            params,
+            tmp_path,
+            mapper,
+            params.json_options,
+        )
+
+        assert (tmp_path / "test_group" / "0.json").exists()
+        assert exporter.stats["total_files_generated"] == 1
+
     @patch("builtins.open", create=True)
     def test_generate_index_file(self, mock_open, exporter, tmp_path, sample_data):
         """Test index file generation."""
@@ -325,6 +347,18 @@ class TestDataMapper:
         url = mapper._generate_endpoint_url({"plots_id": 456}, {"base_path": "/api"})
         assert url == "/api/plots/456.json"
 
+    def test_generate_endpoint_url_preserves_zero_group_specific_id(self, mapper):
+        """Endpoint URLs should treat 0 as a valid group-specific ID."""
+        mapper._group_context = {
+            "group_name": "plots",
+            "params": JsonApiExporterParams(
+                output_dir="test", detail_output_pattern="{group}/{id}.json"
+            ),
+        }
+
+        url = mapper._generate_endpoint_url({"plots_id": 0}, {"base_path": "/api"})
+        assert url == "/api/plots/0.json"
+
     def test_extract_specific_epithet(self, mapper):
         """Test specific epithet extraction."""
         data = {"full_name": "Genus species subspecies"}
@@ -391,6 +425,29 @@ class TestDataMapper:
         assert result == {
             "name": "Plot A",
             "detail_url": "/api/plots/456.json",
+        }
+
+    def test_map_index_data_detail_url_preserves_zero_id(self):
+        """Index detail URLs should keep zero-valued IDs."""
+        group_config = GroupConfig(
+            group_by="plots",
+            index=IndexConfig(fields=[{"name": "general_info.name.value"}]),
+        )
+        params = JsonApiExporterParams(output_dir="test")
+        mapper = DataMapper(group_config, params)
+
+        result = mapper.map_index_data(
+            {
+                "plots_id": 0,
+                "general_info": {"name": {"value": "Plot Zero"}},
+            },
+            "plots",
+            params,
+        )
+
+        assert result == {
+            "name": "Plot Zero",
+            "detail_url": "/api/plots/0.json",
         }
 
     def test_map_index_data_adds_detail_url_when_other_endpoint_url_exists(self):
@@ -550,11 +607,11 @@ class TestJsonApiExporterSecurity:
         return mock_db
 
     def test_sql_injection_prevention(self, mock_db_with_engine):
-        """Test that table names are quoted before query execution."""
+        """Test that unknown unsafe table names are not executed."""
         exporter = JsonApiExporter(mock_db_with_engine)
-        mock_db_with_engine.has_table.return_value = True
+        mock_db_with_engine.has_table.return_value = False
 
-        malicious_table = "taxon; DROP TABLE users; --"
+        malicious_table = 'taxon"; DROP TABLE users; --'
 
         result = exporter._fetch_group_data(
             mock_db_with_engine, malicious_table, "taxon"
@@ -562,15 +619,29 @@ class TestJsonApiExporterSecurity:
 
         assert result == []
         mock_db_with_engine.has_table.assert_called_once_with(malicious_table)
-        mock_db_with_engine.engine.connect.assert_called_once()
+        mock_db_with_engine.engine.connect.assert_not_called()
 
+    def test_existing_table_names_are_quoted_before_query_execution(
+        self, mock_db_with_engine
+    ):
+        """Test that existing table names are escaped before query execution."""
+        exporter = JsonApiExporter(mock_db_with_engine)
+        mock_db_with_engine.has_table.return_value = True
+
+        table_name = 'taxon"archive'
+
+        result = exporter._fetch_group_data(mock_db_with_engine, table_name, "taxon")
+
+        assert result == []
+        mock_db_with_engine.has_table.assert_called_once_with(table_name)
+        mock_db_with_engine.engine.connect.assert_called_once()
         connection = (
             mock_db_with_engine.engine.connect.return_value.__enter__.return_value
         )
         connection.execute.assert_called_once()
         executed_query = str(connection.execute.call_args.args[0])
-        assert 'FROM "taxon; DROP TABLE users; --"' in executed_query
-        assert "FROM taxon; DROP TABLE users; --" not in executed_query
+        assert 'FROM "taxon""archive"' in executed_query
+        assert 'FROM taxon"archive' not in executed_query
 
     def test_file_path_validation(self):
         """Test that detail output paths cannot escape the export directory."""

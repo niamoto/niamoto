@@ -239,7 +239,7 @@ class ReferenceResolver:
 
         # Check if function is allowed (if restriction is configured)
         if (
-            self.config.allowed_functions
+            self.config.allowed_functions is not None
             and func_name not in self.config.allowed_functions
         ):
             raise ValueError(

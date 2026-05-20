@@ -697,6 +697,7 @@ class Database:
                     return row
 
                 connection.commit()
+                self.invalidate_table_names_cache()
                 return result
         except exc.SQLAlchemyError as e:
             error_msg = str(e)
@@ -797,6 +798,7 @@ class Database:
             self.active_transaction = False
         except exc.SQLAlchemyError as e:
             self.session.rollback()
+            self.active_transaction = False
             raise DatabaseError(
                 message="Failed to commit transaction", details={"error": str(e)}
             )

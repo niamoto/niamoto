@@ -46,6 +46,8 @@ class NiamotoTestCase(unittest.TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        self._previous_niamoto_test_mode = os.environ.get("NIAMOTO_TEST_MODE")
+        self._had_niamoto_test_mode = "NIAMOTO_TEST_MODE" in os.environ
         # Set test mode to prevent config file creation
         os.environ["NIAMOTO_TEST_MODE"] = "1"
         self._active_patches = []
@@ -68,8 +70,11 @@ class NiamotoTestCase(unittest.TestCase):
 
         self._active_patches = []
 
-        # Clean up test environment variable
-        os.environ.pop("NIAMOTO_TEST_MODE", None)
+        # Restore test environment variable to its pre-test state
+        if self._had_niamoto_test_mode:
+            os.environ["NIAMOTO_TEST_MODE"] = self._previous_niamoto_test_mode
+        else:
+            os.environ.pop("NIAMOTO_TEST_MODE", None)
 
         super().tearDown()
 

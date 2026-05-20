@@ -7,6 +7,7 @@ import os
 import unittest
 import yaml
 import tempfile
+from unittest import mock
 
 import pandas as pd
 import geopandas as gpd
@@ -210,7 +211,6 @@ class TestShapeProcessor(NiamotoTestCase):
 
     def tearDown(self):
         """Clean up test fixtures."""
-        from unittest import mock
         import shutil
 
         if getattr(self, "db", None):
@@ -229,9 +229,6 @@ class TestShapeProcessor(NiamotoTestCase):
 
         except Exception as e:
             print(f"Error during cleanup: {e}")
-
-        # Stop all active patches to prevent MagicMock leaks
-        mock.patch.stopall()
 
         super().tearDown()
 
@@ -339,10 +336,25 @@ class TestShapeProcessor(NiamotoTestCase):
 
         result = self.processor.transform(data, config)
 
+        self.assertEqual(
+            set(result),
+            {"shape_coords", "test_layer_coords", "test_layer_2_coords"},
+        )
         for coords in result.values():
             self.assertEqual(coords["type"], "FeatureCollection")
             self.assertIn("features", coords)
             self.assertGreater(len(coords["features"]), 0)
+
+    def test_transform_raises_for_requested_missing_layer(self):
+        """Requested layers should fail loudly when they cannot be loaded."""
+        data = pd.DataFrame({"id": [1]})
+        config = copy.deepcopy(self.test_config)
+        config["params"]["layers"] = [
+            {"name": "missing_layer", "clip": True, "simplify": True}
+        ]
+
+        with self.assertRaisesRegex(ValueError, "missing_layer"):
+            self.processor.transform(data, config)
 
     def test_process_layer(self):
         """Test layer processing."""
@@ -368,6 +380,27 @@ class TestShapeProcessor(NiamotoTestCase):
         invalid_polygon = Polygon([(0, 0), (1, 1), (1, 0), (0, 0)])
         simplified = self.processor._simplify_with_utm(invalid_polygon)
         self.assertTrue(simplified.is_valid)
+
+
+def test_shape_processor_teardown_preserves_external_patches():
+    """tearDown should not stop patches started outside this test case."""
+    patcher = mock.patch(
+        "tests.core.plugins.transformers.geospatial.test_shape_processor.yaml.safe_load",
+        return_value={},
+    )
+    patched_safe_load = patcher.start()
+    try:
+        case = TestShapeProcessor(methodName="runTest")
+        case._active_patches = []
+        case._had_niamoto_test_mode = False
+        case._previous_niamoto_test_mode = None
+        case.db = None
+
+        case.tearDown()
+
+        assert yaml.safe_load is patched_safe_load
+    finally:
+        patcher.stop()
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ from sqlalchemy.sql import quoted_name, text
 
 from niamoto.common.database import Database
 from niamoto.common.exceptions import DatabaseQueryError
+from niamoto.common.table_resolver import quote_identifier
 from niamoto.core.imports.registry import EntityRegistry, EntityKind
 from niamoto.core.imports.config_models import (
     ExtractionConfig,
@@ -66,6 +67,7 @@ class GenericImporter:
             quoted_table = str(quoted_name(table_name, quote=True))
             self.db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
             df.to_sql(table_name, self.db.engine, if_exists="fail", index=False)
+            self.db.invalidate_table_names_cache()
             return
 
         df.to_sql(table_name, self.db.engine, if_exists="replace", index=False)
@@ -86,49 +88,55 @@ class GenericImporter:
         if not csv_path.exists():
             raise FileNotFoundError(f"Import source not found: {csv_path}")
 
-        # Use DuckDB-native ingestion if available for better performance
+        df = self._read_csv(csv_path)
+        source_columns = set(df.columns)
+        if df.empty:
+            # Ensure we still create a table with the expected columns
+            df = self._ensure_dataframe_structure(df, id_field=id_field)
+
+        # Use DuckDB-native ingestion when the source identifier already matches
+        # the metadata we will register. If we need to generate default IDs, write
+        # the normalized DataFrame so the physical table and registry stay aligned.
         if self.db.is_duckdb:
-            # DuckDB native CSV ingestion using read_csv_auto and CTAS
-            primary_key = id_field or "id"
             quoted_table = str(quoted_name(table_name, quote=True))
+            primary_key = id_field or self._ensure_identifier(df)
+            if "extra_data" not in df.columns:
+                df["extra_data"] = None
 
-            # Drop existing table if needed
-            self.db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
-
-            # Ensure absolute path for DuckDB
-            absolute_csv_path = csv_path.absolute()
-            escaped_path = str(absolute_csv_path).replace("'", "''")
-
-            # Scan the full CSV for dialect and type detection. DuckDB's default
-            # sample can miss late quoted values and mixed identifier formats.
-            create_sql = f"""
-                CREATE TABLE {quoted_table} AS
-                SELECT * FROM read_csv_auto(
-                    '{escaped_path}',
-                    header=true,
-                    auto_detect=true,
-                    sample_size=-1
-                )
-            """
-            self.db.execute_sql(create_sql)
-
-            # Add extra_data column for metadata storage
-            alter_sql = (
-                f"ALTER TABLE {quoted_table} ADD COLUMN extra_data JSON DEFAULT NULL"
+            needs_generated_default_id = (
+                not id_field
+                and primary_key == "id"
+                and ("id" not in source_columns or df["id"].isnull().any())
             )
-            self.db.execute_sql(alter_sql)
+            if needs_generated_default_id:
+                self._write_dataframe_to_table(df, table_name)
+            else:
+                # DuckDB native CSV ingestion using read_csv_auto and CTAS
+                # Drop existing table if needed
+                self.db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
 
-            # Read full dataframe for analysis (needed for accurate profiling)
-            df = self._read_csv(csv_path)
-            # Add extra_data to df for metadata purposes (column exists in DB now)
-            df["extra_data"] = None
+                # Ensure absolute path for DuckDB
+                absolute_csv_path = csv_path.absolute()
+                escaped_path = str(absolute_csv_path).replace("'", "''")
+
+                # Scan the full CSV for dialect and type detection. DuckDB's default
+                # sample can miss late quoted values and mixed identifier formats.
+                create_sql = f"""
+                    CREATE TABLE {quoted_table} AS
+                    SELECT * FROM read_csv_auto(
+                        '{escaped_path}',
+                        header=true,
+                        auto_detect=true,
+                        sample_size=-1
+                    )
+                """
+                self.db.execute_sql(create_sql)
+
+                # Add extra_data column for metadata storage
+                alter_sql = f"ALTER TABLE {quoted_table} ADD COLUMN extra_data JSON DEFAULT NULL"
+                self.db.execute_sql(alter_sql)
         else:
             # Fallback to pandas for SQLite
-            df = self._read_csv(csv_path)
-            if df.empty:
-                # Ensure we still create a table with the expected columns
-                df = self._ensure_dataframe_structure(df, id_field=id_field)
-
             primary_key = id_field or self._ensure_identifier(df)
 
             # Add extra_data column if not present (for metadata storage)
@@ -470,11 +478,14 @@ class GenericImporter:
             geometry_column: Name of the new GEOMETRY column to create
         """
         try:
+            quoted_table = quote_identifier(self.db, table_name)
+            quoted_wkt = quote_identifier(self.db, wkt_column)
+            quoted_geometry = quote_identifier(self.db, geometry_column)
             with self.db.engine.connect() as conn:
                 # Add GEOMETRY column
                 conn.execute(
                     text(
-                        f"ALTER TABLE {table_name} ADD COLUMN {geometry_column} GEOMETRY"
+                        f"ALTER TABLE {quoted_table} ADD COLUMN {quoted_geometry} GEOMETRY"
                     )
                 )
 
@@ -482,9 +493,9 @@ class GenericImporter:
                 conn.execute(
                     text(
                         f"""
-                        UPDATE {table_name}
-                        SET {geometry_column} = ST_GeomFromText({wkt_column})
-                        WHERE {wkt_column} IS NOT NULL
+                        UPDATE {quoted_table}
+                        SET {quoted_geometry} = ST_GeomFromText({quoted_wkt})
+                        WHERE {quoted_wkt} IS NOT NULL
                     """
                     )
                 )

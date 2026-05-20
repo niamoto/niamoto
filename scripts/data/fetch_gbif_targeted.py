@@ -214,6 +214,9 @@ def collect_columns(records: list[dict[str, Any]]) -> list[str]:
     for record in records:
         all_columns.update(record.keys())
 
+    if not all_columns:
+        return list(PREFERRED_COLUMNS)
+
     ordered = [column for column in PREFERRED_COLUMNS if column in all_columns]
     remaining = sorted(all_columns - set(ordered))
     return ordered + remaining

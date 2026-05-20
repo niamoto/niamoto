@@ -48,3 +48,38 @@ def test_build_cache_preserves_existing_cache_when_payload_build_fails(
     assert old_fold.read_bytes() == b"existing fold"
     assert old_manifest.read_text(encoding="utf-8") == '{"existing": true}\n'
     assert list(tmp_path.glob(".cache.*.tmp")) == []
+
+
+def test_replace_cache_dir_restores_existing_cache_when_backup_cleanup_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    output_dir = tmp_path / "cache"
+    output_dir.mkdir()
+    (output_dir / "manifest.json").write_text("old\n", encoding="utf-8")
+
+    staging_dir = tmp_path / "staging"
+    staging_dir.mkdir()
+    (staging_dir / "manifest.json").write_text("new\n", encoding="utf-8")
+
+    real_rmtree = cache_builder.shutil.rmtree
+    failed_backup_cleanup = False
+
+    def fail_backup_cleanup(path, *args, **kwargs):
+        nonlocal failed_backup_cleanup
+        target = Path(path)
+        if ".cache.backup." in target.name and not failed_backup_cleanup:
+            failed_backup_cleanup = True
+            raise OSError("simulated backup cleanup failure")
+        return real_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(cache_builder.shutil, "rmtree", fail_backup_cleanup)
+
+    with pytest.raises(OSError, match="simulated backup cleanup failure"):
+        cache_builder._replace_cache_dir(staging_dir, output_dir)
+
+    assert (output_dir / "manifest.json").read_text(encoding="utf-8") == "old\n"
+    assert not any(
+        path.read_text(encoding="utf-8") == "new\n"
+        for path in tmp_path.glob("*/manifest.json")
+    )

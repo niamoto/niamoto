@@ -163,8 +163,23 @@ class TestDirectAttribute:
         mock_db.fetch_one.assert_called_once()
         # Check the call arguments - args[0] is query, args[1] is params dict
         call_args = mock_db.fetch_one.call_args
-        assert "SELECT area FROM plots WHERE id = :id_value" in call_args.args[0]
+        assert 'SELECT "area" FROM "plots"' in call_args.args[0]
+        assert 'WHERE "id" = :id_value' in call_args.args[0]
         assert call_args.args[1] == {"id_value": 1}
+
+    def test_get_field_from_table_rejects_unknown_field_before_query(
+        self, direct_attribute, mock_db
+    ):
+        """Test invalid field identifiers are rejected before querying."""
+        mock_db.has_table.return_value = True
+        mock_db.get_table_columns.return_value = ["id", "area"]
+
+        with pytest.raises(DatabaseError):
+            direct_attribute._get_field_from_table(
+                "plots", 'area"; DROP TABLE plots; --', 1
+            )
+
+        mock_db.fetch_one.assert_not_called()
 
     def test_get_field_from_table_not_found(self, direct_attribute, mock_db):
         """Test field retrieval when record not found."""
@@ -321,8 +336,8 @@ class TestDirectAttribute:
         assert result["value"] == "Hibbertia pancheri"
         direct_attribute.registry.get.assert_called_once_with("occurrences")
         query, params = mock_db.fetch_one.call_args.args
-        assert "FROM dataset_occurrences" in query
-        assert "WHERE occurrence_id = :id_value" in query
+        assert 'FROM "dataset_occurrences"' in query
+        assert 'WHERE "occurrence_id" = :id_value' in query
         assert params == {"id_value": 2}
 
     def test_transform_without_group_id(self, direct_attribute, sample_dataframe):

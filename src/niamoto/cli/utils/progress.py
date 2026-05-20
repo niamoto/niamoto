@@ -143,6 +143,7 @@ class ProgressManager:
             # Complete any remaining progress to reach 100%
             remaining = task.total - task.completed
             self._current_progress.update(task_id, advance=remaining)
+            self._stats["operations_completed"] += remaining
 
         # Calculate final elapsed time for display
         if name in self._task_start_times:

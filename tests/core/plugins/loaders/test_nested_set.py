@@ -8,6 +8,32 @@ from niamoto.core.plugins.loaders.nested_set import NestedSetLoader
 from niamoto.core.imports.registry import EntityRegistry, EntityKind
 
 
+def _normalized_sql(statement) -> str:
+    return " ".join(str(statement).split())
+
+
+def _assert_hierarchy_query(
+    read_sql_mock: Mock,
+    *,
+    data_table: str,
+    grouping_table: str,
+    key_field: str,
+    ref_key: str,
+    left_field: str,
+    right_field: str,
+    bounds: tuple[int, int],
+) -> None:
+    query = _normalized_sql(read_sql_mock.call_args.args[0])
+    assert f'FROM "{data_table}" m' in query
+    assert f'JOIN "{grouping_table}" ref ON m."{key_field}" = ref."{ref_key}"' in query
+    assert f'WHERE ref."{left_field}" >= :left' in query
+    assert f'AND ref."{right_field}" <= :right' in query
+    assert read_sql_mock.call_args.kwargs["params"] == {
+        "left": bounds[0],
+        "right": bounds[1],
+    }
+
+
 @pytest.fixture
 def mock_db():
     """Create a mock database."""
@@ -158,7 +184,8 @@ class TestLoadDataWithRegistry:
 
         # Mock pandas read_sql to avoid actual DB query
         mock_df = pd.DataFrame({"id": [1, 2], "name": ["test1", "test2"]})
-        monkeypatch.setattr("pandas.read_sql", Mock(return_value=mock_df))
+        read_sql_mock = Mock(return_value=mock_df)
+        monkeypatch.setattr("pandas.read_sql", read_sql_mock)
 
         # Execute load_data
         result = loader.load_data(group_id=1, config=config)
@@ -171,6 +198,16 @@ class TestLoadDataWithRegistry:
         # Verify result is a DataFrame
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 2
+        _assert_hierarchy_query(
+            read_sql_mock,
+            data_table="entity_occurrences",
+            grouping_table="entity_taxons",
+            key_field="taxon_id",
+            ref_key="id",
+            left_field="lft",
+            right_field="rght",
+            bounds=(1, 10),
+        )
 
     def test_load_data_with_custom_entity_names(self, loader, mock_db, monkeypatch):
         """Test load_data works with custom entity names like 'flora', 'observations'."""
@@ -213,7 +250,8 @@ class TestLoadDataWithRegistry:
         mock_db.connection.return_value = mock_conn
 
         mock_df = pd.DataFrame({"id": [10, 20]})
-        monkeypatch.setattr("pandas.read_sql", Mock(return_value=mock_df))
+        read_sql_mock = Mock(return_value=mock_df)
+        monkeypatch.setattr("pandas.read_sql", read_sql_mock)
 
         # Execute
         result = custom_loader.load_data(group_id=5, config=config)
@@ -223,6 +261,16 @@ class TestLoadDataWithRegistry:
         custom_registry.get.assert_any_call("flora")
 
         assert isinstance(result, pd.DataFrame)
+        _assert_hierarchy_query(
+            read_sql_mock,
+            data_table="entity_observations",
+            grouping_table="entity_flora",
+            key_field="flora_id",
+            ref_key="id",
+            left_field="lft",
+            right_field="rght",
+            bounds=(5, 15),
+        )
 
 
 class TestBackwardCompatibility:
@@ -254,7 +302,8 @@ class TestBackwardCompatibility:
         mock_db.connection.return_value = mock_conn
 
         mock_df = pd.DataFrame({"id": [100]})
-        monkeypatch.setattr("pandas.read_sql", Mock(return_value=mock_df))
+        read_sql_mock = Mock(return_value=mock_df)
+        monkeypatch.setattr("pandas.read_sql", read_sql_mock)
 
         # Should not raise exception, should fallback to physical names
         result = loader.load_data(group_id=1, config=config)
@@ -262,6 +311,16 @@ class TestBackwardCompatibility:
         assert isinstance(result, pd.DataFrame)
         # Registry was attempted but failed (fallback worked)
         assert mock_registry.get.called
+        _assert_hierarchy_query(
+            read_sql_mock,
+            data_table="some_physical_table",
+            grouping_table="another_physical_table",
+            key_field="taxon_id",
+            ref_key="id",
+            left_field="lft",
+            right_field="rght",
+            bounds=(1, 5),
+        )
 
 
 class TestEdgeCases:

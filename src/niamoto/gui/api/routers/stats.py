@@ -112,7 +112,9 @@ def _iter_outlier_csv_rows(
         cols_ordered = [column] + [c for c in safe_columns if c != column]
         cols_ordered_sql = ", ".join(preparer.quote(c) for c in cols_ordered)
 
-        yield _render_csv_row(cols_ordered)
+        yield _render_csv_row(
+            [_escape_csv_spreadsheet_cell(header) for header in cols_ordered]
+        )
 
         with db.engine.connect() as conn:
             result = conn.execute(
@@ -509,17 +511,23 @@ def _resolve_physical_table_name(
 def _resolve_occurrence_table(
     table_names: List[str], occurrence_entity: str, datasets: Dict[str, Any]
 ) -> Optional[str]:
-    """Resolve occurrence dataset table from explicit query param, then config."""
+    """Resolve occurrence dataset table from query param, then default config."""
     # 1) Explicit entity/table requested by caller.
     resolved = resolve_dataset_table_name(table_names, occurrence_entity)
     if resolved:
         return resolved
 
-    # 2) Preferred dataset from import config.
+    # 2) Last-resort fuzzy match for backward compatibility.
+    for table in table_names:
+        if occurrence_entity.lower() in table.lower():
+            return table
+
+    if occurrence_entity != "occurrences":
+        return None
+
+    # 3) Default occurrence dataset from import config.
     preferred_dataset = None
-    if occurrence_entity in datasets:
-        preferred_dataset = occurrence_entity
-    elif "occurrences" in datasets:
+    if "occurrences" in datasets:
         preferred_dataset = "occurrences"
     elif datasets:
         preferred_dataset = next(iter(datasets))
@@ -528,11 +536,27 @@ def _resolve_occurrence_table(
     if resolved:
         return resolved
 
-    # 3) Last-resort fuzzy match for backward compatibility.
-    for table in table_names:
-        if occurrence_entity.lower() in table.lower():
-            return table
     return None
+
+
+def _resolve_dataset_config_for_table(
+    table_names: List[str],
+    table_name: str,
+    occurrence_entity: str,
+    datasets: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Resolve the import.yml dataset config that owns a physical table."""
+    candidate_names = [occurrence_entity, "occurrences"]
+    candidate_names.extend(name for name in datasets if name not in candidate_names)
+
+    for dataset_name in candidate_names:
+        dataset_cfg = datasets.get(dataset_name)
+        if not isinstance(dataset_cfg, dict):
+            continue
+        if resolve_dataset_table_name(table_names, dataset_name) == table_name:
+            return dataset_cfg
+
+    return {}
 
 
 def _resolve_entity_table(
@@ -1317,7 +1341,8 @@ def _build_wkt_spatial_map_inspection(
                 params,
             )
             valid_seen = 0
-            stop_after = max(offset, 0) + limit + 1
+            requested_offset = max(offset, 0)
+            stop_after = requested_offset + limit + 1
             for row in result:
                 parsed = _wkt_geometry_to_geojson(
                     _row_value(row, "geometry_value", 4), simplify_tolerance
@@ -1329,6 +1354,8 @@ def _build_wkt_spatial_map_inspection(
                 geometry_type, geometry = parsed
                 if geometry_type not in geometry_types:
                     geometry_types.append(geometry_type)
+                if valid_seen <= requested_offset:
+                    continue
                 feature_id = _row_value(row, "id_value", 0)
                 feature_name = _row_value(row, "name_value", 1) or feature_id
                 feature_type = _row_value(row, "type_value", 2)
@@ -1352,10 +1379,8 @@ def _build_wkt_spatial_map_inspection(
                     break
 
     requested_offset = max(offset, 0)
-    visible_features = (
-        features[requested_offset : requested_offset + limit] if limit > 0 else []
-    )
-    has_more = limit > 0 and len(features) > requested_offset + limit
+    visible_features = features[:limit] if limit > 0 else []
+    has_more = limit > 0 and len(features) > limit
     return SpatialMapInspection(
         reference_name=reference_name,
         table_name=table_name,
@@ -2273,9 +2298,8 @@ def get_completeness(entity: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error getting completeness: {str(e)}"
-        )
+        logger.exception("Error getting completeness for entity %s: %s", entity, e)
+        raise HTTPException(status_code=500, detail="Error getting completeness")
 
 
 @router.get("/hierarchy/{reference_name}", response_model=HierarchyInspection)
@@ -2972,9 +2996,8 @@ async def render_spatial_map(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error rendering spatial map: {str(e)}"
-        )
+        logger.exception("Error rendering spatial map for %s: %s", reference_name, e)
+        raise HTTPException(status_code=500, detail="Error rendering spatial map")
 
 
 @router.get("/spatial", response_model=SpatialStats)
@@ -3220,8 +3243,8 @@ async def get_taxonomy_consistency(
                     all_rows = result.fetchall()
 
                     orphan_condition = None
+                    orphan_parts = []
                     if parent_col:
-                        orphan_parts = []
                         if id_col:
                             orphan_parts.append(
                                 f"""
@@ -3234,12 +3257,12 @@ async def get_taxonomy_consistency(
                     level_is_numeric = _is_numeric_column(
                         columns_info, columns_by_lower.get("level")
                     )
-                    if level_col and level_is_numeric:
+                    if parent_col and level_col and level_is_numeric:
                         orphan_parts.append(
                             f"(node.{level_col} > 0 AND node.{parent_col} IS NULL)"
                         )
-                        if orphan_parts:
-                            orphan_condition = "(" + " OR ".join(orphan_parts) + ")"
+                    if orphan_parts:
+                        orphan_condition = "(" + " OR ".join(orphan_parts) + ")"
 
                     for row in all_rows:
                         rank_name = row[0]
@@ -4065,7 +4088,21 @@ async def get_geo_coverage(
 
             # Find geo column in occurrences
             columns_info = db.get_columns(occ_table)
-            geo_column, occ_geo_is_native = _find_geometry_column(columns_info)
+            detected_geo_column, detected_occ_geo_is_native = _find_geometry_column(
+                columns_info
+            )
+            column_names = [col["name"] for col in columns_info]
+            columns_by_lower = {column.lower(): column for column in column_names}
+            occurrence_cfg = _resolve_dataset_config_for_table(
+                table_names, occ_table, occurrence_entity, datasets
+            )
+            configured_geo_column = _find_configured_geometry_column(
+                occurrence_cfg, columns_by_lower
+            )
+            geo_column = configured_geo_column or detected_geo_column
+            occ_geo_is_native = detected_occ_geo_is_native
+            if geo_column and geo_column != detected_geo_column:
+                occ_geo_is_native = _is_native_geometry_column(columns_info, geo_column)
 
             # Count occurrences with geometry
             occ_with_geo = 0
@@ -4431,7 +4468,7 @@ async def analyze_spatial_coverage(
 
 
 @router.post("/geo-coverage/distribution", response_model=ShapeDistributionResult)
-async def get_shape_distribution(
+def get_shape_distribution(
     occurrence_entity: str = Query(
         default="occurrences", description="Occurrences entity"
     ),

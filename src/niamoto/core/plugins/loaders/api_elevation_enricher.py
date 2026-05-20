@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Any, Dict, List, Literal, Optional
 
@@ -20,6 +21,12 @@ from ._spatial_enrichment import (
 )
 
 OPEN_METEO_ELEVATION_ENDPOINT = "https://api.open-meteo.com/v1/elevation"
+
+
+def _stable_cache_key(*parts: Any) -> str:
+    """Build a deterministic cache key from JSON-serializable semantic parts."""
+
+    return json.dumps(parts, sort_keys=True, default=str, separators=(",", ":"))
 
 
 class ApiElevationEnricherParams(BasePluginParams):
@@ -93,10 +100,14 @@ class ApiElevationEnricher(LoaderPlugin):
         if geometry is None:
             raise ValueError("No geometry found for elevation enrichment")
 
-        cache_key = (
-            f"{params.profile}::{params.api_url}::{geometry.wkt}"
-            f"::{params.sample_mode}::{params.sample_count}"
-            f"::{params.include_bbox_summary}"
+        cache_key = _stable_cache_key(
+            "api_elevation_enricher",
+            geometry.wkt,
+            geometry_field,
+            params.model_dump(
+                mode="json",
+                exclude={"cache_results", "rate_limit"},
+            ),
         )
         if params.cache_results and cache_key in self._cache:
             cached = self._cache[cache_key]

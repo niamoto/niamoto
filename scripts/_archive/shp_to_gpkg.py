@@ -79,21 +79,24 @@ def convert_multiple_shapefiles(
         output_path = output_dir / "merged.gpkg"
         logger.info(f"Merging {len(shapefiles)} shapefiles into {output_path}")
 
-        for i, shp_path in enumerate(shapefiles):
+        layers_written = 0
+        for shp_path in shapefiles:
             try:
                 gdf = gpd.read_file(shp_path)
                 layer_name = shp_path.stem
 
                 # For the first layer, create the file; for others, append
-                mode = "w" if i == 0 else "a"
+                mode = "w" if layers_written == 0 else "a"
                 gdf.to_file(output_path, driver="GPKG", layer=layer_name, mode=mode)
+                layers_written += 1
 
                 logger.info(f"Added layer '{layer_name}' to {output_path.name}")
 
             except Exception as e:
                 logger.error(f"Failed to add {shp_path} to merged GPKG: {e}")
 
-        converted.append(output_path)
+        if layers_written:
+            converted.append(output_path)
     else:
         # Convert each shapefile to its own GPKG
         for shp_path in shapefiles:

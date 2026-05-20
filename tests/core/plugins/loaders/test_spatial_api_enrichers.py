@@ -55,6 +55,47 @@ def test_api_elevation_enricher_loads_point_summary(
     assert requests_mock.request_history[0].qs["longitude"] == ["166.45"]
 
 
+def test_api_elevation_enricher_cache_key_includes_query_params(
+    elevation_enricher: ApiElevationEnricher,
+    requests_mock: requests_mock.Mocker,
+):
+    elevation_enricher._cache.clear()
+    row = {"geometry": "POINT (166.45 -22.27)"}
+    base_config = {
+        "plugin": "api_elevation_enricher",
+        "params": {
+            "api_url": "https://api.open-meteo.com/v1/elevation",
+            "profile": "openmeteo_elevation_v1",
+            "query_field": "geometry",
+            "rate_limit": 0,
+            "cache_results": True,
+        },
+    }
+    first_config = {
+        **base_config,
+        "params": {**base_config["params"], "query_params": {"dataset": "first"}},
+    }
+    second_config = {
+        **base_config,
+        "params": {**base_config["params"], "query_params": {"dataset": "second"}},
+    }
+
+    requests_mock.get(
+        "https://api.open-meteo.com/v1/elevation",
+        [
+            {"json": {"elevation": [412]}},
+            {"json": {"elevation": [512]}},
+        ],
+    )
+
+    first = elevation_enricher.load_data(row, first_config)
+    second = elevation_enricher.load_data(row, second_config)
+
+    assert requests_mock.call_count == 2
+    assert first["api_enrichment"]["elevation"]["value_m"] == 412
+    assert second["api_enrichment"]["elevation"]["value_m"] == 512
+
+
 def test_api_elevation_enricher_loads_shape_summary(
     elevation_enricher: ApiElevationEnricher,
     requests_mock: requests_mock.Mocker,
@@ -140,6 +181,62 @@ def test_api_spatial_enricher_loads_point_summary(
     assert summary["admin"]["country_name"] == "New Caledonia"
     assert summary["nearby_place"]["name"] == "Nouméa"
     assert summary["provenance"]["mode"] == "point"
+
+
+def test_api_spatial_enricher_cache_key_includes_query_params(
+    spatial_enricher: ApiSpatialEnricher,
+    requests_mock: requests_mock.Mocker,
+):
+    spatial_enricher._cache.clear()
+    row = {"geometry": "POINT (166.45 -22.27)"}
+    base_config = {
+        "plugin": "api_spatial_enricher",
+        "params": {
+            "api_url": "https://secure.geonames.org/countrySubdivisionJSON",
+            "profile": "geonames_spatial_v1",
+            "query_field": "geometry",
+            "include_nearby_places": False,
+            "auth_method": "api_key",
+            "auth_params": {"key": "demo"},
+            "rate_limit": 0,
+            "cache_results": True,
+        },
+    }
+    first_config = {
+        **base_config,
+        "params": {**base_config["params"], "query_params": {"lang": "fr"}},
+    }
+    second_config = {
+        **base_config,
+        "params": {**base_config["params"], "query_params": {"lang": "en"}},
+    }
+
+    requests_mock.get(
+        "https://secure.geonames.org/countrySubdivisionJSON",
+        [
+            {
+                "json": {
+                    "countryCode": "NC",
+                    "countryName": "Nouvelle-Calédonie",
+                    "adminName1": "Sud",
+                }
+            },
+            {
+                "json": {
+                    "countryCode": "NC",
+                    "countryName": "New Caledonia",
+                    "adminName1": "South Province",
+                }
+            },
+        ],
+    )
+
+    first = spatial_enricher.load_data(row, first_config)
+    second = spatial_enricher.load_data(row, second_config)
+
+    assert requests_mock.call_count == 2
+    assert first["api_enrichment"]["admin"]["country_name"] == "Nouvelle-Calédonie"
+    assert second["api_enrichment"]["admin"]["country_name"] == "New Caledonia"
 
 
 def test_api_spatial_enricher_loads_shape_summary(

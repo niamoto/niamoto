@@ -364,6 +364,11 @@ class PreviewEngine:
 
     def invalidate(self) -> None:
         """Recompute fingerprint -- called after import or config save."""
+        with self._render_lock:
+            self._invalidate_locked()
+
+    def _invalidate_locked(self) -> None:
+        """Invalidate preview state while the render lock is held."""
         global _transformer_svc, _transformer_svc_context
         _transformer_svc = None
         _transformer_svc_context = None
@@ -1110,6 +1115,8 @@ document.addEventListener('DOMContentLoaded', function() {{
                 return self._info_html(f"No data in '{reference_name}'")
 
             row = sample_df.iloc[0]
+            sampled_entity_id = row.get(id_field) if id_field in row.index else None
+            count_relation = self._resolve_general_info_count_relation(reference_name)
 
             # Build data for info_grid
             items: list[dict[str, Any]] = []
@@ -1134,13 +1141,36 @@ document.addEventListener('DOMContentLoaded', function() {{
                     if count_table:
                         try:
                             qt = preparer.quote(count_table)
+                            count_cols = self._get_column_names(db, qt)
+                            filter_col, filter_value = (
+                                self._resolve_general_info_count_filter(
+                                    count_relation,
+                                    count_cols,
+                                    row,
+                                    id_field,
+                                    sampled_entity_id,
+                                    entity_id,
+                                    reference_name,
+                                    source,
+                                    warnings,
+                                )
+                            )
+                            if field_name not in count_cols:
+                                warnings.append(
+                                    f"Count field '{field_name}' not found in '{count_table}'"
+                                )
+                                value = None
+                                continue
+                            if not filter_col:
+                                value = None
+                                continue
                             qf = preparer.quote(field_name)
-                            qid = preparer.quote(id_field)
+                            qid = preparer.quote(filter_col)
                             count_q = text(
                                 f"SELECT COUNT({qf}) FROM {qt} WHERE {qid} = :eid"
                             )
                             cnt = pd.read_sql(
-                                count_q, db.engine, params={"eid": str(entity_id or "")}
+                                count_q, db.engine, params={"eid": filter_value}
                             )
                             value = int(cnt.iloc[0, 0]) if not cnt.empty else 0
                         except Exception:
@@ -1221,6 +1251,68 @@ document.addEventListener('DOMContentLoaded', function() {{
         except Exception as e:
             logger.exception("General info preview error: %s", e)
             return self._error_html(str(e))
+
+    def _resolve_general_info_count_relation(
+        self, reference_name: str
+    ) -> dict[str, Any]:
+        """Resolve relation metadata used by general-info count fields."""
+        try:
+            hierarchy_info = get_hierarchy_info(load_import_config(), reference_name)
+        except Exception as exc:
+            logger.warning(
+                "Could not resolve count relation for %s: %s", reference_name, exc
+            )
+            return {}
+
+        relation = hierarchy_info.get("relation") if hierarchy_info else None
+        return relation if isinstance(relation, dict) else {}
+
+    def _resolve_general_info_count_filter(
+        self,
+        relation: dict[str, Any],
+        count_cols: list[str],
+        row: pd.Series,
+        id_field: str,
+        sampled_entity_id: Any,
+        entity_id: str | None,
+        reference_name: str,
+        source: str,
+        warnings: list[str],
+    ) -> tuple[str | None, Any]:
+        """Resolve the count-table filter column and value for a reference row."""
+        relation_key = relation.get("key") or relation.get("foreign_key")
+        ref_field = (
+            relation.get("ref_field")
+            or relation.get("ref_key")
+            or relation.get("reference_key")
+            or id_field
+        )
+
+        if relation_key:
+            if relation_key not in count_cols:
+                warnings.append(
+                    f"Relation key '{relation_key}' not found in count source '{source}'"
+                )
+                return None, None
+
+            if ref_field in row.index:
+                return relation_key, row.get(ref_field)
+            if id_field in row.index:
+                return relation_key, row.get(id_field)
+            return relation_key, entity_id
+
+        fallback_col = id_field if id_field in count_cols else None
+        if fallback_col:
+            fallback_value = (
+                sampled_entity_id if sampled_entity_id is not None else entity_id
+            )
+            warnings.append(
+                f"Count relation for '{reference_name}' was not configured; using '{fallback_col}'"
+            )
+            return fallback_col, fallback_value
+
+        warnings.append(f"Count relation for '{reference_name}' could not be resolved")
+        return None, None
 
     def _render_general_info_fallback(
         self, items: list[dict[str, Any]], reference_name: str

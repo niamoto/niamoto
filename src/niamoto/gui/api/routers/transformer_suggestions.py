@@ -102,8 +102,8 @@ class ReferenceInfo(BaseModel):
         ..., description="Reference kind (hierarchical, spatial, generic)"
     )
     description: Optional[str] = Field(None, description="Reference description")
-    relation: RelationConfig = Field(
-        ..., description="Default relation config for transform.yml"
+    relation: Optional[RelationConfig] = Field(
+        None, description="Default relation config for transform.yml"
     )
 
 
@@ -141,7 +141,9 @@ async def list_entities_with_suggestions():
     """
     try:
         db_path = get_database_path()
-        with open_database(db_path) as db:
+        if not db_path:
+            raise HTTPException(status_code=404, detail="Database not found")
+        with open_database(db_path, read_only=True) as db:
             registry = EntityRegistry(db)
 
             entities_with_suggestions = []
@@ -159,6 +161,8 @@ async def list_entities_with_suggestions():
 
             return entities_with_suggestions
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Error listing entities with suggestions: {e}")
         raise HTTPException(
@@ -212,11 +216,12 @@ async def get_available_references():
 
         def build_relation_config(
             ref_name: str, kind: str, config: Optional[Dict[str, Any]] = None
-        ) -> RelationConfig:
+        ) -> Optional[RelationConfig]:
             """Build default relation config based on reference kind and config."""
             # Determine key field from config if available
             key_field: Optional[str] = None
             ref_field = f"{ref_name}_id" if kind == "hierarchical" else "id"
+            relation_config: Dict[str, Any] = {}
 
             if config and isinstance(config, dict):
                 # First check for explicit relation block in import.yml
@@ -242,6 +247,9 @@ async def get_available_references():
                     schema = config.get("schema", {})
                     if schema.get("id_field"):
                         key_field = schema["id_field"]
+
+            if kind == "spatial" and not relation_config:
+                return None
 
             if not key_field:
                 key_field = f"{ref_name}_id"
@@ -337,7 +345,9 @@ async def get_transformer_suggestions(entity_name: str):
     try:
         # Get database using utility (same as other endpoints)
         db_path = get_database_path()
-        with open_database(db_path) as db:
+        if not db_path:
+            raise HTTPException(status_code=404, detail="Database not found")
+        with open_database(db_path, read_only=True) as db:
             registry = EntityRegistry(db)
 
             # Get entity metadata

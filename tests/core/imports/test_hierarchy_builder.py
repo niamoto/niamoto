@@ -273,6 +273,34 @@ def test_hierarchy_with_additional_columns(duckdb_database):
     # be joined from the source table when needed for display or enrichment.
 
 
+def test_hierarchy_extraction_quotes_source_table_and_columns(duckdb_database):
+    """Derived hierarchy extraction should support identifiers requiring quotes."""
+    pd.DataFrame(
+        {
+            "id taxon": [101, 102],
+            "family name": ["Arecaceae", "Cunoniaceae"],
+            "taxon name": ["Arecaceae alpha", "Cunoniaceae beta"],
+        }
+    ).to_sql(
+        "dataset-occurrences",
+        duckdb_database.engine,
+        if_exists="replace",
+        index=False,
+    )
+
+    builder = HierarchyBuilder(duckdb_database)
+    config = ExtractionConfig(
+        levels=[HierarchyLevel(name="family", column="family name")],
+        id_column="id taxon",
+        name_column="taxon name",
+    )
+
+    result_df = builder.build_from_dataset("dataset-occurrences", config, "taxons")
+
+    assert set(result_df["rank_value"]) == {"Arecaceae", "Cunoniaceae"}
+    assert "taxons_id" in result_df.columns
+
+
 def test_non_numeric_external_ids_raise_clear_validation_error(duckdb_database):
     """String external ids should fail with a domain-specific validation error."""
     pd.DataFrame(

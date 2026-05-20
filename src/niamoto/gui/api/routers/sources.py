@@ -11,6 +11,7 @@ Provides endpoints for:
 import csv
 import logging
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any, Optional
@@ -38,6 +39,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sources", tags=["sources"])
 MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
 UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
+SOURCE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 # =============================================================================
@@ -246,6 +248,23 @@ def _get_reference_kind(work_dir: Path, reference_name: str) -> str:
     return ref_config.get("kind", "generic")
 
 
+def _ensure_known_reference(work_dir: Path, reference_name: str) -> None:
+    """Reject source configuration for references not declared in import.yml."""
+    import_path = work_dir / "config" / "import.yml"
+    if not import_path.exists():
+        raise HTTPException(status_code=404, detail="import.yml not found")
+
+    with open(import_path, "r", encoding="utf-8") as f:
+        import_config = yaml.safe_load(f) or {}
+
+    references = import_config.get("entities", {}).get("references", {}) or {}
+    if reference_name not in references:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Reference '{reference_name}' not found in import.yml",
+        )
+
+
 def _get_reference_entity_info(
     work_dir: Path, reference_name: str
 ) -> Optional[ConfiguredSource]:
@@ -261,6 +280,7 @@ def _get_reference_entity_info(
     if not db_path:
         return None
 
+    db: Optional[Database] = None
     try:
         db = Database(str(db_path), read_only=True)
         entity_table = resolve_reference_table(db, reference_name)
@@ -293,6 +313,12 @@ def _get_reference_entity_info(
     except Exception as e:
         logger.warning(f"Error getting reference entity info for {reference_name}: {e}")
         return None
+    finally:
+        if db is not None:
+            try:
+                db.close_db_session()
+            finally:
+                db.engine.dispose()
 
 
 # =============================================================================
@@ -330,6 +356,11 @@ async def upload_precalc_source(
     # Validate file type
     if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are accepted")
+    if not SOURCE_NAME_RE.fullmatch(source_name):
+        raise HTTPException(
+            status_code=400,
+            detail="source_name may only contain letters, digits, underscores, and hyphens",
+        )
 
     # Generate unique filename
     file_name = f"raw_{source_name}.csv"
@@ -495,6 +526,7 @@ async def save_source_config(
         raise HTTPException(status_code=500, detail="Working directory not configured")
 
     work_dir = Path(work_dir)
+    _ensure_known_reference(work_dir, reference_name)
 
     # Verify the CSV file exists
     csv_path = _resolve_imports_source_path(work_dir, request.file_path)
@@ -648,17 +680,28 @@ async def remove_source_config(
             group_config = groups[reference_name]
 
             sources = group_config.get("sources", [])
-
-            original_count = len(sources)
-            group_config["sources"] = [
-                s for s in sources if s.get("name") != source_name
-            ]
-
-            if len(group_config["sources"]) == original_count:
+            source_to_remove = next(
+                (s for s in sources if s.get("name") == source_name),
+                None,
+            )
+            if source_to_remove is None:
                 raise HTTPException(
                     status_code=404,
                     detail=f"Source '{source_name}' not found in group '{reference_name}'",
                 )
+
+            if not _is_csv_stats_source(source_to_remove):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Source '{source_name}' is not a removable pre-calculated CSV source"
+                    ),
+                )
+            _resolve_imports_source_path(work_dir, source_to_remove.get("data", ""))
+
+            group_config["sources"] = [
+                s for s in sources if s.get("name") != source_name
+            ]
 
             _save_transform_config(work_dir, config)
 

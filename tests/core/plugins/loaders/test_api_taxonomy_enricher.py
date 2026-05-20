@@ -408,6 +408,48 @@ def test_load_data_with_caching(
     assert result1 == result2  # Result should be identical
 
 
+def test_load_data_cache_key_includes_response_mapping(
+    enricher: ApiTaxonomyEnricher, requests_mock: requests_mock.Mocker
+):
+    """Test cached calls with different mappings do not share stale output."""
+    enricher._cache.clear()
+    taxon_data = {"id": 2, "full_name": "Mapped species"}
+    base_params = {
+        "api_url": "https://cache-mapping.api.com/search",
+        "query_field": "full_name",
+        "cache_results": True,
+        "auth_method": "none",
+    }
+    first_config = ApiTaxonomyEnricherConfig(
+        plugin="api_taxonomy_enricher",
+        params={
+            **base_params,
+            "response_mapping": {"api_id": "id"},
+        },
+    ).model_dump()
+    second_config = ApiTaxonomyEnricherConfig(
+        plugin="api_taxonomy_enricher",
+        params={
+            **base_params,
+            "response_mapping": {"label": "name"},
+        },
+    ).model_dump()
+    requests_mock.get(
+        "https://cache-mapping.api.com/search",
+        [
+            {"json": {"id": 456, "name": "Mapped species"}},
+            {"json": {"id": 789, "name": "Mapped species second"}},
+        ],
+    )
+
+    result1 = enricher.load_data(taxon_data, first_config)
+    result2 = enricher.load_data(taxon_data, second_config)
+
+    assert requests_mock.call_count == 2
+    assert result1["api_enrichment"] == {"api_id": 456}
+    assert result2["api_enrichment"] == {"label": "Mapped species second"}
+
+
 def test_load_data_without_caching_multiple_calls(
     enricher: ApiTaxonomyEnricher, requests_mock: requests_mock.Mocker
 ):

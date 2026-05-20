@@ -18,6 +18,10 @@ from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.config import Config
 from niamoto.common.exceptions import DatabaseQueryError
 from niamoto.core.imports.registry import EntityRegistry
+from niamoto.core.plugins.transformers.extraction.sql_identifiers import (
+    quote_validated_column,
+    quote_validated_table,
+)
 
 
 class HierarchyConfig(BaseModel):
@@ -227,13 +231,17 @@ class GeospatialExtractor(TransformerPlugin):
             table_name = self._resolve_table_name(source)
             id_field = self._resolve_id_field(source)
             if self.db.has_table(table_name):
+                quoted_table = quote_validated_table(self.db, table_name)
                 if id_value is not None:
+                    quoted_id_field = quote_validated_column(
+                        self.db, table_name, id_field
+                    )
                     query = sa_text(
-                        f"SELECT * FROM {table_name} WHERE {id_field} = :id"
+                        f"SELECT * FROM {quoted_table} WHERE {quoted_id_field} = :id"
                     )
                     params = {"id": id_value}
                 else:
-                    query = sa_text(f"SELECT * FROM {table_name}")
+                    query = sa_text(f"SELECT * FROM {quoted_table}")
                     params = {}
                 with self.db.connection() as conn:
                     return pd.read_sql(query, conn, params=params or None)
@@ -261,8 +269,12 @@ class GeospatialExtractor(TransformerPlugin):
                 table_name = entity_info.table_name
                 id_field = self._id_field_from_metadata(entity_info)
                 try:
+                    quoted_table = quote_validated_table(self.db, table_name)
+                    quoted_id_field = quote_validated_column(
+                        self.db, table_name, id_field
+                    )
                     query = sa_text(
-                        f"SELECT * FROM {table_name} WHERE {id_field} = :id"
+                        f"SELECT * FROM {quoted_table} WHERE {quoted_id_field} = :id"
                     )
                     with self.db.connection() as conn:
                         df = pd.read_sql(query, conn, params={"id": id_value})
@@ -325,8 +337,12 @@ class GeospatialExtractor(TransformerPlugin):
                     right_field = "rght"
 
             # Get parent entity type
+            quoted_table = quote_validated_table(self.db, table_name)
+            quoted_id_field = quote_validated_column(self.db, table_name, id_field)
+            quoted_type_field = quote_validated_column(self.db, table_name, type_field)
             type_query = sa_text(
-                f"SELECT {type_field} FROM {table_name} WHERE {id_field} = :id"
+                f"SELECT {quoted_type_field} FROM {quoted_table} "
+                f"WHERE {quoted_id_field} = :id"
             )
             with self.db.connection() as conn:
                 type_df = pd.read_sql(type_query, conn, params={"id": parent_id})
@@ -338,29 +354,35 @@ class GeospatialExtractor(TransformerPlugin):
 
             # If it's already a leaf entity, return itself
             if entity_type == leaf_type:
-                query = sa_text(f"SELECT * FROM {table_name} WHERE {id_field} = :id")
+                query = sa_text(
+                    f"SELECT * FROM {quoted_table} WHERE {quoted_id_field} = :id"
+                )
                 with self.db.connection() as conn:
                     return pd.read_sql(query, conn, params={"id": parent_id})
 
             # Get all leaf descendants based on hierarchy model
             if use_adjacency_list:
+                quoted_parent_field = quote_validated_column(
+                    self.db, table_name, parent_field
+                )
                 # Use recursive CTE for adjacency list
                 query = f"""
                     WITH RECURSIVE descendants AS (
                         -- Base case: direct children
-                        SELECT * FROM {table_name}
-                        WHERE {parent_field} = :parent_id
+                        SELECT * FROM {quoted_table}
+                        WHERE {quoted_parent_field} = :parent_id
 
                         UNION ALL
 
                         -- Recursive case: children of children
                         SELECT t.*
-                        FROM {table_name} t
-                        INNER JOIN descendants d ON t.{parent_field} = d.{id_field}
+                        FROM {quoted_table} t
+                        INNER JOIN descendants d
+                            ON t.{quoted_parent_field} = d.{quoted_id_field}
                     )
                     SELECT * FROM descendants
-                    WHERE {type_field} = :leaf_type
-                    ORDER BY {id_field}
+                    WHERE {quoted_type_field} = :leaf_type
+                    ORDER BY {quoted_id_field}
                 """
                 with self.db.connection() as conn:
                     return pd.read_sql(
@@ -369,11 +391,17 @@ class GeospatialExtractor(TransformerPlugin):
                         params={"parent_id": parent_id, "leaf_type": leaf_type},
                     )
             else:
+                quoted_left_field = quote_validated_column(
+                    self.db, table_name, left_field
+                )
+                quoted_right_field = quote_validated_column(
+                    self.db, table_name, right_field
+                )
                 # Use nested sets query (legacy)
                 parent_query = f"""
-                    SELECT {left_field}, {right_field}
-                    FROM {table_name}
-                    WHERE {id_field} = :parent_id
+                    SELECT {quoted_left_field}, {quoted_right_field}
+                    FROM {quoted_table}
+                    WHERE {quoted_id_field} = :parent_id
                 """
                 parent_df = pd.read_sql(
                     parent_query, self.db.engine, params={"parent_id": parent_id}
@@ -387,10 +415,11 @@ class GeospatialExtractor(TransformerPlugin):
                 rght = parent_row[right_field]
 
                 query = f"""
-                    SELECT * FROM {table_name}
-                    WHERE {left_field} > :lft AND {right_field} < :rght
-                    AND {type_field} = :leaf_type
-                    ORDER BY {left_field}
+                    SELECT * FROM {quoted_table}
+                    WHERE {quoted_left_field} > :lft
+                    AND {quoted_right_field} < :rght
+                    AND {quoted_type_field} = :leaf_type
+                    ORDER BY {quoted_left_field}
                 """
                 return pd.read_sql(
                     query,

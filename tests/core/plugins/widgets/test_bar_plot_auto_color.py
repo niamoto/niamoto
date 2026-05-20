@@ -152,12 +152,8 @@ class TestBarPlotAutoColor:
         from niamoto.core.plugins.widgets import bar_plot  # noqa: F401
 
         registry = PluginRegistry()
-        try:
-            widget_class = registry.get_plugin("bar_plot", PluginType.WIDGET)
-            assert widget_class == BarPlotWidget
-        except Exception as e:
-            # Skip if plugin not found - this can happen due to test isolation issues
-            pytest.skip(f"Plugin registration test skipped due to registry state: {e}")
+        widget_class = registry.get_plugin("bar_plot", PluginType.WIDGET)
+        assert widget_class == BarPlotWidget
 
     def test_render_with_invalid_dict_data_and_auto_color(self, widget):
         """Test rendering with invalid dictionary data and auto_color."""

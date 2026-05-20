@@ -6,7 +6,6 @@ Handles extraction of values along a size/class axis, with optional sorting and 
 from typing import Dict, Any, List, Literal, Optional
 from pydantic import BaseModel, Field, ConfigDict
 import pandas as pd
-import numpy as np
 import logging
 
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
@@ -241,12 +240,6 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
                         details={"error": str(e)},
                     )
 
-            # Sort if requested
-            if size_config.sort:
-                sorted_indices = np.argsort(size_values.values)
-                size_values = size_values.iloc[sorted_indices]
-                filtered_data = filtered_data.iloc[sorted_indices]
-
             # Get value field configuration
             value_config = params.value_field
 
@@ -269,14 +262,21 @@ class ClassObjectSeriesExtractor(TransformerPlugin):
                         "Failed to convert values to numeric", details={"error": str(e)}
                     )
 
-            # Construct result
-            sizes_list = size_values.tolist()
-            values_list = value_values.tolist()
-
-            # Remove -1 values
-            cleaned_pairs = [
-                (s, v) for s, v in zip(sizes_list, values_list) if s != -1 and v != -1
+            series_df = pd.DataFrame(
+                {"size": size_values.values, "value": value_values.values}
+            )
+            series_df = series_df[
+                (series_df["size"] != -1) & (series_df["value"] != -1)
             ]
+            series_df = series_df.groupby("size", sort=False, as_index=False)[
+                "value"
+            ].sum()
+
+            # Sort if requested
+            if size_config.sort:
+                series_df = series_df.sort_values("size")
+
+            cleaned_pairs = list(zip(series_df["size"], series_df["value"]))
 
             # Apply count limit if specified (sort by value descending first)
             if params.count is not None and len(cleaned_pairs) > params.count:

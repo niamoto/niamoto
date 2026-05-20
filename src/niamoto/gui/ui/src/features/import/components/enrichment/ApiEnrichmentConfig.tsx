@@ -25,8 +25,8 @@ import {
   SlidersHorizontal,
   Braces,
 } from 'lucide-react'
-import axios from 'axios'
 import { cn } from '@/lib/utils'
+import { apiClient } from '@/shared/lib/api/client'
 import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
 import {
   buildColSearchUrl,
@@ -275,7 +275,7 @@ export function ApiEnrichmentConfig({
       }
 
       // Make test request via our backend
-      const response = await axios.post('/api/files/test-api', {
+      const response = await apiClient.post('/files/test-api', {
         url: config.api_url,
         headers,
         params

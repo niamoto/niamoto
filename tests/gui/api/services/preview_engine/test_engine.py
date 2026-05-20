@@ -7,6 +7,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+import pytest
+from sqlalchemy import create_engine
 
 from niamoto.gui.api.services.preview_engine import engine as preview_engine_module
 from niamoto.gui.api.services.preview_engine.engine import PreviewEngine
@@ -191,6 +193,99 @@ def test_get_transformer_service_rebuilds_when_engine_context_changes():
 
     assert for_preview.call_count == 2
     preview_engine_module.reset_preview_engine()
+
+
+@pytest.mark.parametrize("entity_id", ["42", None])
+def test_render_general_info_count_uses_configured_relation(
+    monkeypatch, entity_id: str | None
+):
+    engine = _make_engine()
+    db = MagicMock()
+    db.engine = create_engine("sqlite:///:memory:")
+    db.has_table.side_effect = lambda name: name in {
+        "reference_plots",
+        "dataset_occurrences",
+    }
+    warnings: list[str] = []
+    captured_count: dict[str, object] = {}
+
+    suggestion = {
+        "config": {
+            "fields": [
+                {"field": "name", "target": "name", "label": "Name"},
+                {
+                    "source": "occurrences",
+                    "field": "sample_id",
+                    "target": "occurrences_count",
+                    "label": "Occurrences",
+                    "transformation": "count",
+                },
+            ]
+        }
+    }
+
+    def fake_read_sql(query, _engine, params=None):
+        sql = str(query)
+        if "FROM reference_plots" in sql or 'FROM "reference_plots"' in sql:
+            if entity_id is None:
+                assert "WHERE" not in sql
+            else:
+                assert params == {"eid": "42"}
+            return pd.DataFrame([{"id": 42, "plot_code": "P42", "name": "Plot 42"}])
+        if "FROM dataset_occurrences" in sql or 'FROM "dataset_occurrences"' in sql:
+            captured_count["sql"] = sql
+            captured_count["params"] = params
+            return pd.DataFrame([[2]])
+        raise AssertionError(f"Unexpected SQL: {sql}")
+
+    class FakeInfoGrid:
+        def __init__(self, db=None):
+            self.db = db
+
+        def render(self, widget_data, _params):
+            captured_count["widget_data"] = widget_data
+            return str(widget_data)
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.suggestion_service.generate_general_info_suggestion",
+        lambda reference_name, db=None: suggestion,
+    )
+    monkeypatch.setattr(
+        preview_engine_module,
+        "load_import_config",
+        lambda: {"entities": {"references": {"plots": {}}}},
+    )
+    monkeypatch.setattr(
+        preview_engine_module,
+        "get_hierarchy_info",
+        lambda _config, _reference_name: {
+            "relation": {"key": "plot_code", "ref_field": "plot_code"}
+        },
+    )
+    monkeypatch.setattr(
+        engine,
+        "_get_column_names",
+        lambda _db, quoted_table: ["id", "plot_code", "name"]
+        if "reference_plots" in quoted_table
+        else ["plot_code", "sample_id"],
+    )
+    monkeypatch.setattr(preview_engine_module.pd, "read_sql", fake_read_sql)
+    monkeypatch.setattr(
+        preview_engine_module.PluginRegistry,
+        "get_plugin",
+        lambda _name, _type: FakeInfoGrid,
+    )
+
+    html = engine._render_general_info("plots", entity_id, db, warnings)
+
+    assert "occurrences_count" in html
+    assert captured_count["params"] == {"eid": "P42"}
+    assert (
+        "WHERE plot_code = :eid" in captured_count["sql"]
+        or 'WHERE "plot_code" = :eid' in captured_count["sql"]
+    )
+    assert captured_count["widget_data"]["occurrences_count"]["value"] == 2
+    assert warnings == []
 
 
 # ---------------------------------------------------------------------------
@@ -414,6 +509,45 @@ def test_render_serializes_concurrent_preview_work():
 
     assert [result.html for result in results] == ["<div>ok</div>"] * 4
     assert max_active == 1
+
+
+def test_invalidate_waits_for_in_flight_render_before_closing_database():
+    engine = _make_engine()
+    request = PreviewRequest(template_id="configured_widget", group_by="taxons")
+    db = MagicMock()
+    render_started = threading.Event()
+    allow_render_to_finish = threading.Event()
+    close_times: list[float] = []
+
+    def render_standard(*args, **kwargs):
+        render_started.set()
+        allow_render_to_finish.wait(timeout=2)
+        return "<div>ok</div>"
+
+    db.close_db_session.side_effect = lambda: close_times.append(time.monotonic())
+
+    with (
+        patch.object(engine, "_open_db", return_value=db),
+        patch.object(engine, "_get_transformer_service", return_value=MagicMock()),
+        patch.object(engine, "_render_standard", side_effect=render_standard),
+        patch.object(engine, "_wrap_html", side_effect=lambda html, **kwargs: html),
+    ):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            render_future = executor.submit(engine.render, request)
+            assert render_started.wait(timeout=2)
+            engine._db = db
+            invalidate_future = executor.submit(engine.invalidate)
+            time.sleep(0.05)
+            db.close_db_session.assert_not_called()
+
+            finished_at = time.monotonic()
+            allow_render_to_finish.set()
+            assert render_future.result(timeout=2).html == "<div>ok</div>"
+            invalidate_future.result(timeout=2)
+
+    assert close_times
+    assert close_times[0] >= finished_at
+    db.engine.dispose.assert_called_once()
 
 
 def test_open_db_creates_new_after_invalidate():

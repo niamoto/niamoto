@@ -13,6 +13,10 @@ from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.config import Config
 from niamoto.core.imports.registry import EntityRegistry
+from niamoto.core.plugins.transformers.extraction.sql_identifiers import (
+    quote_validated_column,
+    quote_validated_table,
+)
 
 
 DERIVED_FORMULA_BIN_OPS = {
@@ -235,10 +239,12 @@ class MultiColumnExtractor(TransformerPlugin):
                 id_field = entity_info.config.get("schema", {}).get("id_field", "id")
 
             # Query the database table
-            base_query = f"SELECT * FROM {table_name}"
+            quoted_table = quote_validated_table(self.db, table_name)
+            base_query = f"SELECT * FROM {quoted_table}"
             params: Dict[str, Any] = {}
             if id_value is not None:
-                base_query += f" WHERE {id_field} = :id_value"
+                quoted_id_field = quote_validated_column(self.db, table_name, id_field)
+                base_query += f" WHERE {quoted_id_field} = :id_value"
                 params["id_value"] = id_value
 
             # Use pd.read_sql with bound parameters for cleaner DataFrame creation

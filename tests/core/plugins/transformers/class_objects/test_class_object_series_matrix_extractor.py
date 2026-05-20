@@ -181,6 +181,29 @@ def test_transform_success(extractor, valid_config, sample_data):
     np.testing.assert_array_equal(result["series"]["series2"], [15, 20, 25])
 
 
+def test_transform_sums_duplicate_axis_buckets_before_scaling(extractor):
+    data = pd.DataFrame(
+        {
+            "class_object": ["co1", "co1"],
+            "elevation": [100, 100],
+            "class_value": [2, 3],
+        }
+    )
+    config = {
+        "plugin": "class_object_series_matrix_extractor",
+        "params": {
+            "source": "test_stats",
+            "axis": {"field": "elevation", "numeric": True, "sort": True},
+            "series": [{"name": "series1", "class_object": "co1", "scale": 10}],
+        },
+    }
+
+    result = extractor.transform(data=data, config=config)
+
+    assert result["elevation"] == [100]
+    assert result["series"]["series1"] == [50]
+
+
 def test_transform_axis_not_numeric_or_sorted(extractor, sample_data):
     """Test transformation when axis is not numeric or sorted in config."""
     config = {

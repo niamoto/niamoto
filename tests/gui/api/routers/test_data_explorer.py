@@ -2,6 +2,7 @@
 
 import asyncio
 from contextlib import contextmanager
+import inspect
 from pathlib import Path
 from unittest.mock import patch
 
@@ -159,6 +160,10 @@ def test_list_tables_uses_duckdb_fixture_without_reflection_errors(
     assert payload[0]["columns"] == ["id", "taxon_id", "count", "locality"]
 
 
+def test_list_tables_is_sync_so_fastapi_runs_it_off_event_loop():
+    assert not inspect.iscoroutinefunction(data_explorer_router.list_tables)
+
+
 def test_get_table_columns_uses_duckdb_fixture_without_reflection_errors(
     gui_duckdb_client: TestClient,
 ):
@@ -227,6 +232,10 @@ def test_query_table_rejects_oversized_limit(gui_duckdb_client: TestClient):
     error = response.json()["detail"][0]
     assert error["loc"] == ["body", "limit"]
     assert error["type"] == "less_than_equal"
+
+
+def test_query_table_route_runs_as_sync_handler():
+    assert not inspect.iscoroutinefunction(data_explorer_router.query_table)
 
 
 def test_query_table_opens_database_in_read_only_mode(
@@ -311,7 +320,8 @@ taxonomy:
     api_url: https://example.test/taxon
     query_field: full_name
     query_param_name: q
-    response_mapping: {}
+    response_mapping:
+      canonical_name: canonicalName
 """,
         encoding="utf-8",
     )
@@ -351,13 +361,8 @@ taxonomy:
                 "api_url": "https://example.test/taxon",
                 "query_field": "full_name",
                 "query_param_name": "q",
-                "response_mapping": {},
-                "rate_limit": 1.0,
+                "response_mapping": {"canonical_name": "canonicalName"},
                 "cache_results": False,
-                "auth_method": "none",
-                "auth_params": {},
-                "query_params": {},
-                "chained_endpoints": [],
             },
         },
     )
@@ -380,7 +385,8 @@ taxonomy:
     api_url: https://example.test/taxon
     query_field: full_name
     query_param_name: q
-    response_mapping: {}
+    response_mapping:
+      canonical_name: canonicalName
 """,
         encoding="utf-8",
     )
@@ -415,4 +421,118 @@ taxonomy:
             "api_url": "https://example.test/taxon",
             "query_field": "full_name",
         },
+    }
+
+
+def test_preview_enrichment_rejects_loader_result_without_api_enrichment(
+    monkeypatch,
+    tmp_path: Path,
+):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "import.yml").write_text(
+        """
+taxonomy:
+  api_enrichment:
+    plugin: api_taxonomy_enricher
+    api_url: https://example.test/taxon
+    query_field: full_name
+    query_param_name: q
+    response_mapping:
+      canonical_name: canonicalName
+""",
+        encoding="utf-8",
+    )
+
+    async def fake_run_in_threadpool(func, *args, **kwargs):
+        assert func.__name__ == "load_data"
+        return {"full_name": "Araucaria columnaris"}
+
+    monkeypatch.setattr(
+        data_explorer_router,
+        "get_working_directory",
+        lambda: tmp_path,
+    )
+    monkeypatch.setattr(
+        data_explorer_router,
+        "run_in_threadpool",
+        fake_run_in_threadpool,
+    )
+
+    response = TestClient(create_app()).post(
+        "/api/data/enrichment/preview",
+        json={"taxon_name": "Araucaria columnaris"},
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == (
+        "API enrichment preview failed: loader did not return api_enrichment data"
+    )
+
+
+def test_preview_enrichment_preserves_structured_profile_config(
+    monkeypatch,
+    tmp_path: Path,
+):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "import.yml").write_text(
+        """
+taxonomy:
+  api_enrichment:
+    plugin: api_taxonomy_enricher
+    api_url: https://api.gbif.org/v1/species/match
+    query_field: full_name
+    query_param_name: name
+    profile: gbif_rich
+    dataset_key: 53147
+    taxonomy_source: checklist
+    include_taxonomy: true
+    include_occurrences: false
+    include_media: true
+    observation_limit: 2
+    response_mapping: {}
+""",
+        encoding="utf-8",
+    )
+    captured: dict[str, object] = {}
+
+    async def fake_run_in_threadpool(func, *args, **kwargs):
+        captured["args"] = args
+        return {"api_enrichment": {"profile": "gbif_rich"}}
+
+    monkeypatch.setattr(
+        data_explorer_router,
+        "get_working_directory",
+        lambda: tmp_path,
+    )
+    monkeypatch.setattr(
+        data_explorer_router,
+        "run_in_threadpool",
+        fake_run_in_threadpool,
+    )
+
+    response = asyncio.run(
+        data_explorer_router.preview_enrichment(
+            data_explorer_router.EnrichmentPreviewRequest(
+                taxon_name="Araucaria columnaris"
+            )
+        )
+    )
+
+    assert response["success"] is True
+    plugin_config = captured["args"][1]
+    assert plugin_config["params"] == {
+        "api_url": "https://api.gbif.org/v1/species/match",
+        "query_field": "full_name",
+        "query_param_name": "name",
+        "profile": "gbif_rich",
+        "dataset_key": 53147,
+        "taxonomy_source": "checklist",
+        "include_taxonomy": True,
+        "include_occurrences": False,
+        "include_media": True,
+        "observation_limit": 2,
+        "response_mapping": {},
+        "cache_results": False,
     }

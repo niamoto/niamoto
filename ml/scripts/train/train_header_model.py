@@ -113,12 +113,24 @@ def evaluate_kfold(
 
     f1_scores = []
     for fold, (train_idx, test_idx) in enumerate(kfold.split(indices, groups=groups)):
+        train_classes = np.unique(concepts_arr[train_idx])
+        if len(train_classes) < 2:
+            logger.warning(
+                "  Fold %s skipped: training split has only one class (%s)",
+                fold,
+                train_classes[0],
+            )
+            continue
         pipe = build_pipeline(**pipeline_kwargs)
         pipe.fit(names_arr[train_idx].tolist(), concepts_arr[train_idx].tolist())
         preds = pipe.predict(names_arr[test_idx].tolist())
         f1 = f1_score(concepts_arr[test_idx], preds, average="macro", zero_division=0)
         f1_scores.append(f1)
         logger.info(f"  Fold {fold}: macro-F1 = {f1:.3f}")
+
+    if not f1_scores:
+        logger.warning("No evaluable folds for KFold evaluation")
+        return 0.0
 
     mean_f1 = float(np.mean(f1_scores))
     logger.info(f"  Mean macro-F1 = {mean_f1:.3f}")

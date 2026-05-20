@@ -82,3 +82,23 @@ def test_reset_cancelled(runner):
 
             assert result.exit_code == 0
             assert "Environment reset cancelled by user" in result.output
+
+
+def test_init_rejects_path_and_project_name(runner):
+    with runner.isolated_filesystem():
+        result = runner.invoke(init_environment, ["my-project", "--path", "other"])
+
+    assert result.exit_code == 1
+    assert "Cannot use both --path and project_name" in result.output
+
+
+def test_init_rejects_existing_non_empty_project_directory(runner):
+    with runner.isolated_filesystem():
+        os.makedirs("my-project")
+        with open("my-project/existing.txt", "w", encoding="utf-8") as handle:
+            handle.write("already here")
+
+        result = runner.invoke(init_environment, ["my-project"])
+
+    assert result.exit_code == 1
+    assert "already exists and is not empty" in result.output

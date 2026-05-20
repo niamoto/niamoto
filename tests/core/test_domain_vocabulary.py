@@ -15,6 +15,7 @@ def test_matches_entity_name_supports_domain_synonyms():
     assert matches_entity_name("sample_occurrences", "occurrence") is True
     assert matches_entity_name("raw_plot_stats", "plot") is True
     assert matches_entity_name("taxonomy_lookup", "plot") is False
+    assert matches_entity_name("subplot_metrics", "plot") is False
 
 
 def test_matches_entity_name_can_exclude_fallback_synonyms():
@@ -27,6 +28,7 @@ def test_matches_entity_name_can_exclude_fallback_synonyms():
 def test_infer_entity_token_prefers_allowed_domain_tokens():
     assert infer_entity_token("plot_name", allowed=("plot", "taxon")) == "plot"
     assert infer_entity_token("id_taxonref", allowed=("plot", "taxon")) == "taxon"
+    assert infer_entity_token("taxonomic_notes", allowed=("plot", "taxon")) is None
 
 
 def test_infer_taxonomy_reference_name_uses_shared_vocabulary():
@@ -46,6 +48,9 @@ def test_taxon_column_helpers_use_shared_patterns():
 
     assert find_taxon_identifier_column(columns) == "id_taxonref"
     assert find_taxon_name_column(columns) == "scientific_name"
+    assert (
+        find_taxon_identifier_column(["candidate_species", "scientific_name"]) is None
+    )
 
 
 def test_domain_vocabulary_exposes_stable_and_fallback_layers():

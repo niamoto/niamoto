@@ -11,6 +11,10 @@ from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.common.exceptions import DatabaseError
 from niamoto.common.config import Config
 from niamoto.core.imports.registry import EntityRegistry
+from niamoto.core.plugins.transformers.extraction.sql_identifiers import (
+    quote_validated_column,
+    quote_validated_table,
+)
 
 
 class DirectAttributeParams(BaseModel):
@@ -110,8 +114,12 @@ class DirectAttribute(TransformerPlugin):
     ) -> Any:
         """Get a field value from any entity."""
         try:
+            quoted_source = quote_validated_table(self.db, source)
+            quoted_field = quote_validated_column(self.db, source, field)
+            quoted_id_column = quote_validated_column(self.db, source, id_column)
             query = f"""
-                SELECT {field} FROM {source} WHERE {id_column} = :id_value
+                SELECT {quoted_field} FROM {quoted_source}
+                WHERE {quoted_id_column} = :id_value
             """
             # Use fetch_one which properly handles connection lifecycle
             row = self.db.fetch_one(query, {"id_value": id_value})

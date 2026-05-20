@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import pytest
+from fastapi import BackgroundTasks
 from fastapi.testclient import TestClient
 import yaml
 
@@ -123,6 +124,25 @@ class TestExportHistory:
                 export_job["id"]
             ]
 
+    def test_export_status_rejects_non_export_job(self):
+        with TemporaryDirectory() as temp_dir:
+            work_dir = Path(temp_dir)
+            store = JobFileStore(work_dir)
+            transform_job = store.create_job("transform")
+
+            with patch(
+                "niamoto.gui.api.services.job_store_runtime.get_working_directory",
+                return_value=work_dir,
+            ):
+                response = TestClient(create_app()).get(
+                    f"/api/export/status/{transform_job['id']}"
+                )
+
+            assert response.status_code == 404
+            assert response.json()["detail"] == (
+                f"Export job {transform_job['id']} not found"
+            )
+
     def test_clear_export_history_removes_only_export_entries(self):
         with TemporaryDirectory() as temp_dir:
             work_dir = Path(temp_dir)
@@ -229,6 +249,72 @@ class TestExportHistory:
                 assert [job["job_id"] for job in jobs_response.json()["jobs"]] == [
                     job_id
                 ]
+
+                metrics_response = client.get("/api/export/metrics")
+                assert metrics_response.status_code == 200, metrics_response.text
+                metrics_payload = metrics_response.json()
+                assert metrics_payload["last_run"] is None
+                assert metrics_payload["metrics"]["generated_pages"] == 0
+
+    @pytest.mark.anyio
+    async def test_execute_cli_cancellation_terminates_subprocess(
+        self, monkeypatch, tmp_path
+    ):
+        store = JobFileStore(tmp_path)
+        process_started = asyncio.Event()
+        process_released = asyncio.Event()
+
+        class BlockingProcess:
+            def __init__(self):
+                self.returncode = None
+                self.terminated = False
+                self.killed = False
+
+            async def wait(self):
+                process_started.set()
+                await process_released.wait()
+                if self.returncode is None:
+                    self.returncode = -15
+                return self.returncode
+
+            def terminate(self):
+                self.terminated = True
+                self.returncode = -15
+                process_released.set()
+
+            def kill(self):
+                self.killed = True
+                self.returncode = -9
+                process_released.set()
+
+            async def communicate(self):
+                return b"", b"cancelled"
+
+        process = BlockingProcess()
+
+        async def fake_create_subprocess_exec(*_args, **_kwargs):
+            return process
+
+        monkeypatch.setattr(
+            export_router.asyncio,
+            "create_subprocess_exec",
+            fake_create_subprocess_exec,
+        )
+        monkeypatch.setattr(export_router, "get_working_directory", lambda: tmp_path)
+        monkeypatch.setattr(export_router, "_get_job_store", lambda _request: store)
+
+        background_tasks = BackgroundTasks()
+        response = await export_router.execute_export_cli(background_tasks, object())
+        job_id = response["job_id"]
+
+        task = asyncio.create_task(background_tasks())
+        await asyncio.wait_for(process_started.wait(), timeout=2)
+        store.request_cancellation(job_id, "Export job cancellation requested")
+        await asyncio.wait_for(task, timeout=2)
+
+        assert process.terminated is True
+        assert process.killed is False
+        assert store.get_job(job_id)["status"] == "cancelled"
 
 
 class _DummyJobStore:
@@ -534,6 +620,71 @@ async def test_execute_export_background_uses_frozen_project_context(
     assert captured["cwd"] == str(request_project)
     assert captured["db_path"] == str(context.db_path)
     assert job_store.completed_result["metrics"]["static_site_path"] == str(output_dir)
+
+
+@pytest.mark.anyio
+async def test_execute_export_background_dispatches_cwd_lock_acquire_to_thread(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "exports" / "web"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "index.html").write_text("<html>home</html>", encoding="utf-8")
+
+    to_thread_calls = []
+
+    async def fake_to_thread(func, /, *args, **kwargs):
+        to_thread_calls.append(func)
+        return func(*args, **kwargs)
+
+    class DummyExporterService:
+        def __init__(self, db_path: str, config) -> None:
+            return None
+
+        def run_export(self, target_name=None):
+            return {
+                "web_pages": {
+                    "status": "success",
+                    "files_generated": 1,
+                    "errors": 0,
+                    "output_path": str(output_dir),
+                }
+            }
+
+    monkeypatch.setattr(export_router.asyncio, "to_thread", fake_to_thread)
+    monkeypatch.setattr(
+        export_router,
+        "get_export_config",
+        lambda path: {
+            "exports": [{"name": "web_pages", "exporter": "html_page_exporter"}]
+        },
+    )
+    monkeypatch.setattr(
+        export_router, "Config", lambda config_dir, create_default=False: object()
+    )
+    monkeypatch.setattr(export_router, "ExporterService", DummyExporterService)
+
+    job_store = _DummyJobStore()
+    context = export_router.ExportExecutionContext(
+        work_dir=tmp_path,
+        config_path=tmp_path / "config" / "export.yml",
+        db_path=tmp_path / "db" / "niamoto.duckdb",
+    )
+
+    await export_router.execute_export_background(
+        "job-1",
+        job_store,
+        context,
+        ["web_pages"],
+        False,
+    )
+
+    assert job_store.failed_error is None
+    assert any(
+        getattr(call, "__self__", None) is export_router._cwd_lock
+        and getattr(call, "__name__", "") == "acquire"
+        for call in to_thread_calls
+    )
 
 
 @pytest.mark.anyio

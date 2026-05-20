@@ -49,6 +49,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
         self._taxonomy_entity: Optional[str] = None
         self._prepared_taxon_ids: Optional[Set[int]] = None
         self._preloaded_occurrences_by_taxon_id: Dict[int, List[Dict[str, Any]]] = {}
+        self._prepared_config_ref: Optional[Any] = None
         self._active_config_ref: Optional[Any] = None
         self._active_params: Optional[DwcTransformerParams] = None
         self._active_compiled_mapping: Optional[
@@ -159,6 +160,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
             if (
                 self._prepared_taxon_ids is not None
                 and taxon_id in self._prepared_taxon_ids
+                and self._prepared_config_ref == self._active_config_ref
             ):
                 occurrences = self._preloaded_occurrences_by_taxon_id.get(taxon_id, [])
             else:
@@ -195,6 +197,7 @@ class NiamotoDwCTransformer(TransformerPlugin):
     ) -> None:
         """Preload occurrences for the current group to avoid one query per taxon."""
         self._configure_from_config(config)
+        self._prepared_config_ref = self._active_config_ref
 
         taxon_ids = [
             taxon_id
@@ -750,7 +753,13 @@ class NiamotoDwCTransformer(TransformerPlugin):
                 return f"{prefix}{value}"
 
         # Fallback: use taxon ID + index
-        taxon_id = self._current_taxon.get("id", "unknown")
+        taxon_id = (
+            self._get_taxon_id_from_data(self._current_taxon)
+            if self._current_taxon
+            else None
+        )
+        if taxon_id in (None, ""):
+            taxon_id = "unknown"
         return f"{prefix}{taxon_id}_{self._occurrence_index}"
 
     def _generate_unique_event_id(

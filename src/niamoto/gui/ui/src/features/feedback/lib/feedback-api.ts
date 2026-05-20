@@ -1,4 +1,5 @@
 import { FeedbackError, type FeedbackPayload, type FeedbackResponse } from '../types'
+import { apiFetch } from '@/shared/lib/api/fetch'
 
 const WORKER_URL = import.meta.env.VITE_FEEDBACK_WORKER_URL || ''
 const API_KEY = import.meta.env.VITE_FEEDBACK_API_KEY || ''
@@ -29,7 +30,7 @@ export async function sendFeedback({ payload, screenshot }: FeedbackSubmission):
     formData.append('screenshot', screenshot, 'feedback.jpg')
   }
 
-  const response = await fetch(FEEDBACK_PROXY_URL, {
+  const response = await apiFetch(FEEDBACK_PROXY_URL, {
     method: 'POST',
     body: formData,
   })

@@ -189,14 +189,10 @@ class ShapeProcessor(TransformerPlugin):
         layer_params: Dict[str, Any] = None,
     ):
         """Load a layer as a GeoDataFrame and process it according to configuration."""
-        try:
-            if layer_params is None:
-                layer_params = {"clip": True, "simplify": True}
+        if layer_params is None:
+            layer_params = {"clip": True, "simplify": True}
 
-            return self._process_layer(layer_name, layer_params, base_gdf)
-
-        except Exception:
-            return None
+        return self._process_layer(layer_name, layer_params, base_gdf)
 
     def get_simplified_coordinates(self, geometry_location: str) -> Dict[str, Any]:
         """Get simplified coordinates for a geometry and convert to configured format."""

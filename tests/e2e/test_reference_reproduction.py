@@ -151,6 +151,45 @@ def _shrink_group_table_for_publication_test(
         conn.close()
 
 
+def _use_reference_runtime_data(working_directory: Path) -> None:
+    """Swap in reference DB/imports so previews exercise real transformed data."""
+    db_link = working_directory / "db"
+    if db_link.is_symlink() or db_link.is_file():
+        db_link.unlink()
+    elif db_link.exists():
+        shutil.rmtree(db_link)
+    shutil.copytree(REFERENCE_INSTANCE_PATH / "db", db_link)
+
+    imports_link = working_directory / "imports"
+    if imports_link.exists() or imports_link.is_symlink():
+        imports_link.unlink()
+    imports_link.symlink_to(REFERENCE_INSTANCE_PATH / "imports")
+
+
+def _reference_export_widget_ids(group: str) -> list[str]:
+    """Return reference export widget data sources that map to transform widgets."""
+    export_path = REFERENCE_INSTANCE_PATH / "config" / "export.yml"
+    with open(export_path, encoding="utf-8") as f:
+        export_config = yaml.safe_load(f) or {}
+
+    for export in export_config.get("exports", []):
+        if not isinstance(export, dict):
+            continue
+        if export.get("exporter") != "html_page_exporter":
+            continue
+        for group_cfg in export.get("groups", []):
+            if not isinstance(group_cfg, dict) or group_cfg.get("group_by") != group:
+                continue
+            return [
+                widget["data_source"]
+                for widget in group_cfg.get("widgets", [])
+                if isinstance(widget, dict)
+                and widget.get("data_source")
+                and widget.get("plugin") != "interactive_map"
+            ]
+    return []
+
+
 class TestReferenceParity:
     """Ensure GUI save/reload can reproduce the reference transform config."""
 
@@ -247,8 +286,10 @@ class TestShapesPreviewSmoke:
     def configured_shapes_widget_ids(
         self,
         test_client: TestClient,
+        working_directory: Path,
         reference_transform: dict[str, dict[str, Any]],
     ) -> list[str]:
+        _use_reference_runtime_data(working_directory)
         ref_shapes = reference_transform["shapes"]
         save_request = {
             "group_by": "shapes",
@@ -260,7 +301,17 @@ class TestShapesPreviewSmoke:
             "/api/templates/save-config", json=save_request
         )
         assert save_response.status_code == 200, save_response.text
-        return list(ref_shapes["widgets_data"].keys())
+        shutil.copy2(
+            REFERENCE_INSTANCE_PATH / "config" / "export.yml",
+            working_directory / "config" / "export.yml",
+        )
+        renderable_widget_ids = [
+            widget_id
+            for widget_id in _reference_export_widget_ids("shapes")
+            if widget_id in ref_shapes["widgets_data"]
+        ]
+        assert renderable_widget_ids, "No reference shapes widgets to preview"
+        return renderable_widget_ids
 
     def test_shapes_previews_render_without_errors(
         self,
@@ -272,12 +323,24 @@ class TestShapesPreviewSmoke:
             "traceback",
             "erreur lors de la preview",
             "widget render error",
+            "data not available",
+            "no data available",
+            "no valid data available",
+            "no information items configured",
+            "transform error",
+        )
+        rendered_markers = (
+            "info-grid-widget",
+            "plotly.newplot",
+            "radial-gauge",
+            "concentric-rings",
+            "stacked-area-plot",
         )
         issues: list[str] = []
 
         for widget_id in configured_shapes_widget_ids:
             response = test_client.get(
-                f"/api/templates/preview/{widget_id}",
+                f"/api/preview/{widget_id}",
                 params={"group_by": "shapes"},
             )
             body = response.text.lower()
@@ -292,6 +355,10 @@ class TestShapesPreviewSmoke:
             if present_markers:
                 issues.append(
                     f"{widget_id}: preview contains error markers {present_markers}"
+                )
+            if not any(marker in body for marker in rendered_markers):
+                issues.append(
+                    f"{widget_id}: preview contains no rendered widget marker"
                 )
 
         assert not issues, "Shapes preview smoke test failed:\n" + "\n".join(issues)
@@ -311,17 +378,7 @@ class TestPublicationPipeline:
         # Use reference DB/imports for full publication checks: niamoto-test DB
         # does not contain all materialized reference tables required by exporter.
         # Copy DB to keep each test isolated and avoid DuckDB file lock conflicts.
-        db_link = working_directory / "db"
-        if db_link.is_symlink() or db_link.is_file():
-            db_link.unlink()
-        elif db_link.exists():
-            shutil.rmtree(db_link)
-        shutil.copytree(REFERENCE_INSTANCE_PATH / "db", db_link)
-
-        imports_link = working_directory / "imports"
-        if imports_link.exists() or imports_link.is_symlink():
-            imports_link.unlink()
-        imports_link.symlink_to(REFERENCE_INSTANCE_PATH / "imports")
+        _use_reference_runtime_data(working_directory)
         _shrink_group_table_for_publication_test(working_directory, group)
 
         # Keep publication e2e fast and deterministic by exporting only the target group.

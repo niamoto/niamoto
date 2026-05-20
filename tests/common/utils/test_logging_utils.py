@@ -263,6 +263,25 @@ class TestLogError:
 
         assert "Test error" in caplog.text
 
+    def test_log_error_outside_except_writes_json_file(self, tmp_path):
+        """Test file logging works when no active exception is being handled."""
+        logger = setup_logging(
+            component_name="test_log_error_file",
+            log_directory=str(tmp_path),
+            enable_console=False,
+            enable_file=True,
+        )
+
+        log_error(logger, ValueError("Test error"))
+        for handler in logger.handlers:
+            handler.flush()
+
+        log_data = json.loads((tmp_path / "test_log_error_file.log").read_text())
+
+        assert log_data["message"] == "Test error"
+        assert log_data["error"] == {"type": "ValueError", "message": "Test error"}
+        assert log_data["error_details"]["error_type"] == "ValueError"
+
 
 class TestLoggerAdapter:
     """Test LoggerAdapter class."""

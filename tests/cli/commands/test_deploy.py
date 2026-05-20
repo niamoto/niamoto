@@ -63,7 +63,7 @@ class TestDeployCommand:
 
         assert result.exit_code == 0
         fake_deployer.validate_exports.assert_called_once()
-        fake_run_deploy.assert_called_once()
+        fake_run_deploy.assert_awaited_once()
 
         deploy_config = fake_run_deploy.call_args.args[1]
         assert deploy_config.platform == "render"
@@ -96,16 +96,21 @@ class TestDeployCommand:
             "No index.html found in export directory"
         ]
 
+        fake_run_deploy = AsyncMock(return_value=None)
+
         with patch("niamoto.cli.commands.deploy.Config", return_value=fake_config):
             with patch(
                 "niamoto.cli.commands.deploy._get_deployer",
                 return_value=fake_deployer,
             ):
-                result = runner.invoke(deploy_commands)
+                with patch("niamoto.cli.commands.deploy._run_deploy", fake_run_deploy):
+                    result = runner.invoke(deploy_commands)
 
         assert result.exit_code != 0
         assert "No index.html found in export directory" in result.output
         assert "Pre-flight validation failed" in result.output
+        fake_run_deploy.assert_not_called()
+        fake_run_deploy.assert_not_awaited()
 
     def test_credentials_set_prompts_for_hidden_value(self) -> None:
         runner = CliRunner()

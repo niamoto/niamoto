@@ -109,13 +109,15 @@ class ClassObjectAnalyzer:
         self.csv_path = csv_path
 
     def detect_delimiter(self) -> str:
-        """Auto-detect CSV delimiter (comma or semicolon)."""
+        """Auto-detect CSV delimiter."""
         with open(self.csv_path, "r", encoding="utf-8") as f:
             first_line = f.readline()
-            # Count occurrences of each delimiter
-            comma_count = first_line.count(",")
-            semicolon_count = first_line.count(";")
-            return ";" if semicolon_count > comma_count else ","
+            delimiter_counts = {
+                ",": first_line.count(","),
+                ";": first_line.count(";"),
+                "\t": first_line.count("\t"),
+            }
+            return max(delimiter_counts, key=delimiter_counts.get)
 
     def analyze(self) -> ClassObjectAnalysis:
         """

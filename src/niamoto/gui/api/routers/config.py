@@ -3,6 +3,7 @@
 from copy import deepcopy
 import os
 from pathlib import Path
+from string import Formatter
 import tempfile
 import threading
 from typing import Dict, Any, Literal, Optional, List, Union
@@ -13,8 +14,9 @@ import yaml
 import shutil
 from datetime import datetime
 
-from ..context import get_working_directory
+from ..context import get_database_path, get_working_directory
 from niamoto.gui.api.services.templates.config_service import (
+    EXPORT_CONFIG_WRITE_LOCK,
     TRANSFORM_CONFIG_WRITE_LOCK,
     load_transform_config as _load_transform_config_impl,
     save_transform_config as _save_transform_config_impl,
@@ -38,13 +40,80 @@ from niamoto.core.plugins.exporters.json_api_exporter import (
     JsonApiExporter,
     JsonApiExporterParams,
 )
-from niamoto.core.imports.config_models import GenericImportConfig
+from niamoto.core.imports.config_models import (
+    ConnectorConfig,
+    EnrichmentConfig,
+    EntitySchema,
+    GenericImportConfig,
+    HierarchyConfig,
+    ReferenceKind,
+    ReferenceRelationConfig,
+)
 
 router = APIRouter()
 DWC_TARGET_PATTERN = re.compile(r"(^|[_./-])(?:dwc|darwin)([_./-]|$)|darwin", re.I)
 IMPORT_CONFIG_WRITE_LOCK = threading.RLock()
-EXPORT_CONFIG_WRITE_LOCK = threading.RLock()
+CONFIG_CONFIG_WRITE_LOCK = threading.RLock()
 VALID_CONFIG_NAMES = ("import", "transform", "export", "config")
+DEFAULT_INDEX_GENERATOR_OUTPUT_PATTERN = "{group_by}/{id}.html"
+
+
+def _validate_reference_config_update(config: Any) -> None:
+    """Validate reference config updates while preserving legacy minimal shapes."""
+    if not isinstance(config, dict):
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid reference configuration: reference must be an object",
+        )
+
+    kind = config.get("kind")
+    if kind is not None and kind not in {item.value for item in ReferenceKind}:
+        allowed = ", ".join(item.value for item in ReferenceKind)
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid reference configuration: kind must be one of {allowed}",
+        )
+
+    validators = {
+        "connector": ConnectorConfig,
+        "schema": EntitySchema,
+        "hierarchy": HierarchyConfig,
+        "relation": ReferenceRelationConfig,
+    }
+    for key, model in validators.items():
+        value = config.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, dict):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid reference configuration: {key} must be an object",
+            )
+        try:
+            model.model_validate(value)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid reference configuration: {str(exc)}",
+            ) from exc
+
+    enrichment = config.get("enrichment")
+    if enrichment is not None:
+        if not isinstance(enrichment, list):
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid reference configuration: enrichment must be a list",
+            )
+        try:
+            for item in enrichment:
+                EnrichmentConfig.model_validate(item)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid reference configuration: {str(exc)}",
+            ) from exc
+
+
 INDEX_SUGGESTION_RECORD_LIMIT = 1000
 
 
@@ -130,6 +199,50 @@ def _find_api_export_target(
     return None
 
 
+def _find_export_target_by_name(
+    export_config: Dict[str, Any], export_name: str
+) -> Optional[Dict[str, Any]]:
+    """Find any export target by name, regardless of exporter type."""
+    for export_entry in export_config.get("exports", []) or []:
+        if isinstance(export_entry, dict) and export_entry.get("name") == export_name:
+            return export_entry
+    return None
+
+
+def _find_export_group_with_index_generator(
+    export_config: Dict[str, Any], group_by: str
+) -> Optional[Dict[str, Any]]:
+    """Find the web export group that owns an index_generator for group_by."""
+    fallback_group = None
+    for export_entry in export_config.get("exports", []) or []:
+        if not isinstance(export_entry, dict):
+            continue
+        if export_entry.get("exporter") != "html_page_exporter":
+            continue
+        groups = export_entry.get("groups") or export_entry.get("params", {}).get(
+            "groups", []
+        )
+        for group in groups:
+            if not isinstance(group, dict) or group.get("group_by") != group_by:
+                continue
+            if group.get("index_generator"):
+                return group
+            if fallback_group is None:
+                fallback_group = group
+    return fallback_group
+
+
+def _lock_for_config_name(config_name: str) -> threading.RLock:
+    """Return the write lock that coordinates mutations for a config file."""
+    if config_name == "import":
+        return IMPORT_CONFIG_WRITE_LOCK
+    if config_name == "transform":
+        return TRANSFORM_CONFIG_WRITE_LOCK
+    if config_name == "export":
+        return EXPORT_CONFIG_WRITE_LOCK
+    return CONFIG_CONFIG_WRITE_LOCK
+
+
 def _find_target_group(
     export_target: Dict[str, Any], group_by: str
 ) -> Optional[Dict[str, Any]]:
@@ -199,6 +312,26 @@ def _normalized_relative_parts(raw_path: Any, field_name: str) -> List[str]:
     return parts
 
 
+def _validate_output_pattern_placeholders(
+    pattern: Any, field_name: str, allowed_placeholders: set[str]
+) -> None:
+    if not isinstance(pattern, str):
+        return
+
+    for _, field_name_value, _, _ in Formatter().parse(pattern):
+        if field_name_value is None:
+            continue
+        placeholder = field_name_value.split(".", 1)[0].split("[", 1)[0]
+        if placeholder not in allowed_placeholders:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"{field_name} contains unsupported placeholder "
+                    f"{{{field_name_value}}}"
+                ),
+            )
+
+
 def _validate_api_export_target_params(params: Dict[str, Any]) -> None:
     output_parts = _normalized_relative_parts(params.get("output_dir"), "output_dir")
     if not output_parts or output_parts[0] != "exports":
@@ -210,6 +343,26 @@ def _validate_api_export_target_params(params: Dict[str, Any]) -> None:
     for field_name in ("detail_output_pattern", "index_output_pattern"):
         if field_name in params and params[field_name] is not None:
             _normalized_relative_parts(params[field_name], field_name)
+
+    detail_pattern = params.get("detail_output_pattern")
+    _validate_output_pattern_placeholders(
+        detail_pattern, "detail_output_pattern", {"group", "id"}
+    )
+    if isinstance(detail_pattern, str) and "{id}" not in detail_pattern:
+        raise HTTPException(
+            status_code=400,
+            detail="detail_output_pattern must include the {id} placeholder",
+        )
+
+    index_pattern = params.get("index_output_pattern")
+    _validate_output_pattern_placeholders(
+        index_pattern, "index_output_pattern", {"group"}
+    )
+    if isinstance(index_pattern, str) and "{group}" not in index_pattern:
+        raise HTTPException(
+            status_code=400,
+            detail="index_output_pattern must include the {group} placeholder",
+        )
 
 
 def _validation_error(validation_result: Dict[str, Any], message: str) -> None:
@@ -300,6 +453,13 @@ def _validate_config_update_content(config_name: str, content: Any) -> Dict[str,
                 content["static_pages"], list
             ):
                 _validation_error(validation_result, "'static_pages' must be a list")
+            if validation_result["valid"]:
+                try:
+                    ExportConfigModel.model_validate(content)
+                except Exception as exc:
+                    _validation_error(
+                        validation_result, f"Invalid export configuration: {exc}"
+                    )
 
     elif config_name == "config":
         if not isinstance(content, dict):
@@ -784,14 +944,13 @@ async def update_reference_config(
                     status_code=404, detail=f"Reference '{reference_name}' not found"
                 )
 
-            # Backup before modifying
+            candidate_config = deepcopy(import_config)
+            candidate_refs = candidate_config["entities"]["references"]
+            _validate_reference_config_update(config)
+            candidate_refs[reference_name] = config
+
             create_backup(config_path)
-
-            # Update the reference config
-            refs_section[reference_name] = config
-            import_config["entities"]["references"] = refs_section
-
-            _write_yaml_atomic(config_path, import_config)
+            _write_yaml_atomic(config_path, candidate_config)
 
         return {
             "success": True,
@@ -842,50 +1001,49 @@ async def update_dataset_config(dataset_name: str, config: Dict[str, Any] = Body
         raise HTTPException(status_code=404, detail="import.yml not found")
 
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            import_config = yaml.safe_load(f) or {}
+        with IMPORT_CONFIG_WRITE_LOCK:
+            with open(config_path, "r", encoding="utf-8") as f:
+                import_config = yaml.safe_load(f) or {}
 
-        if not isinstance(import_config, dict):
-            raise HTTPException(
-                status_code=400,
-                detail="Malformed import.yml: root must be an object",
-            )
+            if not isinstance(import_config, dict):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Malformed import.yml: root must be an object",
+                )
 
-        entities = import_config.get("entities")
-        if not isinstance(entities, dict):
-            raise HTTPException(
-                status_code=400,
-                detail="Malformed import.yml: entities must be an object",
-            )
+            entities = import_config.get("entities")
+            if not isinstance(entities, dict):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Malformed import.yml: entities must be an object",
+                )
 
-        datasets_section = entities.get("datasets")
-        if not isinstance(datasets_section, dict):
-            raise HTTPException(
-                status_code=400,
-                detail="Malformed import.yml: entities.datasets must be an object",
-            )
+            datasets_section = entities.get("datasets")
+            if not isinstance(datasets_section, dict):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Malformed import.yml: entities.datasets must be an object",
+                )
 
-        if dataset_name not in datasets_section:
-            raise HTTPException(
-                status_code=404, detail=f"Dataset '{dataset_name}' not found"
-            )
+            if dataset_name not in datasets_section:
+                raise HTTPException(
+                    status_code=404, detail=f"Dataset '{dataset_name}' not found"
+                )
 
-        candidate_config = deepcopy(import_config)
-        candidate_datasets = candidate_config["entities"]["datasets"]
-        candidate_datasets[dataset_name] = config
-        try:
-            GenericImportConfig.model_validate(candidate_config)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Invalid dataset configuration: {str(exc)}",
-            ) from exc
+            candidate_config = deepcopy(import_config)
+            candidate_datasets = candidate_config["entities"]["datasets"]
+            candidate_datasets[dataset_name] = config
+            try:
+                GenericImportConfig.model_validate(candidate_config)
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Invalid dataset configuration: {str(exc)}",
+                ) from exc
 
-        # Backup before modifying
-        create_backup(config_path)
+            create_backup(config_path)
 
-        # Write back
-        _write_yaml_atomic(config_path, candidate_config)
+            _write_yaml_atomic(config_path, candidate_config)
 
         return {
             "success": True,
@@ -1022,7 +1180,18 @@ async def get_config(config_name: str):
 
     try:
         with open(config_path, "r", encoding="utf-8") as f:
-            content = yaml.safe_load(f) or {}
+            content = yaml.safe_load(f)
+        if content is None:
+            default_configs = {
+                "import": {},
+                "transform": [],
+                "export": {"exports": [], "static_pages": []},
+                "config": {
+                    "project": {"name": "niamoto-project", "version": "1.0.0"},
+                    "database": {"path": "db/niamoto.duckdb"},
+                },
+            }
+            content = default_configs.get(config_name, {})
         return content
     except Exception as e:
         raise HTTPException(
@@ -1054,12 +1223,12 @@ async def update_config(config_name: str, update: ConfigUpdate) -> ConfigRespons
     config_path = get_working_directory() / "config" / f"{config_name}.yml"
 
     try:
-        # Create backup if requested and file exists
-        backup_path = None
-        if update.backup and config_path.exists():
-            backup_path = create_backup(config_path)
+        with _lock_for_config_name(config_name):
+            backup_path = None
+            if update.backup and config_path.exists():
+                backup_path = create_backup(config_path)
 
-        _write_yaml_atomic(config_path, update.content)
+            _write_yaml_atomic(config_path, update.content)
 
         return ConfigResponse(
             success=True,
@@ -1093,7 +1262,7 @@ async def validate_config(
     _validate_config_name(config_name)
 
     try:
-        if config_name == "transform" and isinstance(content, list):
+        if config_name == "transform":
             return _validate_config_update_content(config_name, content)
 
         if not isinstance(content, dict):
@@ -1257,25 +1426,33 @@ async def restore_backup(
     config_path = work_dir / "config" / f"{config_name}.yml"
 
     try:
-        # Create a backup of current config before restoring
-        current_backup = None
-        if config_path.exists():
-            current_backup = create_backup(config_path)
+        with backup_path.open("r", encoding="utf-8") as f:
+            backup_content = yaml.safe_load(f)
+        if backup_content is None:
+            backup_content = []
+            if config_name != "transform":
+                backup_content = {}
 
-        # Restore from backup
-        shutil.copy2(backup_path, config_path)
+        validation_result = _validate_config_update_content(config_name, backup_content)
+        if not validation_result["valid"]:
+            raise HTTPException(status_code=400, detail=validation_result)
 
-        # Read the restored content
-        with open(config_path, "r", encoding="utf-8") as f:
-            content = yaml.safe_load(f)
+        with _lock_for_config_name(config_name):
+            current_backup = None
+            if config_path.exists():
+                current_backup = create_backup(config_path)
+
+            _write_yaml_atomic(config_path, backup_content)
 
         return ConfigResponse(
             success=True,
             message=f"Configuration restored from {backup_filename}",
-            content=content,
+            content=backup_content,
             backup_path=str(current_backup) if current_backup else None,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error restoring backup: {str(e)}")
 
@@ -1392,14 +1569,36 @@ async def validate_import_v2(request: ImportConfigValidateRequest):
                 warnings={},
             )
 
-        warnings: Dict[str, list] = {}
+        semantic_errors: Dict[str, list] = {}
         if (
             not parsed_config.entities.datasets
             and not parsed_config.entities.references
         ):
-            warnings["_global"] = warnings.get("_global", [])
-            warnings["_global"].append("No datasets or references configured")
+            semantic_errors.setdefault("_global", []).append(
+                "At least one dataset or reference must be configured"
+            )
 
+        entity_name_pattern = re.compile(r"^[a-z][a-z0-9_]*$")
+        for entity_kind, entities in (
+            ("dataset", parsed_config.entities.datasets),
+            ("reference", parsed_config.entities.references),
+        ):
+            for entity_name in entities:
+                if not entity_name_pattern.fullmatch(entity_name):
+                    semantic_errors.setdefault(
+                        f"{entity_kind}.{entity_name}", []
+                    ).append(
+                        "Entity keys must be snake_case and start with a lowercase letter"
+                    )
+
+        if semantic_errors:
+            return ImportConfigValidateResponse(
+                valid=False,
+                errors=semantic_errors,
+                warnings={},
+            )
+
+        warnings: Dict[str, list] = {}
         return ImportConfigValidateResponse(valid=True, errors={}, warnings=warnings)
 
     except Exception as e:
@@ -1442,18 +1641,19 @@ async def save_import_v2(request: ImportConfigSaveRequest):
                 },
             )
 
-        # Ensure config directory exists
-        config_dir = ensure_config_dir()
-        config_path = config_dir / "import.yml"
+        config_dict = yaml.safe_load(request.config)
+        if not isinstance(config_dict, dict):
+            raise HTTPException(status_code=400, detail="Invalid import configuration")
 
-        # Create backup if file exists
-        backup_path = None
-        if config_path.exists():
-            backup_path = create_backup(config_path)
+        with IMPORT_CONFIG_WRITE_LOCK:
+            config_dir = ensure_config_dir()
+            config_path = config_dir / "import.yml"
 
-        # Write new configuration
-        with open(config_path, "w", encoding="utf-8") as f:
-            f.write(request.config)
+            backup_path = None
+            if config_path.exists():
+                backup_path = create_backup(config_path)
+
+            _write_yaml_atomic(config_path, config_dict)
 
         return ImportConfigSaveResponse(
             success=True,
@@ -1674,6 +1874,10 @@ async def update_transform_widget(
 
     except HTTPException:
         raise
+    except (ValueError, ValidationError) as exc:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid transform configuration: {exc}"
+        ) from exc
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating widget: {str(e)}")
 
@@ -1714,6 +1918,10 @@ async def delete_transform_widget(group_by: str, widget_id: str) -> Dict[str, bo
 
     except HTTPException:
         raise
+    except (ValueError, ValidationError) as exc:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid transform configuration: {exc}"
+        ) from exc
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting widget: {str(e)}")
 
@@ -1771,109 +1979,109 @@ async def update_export_widget(
                 detail="Widget data_source must match the widget_id path parameter",
             )
 
-        export_config = _load_export_config()
-        exports = export_config.setdefault("exports", [])
-        for export_entry in exports:
-            if (
-                isinstance(export_entry, dict)
-                and export_entry.get("exporter") == "html_page_exporter"
+        with EXPORT_CONFIG_WRITE_LOCK:
+            export_config = _load_export_config()
+            exports = export_config.setdefault("exports", [])
+            for export_entry in exports:
+                if (
+                    isinstance(export_entry, dict)
+                    and export_entry.get("exporter") == "html_page_exporter"
+                ):
+                    params = export_entry.setdefault("params", {})
+                    params.setdefault("template_dir", "templates/")
+                    params.setdefault("output_dir", "exports/web")
+                    export_entry.setdefault("static_pages", [])
+
+            # Find the export entry with groups
+            target_group = None
+
+            for export_entry in exports:
+                groups = export_entry.get("groups") or export_entry.get(
+                    "params", {}
+                ).get("groups", [])
+                for group in groups:
+                    if group.get("group_by") == group_by:
+                        target_group = group
+                        break
+                if target_group:
+                    break
+
+            if not target_group:
+                # Auto-créer seulement si le group_by est une référence connue
+                if not _is_known_reference(group_by):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Group '{group_by}' not found in export config and is not a known reference in import.yml",
+                    )
+                web_export = None
+                for entry in exports:
+                    if isinstance(entry, dict) and entry.get("name") == "web_pages":
+                        web_export = entry
+                        break
+                if not web_export:
+                    web_export = {
+                        "name": "web_pages",
+                        "enabled": True,
+                        "exporter": "html_page_exporter",
+                        "params": {
+                            "template_dir": "templates/",
+                            "output_dir": "exports/web",
+                        },
+                        "static_pages": [],
+                        "groups": [],
+                    }
+                    exports.append(web_export)
+                else:
+                    params = web_export.setdefault("params", {})
+                    params.setdefault("template_dir", "templates/")
+                    params.setdefault("output_dir", "exports/web")
+                    web_export.setdefault("static_pages", [])
+                target_group = {"group_by": group_by, "widgets": []}
+                web_export.setdefault("groups", []).append(target_group)
+
+            # Ensure widgets list exists
+            if "widgets" not in target_group:
+                target_group["widgets"] = []
+
+            # Find existing widget by data_source or synthetic navigation id
+            existing_idx = None
+            for idx, widget in enumerate(target_group["widgets"]):
+                if _resolve_export_widget_id(group_by, widget) == widget_id:
+                    existing_idx = idx
+                    break
+
+            new_widget: Dict[str, Any] = {}
+            if existing_idx is not None and isinstance(
+                target_group["widgets"][existing_idx], dict
             ):
-                params = export_entry.setdefault("params", {})
-                params.setdefault("template_dir", "templates/")
-                params.setdefault("output_dir", "exports/web")
-                export_entry.setdefault("static_pages", [])
+                new_widget.update(target_group["widgets"][existing_idx])
 
-        # Find the export entry with groups
-        target_group = None
-
-        for export_entry in exports:
-            groups = export_entry.get("groups") or export_entry.get("params", {}).get(
-                "groups", []
-            )
-            for group in groups:
-                if group.get("group_by") == group_by:
-                    target_group = group
-                    break
-            if target_group:
-                break
-
-        if not target_group:
-            # Auto-créer seulement si le group_by est une référence connue
-            if not _is_known_reference(group_by):
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Group '{group_by}' not found in export config and is not a known reference in import.yml",
-                )
-            web_export = None
-            for entry in exports:
-                if isinstance(entry, dict) and entry.get("name") == "web_pages":
-                    web_export = entry
-                    break
-            if not web_export:
-                web_export = {
-                    "name": "web_pages",
-                    "enabled": True,
-                    "exporter": "html_page_exporter",
-                    "params": {
-                        "template_dir": "templates/",
-                        "output_dir": "exports/web",
-                    },
-                    "static_pages": [],
-                    "groups": [],
+            new_widget.update(
+                {
+                    "plugin": update.plugin,
+                    "data_source": (
+                        ""
+                        if update.plugin == "hierarchical_nav_widget"
+                        else update.data_source
+                    ),
+                    "params": update.params,
                 }
-                exports.append(web_export)
+            )
+            for metadata_field in ("title", "description"):
+                if metadata_field not in update.model_fields_set:
+                    continue
+                metadata_value = getattr(update, metadata_field)
+                if metadata_value is None:
+                    new_widget.pop(metadata_field, None)
+                else:
+                    new_widget[metadata_field] = metadata_value
+
+            if existing_idx is not None:
+                target_group["widgets"][existing_idx] = new_widget
             else:
-                params = web_export.setdefault("params", {})
-                params.setdefault("template_dir", "templates/")
-                params.setdefault("output_dir", "exports/web")
-                web_export.setdefault("static_pages", [])
-            target_group = {"group_by": group_by, "widgets": []}
-            web_export.setdefault("groups", []).append(target_group)
+                target_group["widgets"].append(new_widget)
 
-        # Ensure widgets list exists
-        if "widgets" not in target_group:
-            target_group["widgets"] = []
-
-        # Find existing widget by data_source or synthetic navigation id
-        existing_idx = None
-        for idx, widget in enumerate(target_group["widgets"]):
-            if _resolve_export_widget_id(group_by, widget) == widget_id:
-                existing_idx = idx
-                break
-
-        new_widget: Dict[str, Any] = {}
-        if existing_idx is not None and isinstance(
-            target_group["widgets"][existing_idx], dict
-        ):
-            new_widget.update(target_group["widgets"][existing_idx])
-
-        new_widget.update(
-            {
-                "plugin": update.plugin,
-                "data_source": (
-                    ""
-                    if update.plugin == "hierarchical_nav_widget"
-                    else update.data_source
-                ),
-                "params": update.params,
-            }
-        )
-        for metadata_field in ("title", "description"):
-            if metadata_field not in update.model_fields_set:
-                continue
-            metadata_value = getattr(update, metadata_field)
-            if metadata_value is None:
-                new_widget.pop(metadata_field, None)
-            else:
-                new_widget[metadata_field] = metadata_value
-
-        if existing_idx is not None:
-            target_group["widgets"][existing_idx] = new_widget
-        else:
-            target_group["widgets"].append(new_widget)
-
-        _validate_export_config_or_raise(export_config)
-        _save_export_config(export_config)
+            _save_export_config(export_config)
 
         return new_widget
 
@@ -1900,41 +2108,35 @@ async def delete_export_widget(group_by: str, widget_id: str) -> Dict[str, bool]
         Success status
     """
     try:
-        export_config = _load_export_config()
-
-        # Find the group
-        target_group = None
-        for export_entry in export_config.get("exports", []):
-            groups = export_entry.get("groups") or export_entry.get("params", {}).get(
-                "groups", []
-            )
-            for group in groups:
-                if group.get("group_by") == group_by:
-                    target_group = group
-                    break
-            if target_group:
-                break
-
-        if not target_group:
-            raise HTTPException(
-                status_code=404, detail=f"Group '{group_by}' not found in export config"
+        with EXPORT_CONFIG_WRITE_LOCK:
+            export_config = _load_export_config()
+            target_group = _find_export_group_in_supported_locations(
+                export_config, group_by
             )
 
-        widgets = target_group.get("widgets", [])
-        original_len = len(widgets)
+            if not target_group:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Group '{group_by}' not found in export config",
+                )
 
-        # Filter out the widget
-        target_group["widgets"] = [
-            w for w in widgets if _resolve_export_widget_id(group_by, w) != widget_id
-        ]
+            widgets = target_group.get("widgets", [])
+            original_len = len(widgets)
 
-        if len(target_group["widgets"]) == original_len:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Widget '{widget_id}' not found in group '{group_by}'",
-            )
+            # Filter out the widget
+            target_group["widgets"] = [
+                w
+                for w in widgets
+                if _resolve_export_widget_id(group_by, w) != widget_id
+            ]
 
-        _save_export_config(export_config)
+            if len(target_group["widgets"]) == original_len:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Widget '{widget_id}' not found in group '{group_by}'",
+                )
+
+            _save_export_config(export_config)
 
         return {"success": True}
 
@@ -2015,6 +2217,7 @@ class IndexGeneratorConfigUpdate(BaseModel):
     filters: Optional[List[IndexGeneratorFilterUpdate]] = None
     display_fields: List[IndexGeneratorDisplayFieldUpdate]
     views: Optional[List[IndexGeneratorViewUpdate]] = None
+    output_pattern: Optional[str] = None
 
 
 @router.get("/export/{group_by}/index-generator")
@@ -2033,7 +2236,7 @@ async def get_index_generator(group_by: str) -> Dict[str, Any]:
     """
     try:
         export_config = _load_export_config()
-        group = _find_export_group_in_supported_locations(export_config, group_by)
+        group = _find_export_group_with_index_generator(export_config, group_by)
 
         if not group:
             raise HTTPException(
@@ -2119,6 +2322,22 @@ async def update_index_generator(
                     status_code=404,
                     detail=f"Group '{group_by}' not found in export config",
                 )
+
+            existing_index_generator = target_group.get("index_generator")
+            if isinstance(existing_index_generator, dict):
+                supported_fields = set(IndexGeneratorConfigUpdate.model_fields)
+                preserved_fields = {
+                    key: value
+                    for key, value in existing_index_generator.items()
+                    if key not in supported_fields
+                }
+                if "output_pattern" not in config_dict:
+                    preserved_fields["output_pattern"] = existing_index_generator.get(
+                        "output_pattern", DEFAULT_INDEX_GENERATOR_OUTPUT_PATTERN
+                    )
+                config_dict = {**preserved_fields, **config_dict}
+            elif "output_pattern" not in config_dict:
+                config_dict["output_pattern"] = DEFAULT_INDEX_GENERATOR_OUTPUT_PATTERN
 
             # Insert index_generator before widgets if widgets exists
             if "widgets" in target_group:
@@ -2321,7 +2540,7 @@ async def create_api_export_target(
 
         with EXPORT_CONFIG_WRITE_LOCK:
             export_config = _load_export_config()
-            if _find_api_export_target(export_config, body.name):
+            if _find_export_target_by_name(export_config, body.name):
                 raise HTTPException(
                     status_code=409,
                     detail=f"Target '{body.name}' already exists",
@@ -2718,6 +2937,20 @@ def _build_api_export_preview_group_config(
 ) -> JsonApiGroupConfig:
     """Build exporter group config from the current unsaved UI draft."""
     existing_group = deepcopy(_find_target_group(export_target, group_by) or {})
+    if request.data_source:
+        allowed_sources = set(_api_export_table_candidates(group_by, None))
+        existing_data_source = existing_group.get("data_source")
+        if existing_data_source:
+            allowed_sources.add(str(existing_data_source))
+        if request.data_source not in allowed_sources:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "API export preview data_source must match the selected group "
+                    "or a saved API export group data_source"
+                ),
+            )
+
     draft = request.model_dump(exclude_unset=True)
     draft.pop("section", None)
 
@@ -3213,7 +3446,8 @@ async def suggest_api_export_index_fields(
         raise HTTPException(
             status_code=404, detail=f"API export target '{export_name}' not found"
         )
-    return await suggest_index_fields(group_by)
+    group = _find_target_group(export_target, group_by) or {}
+    return await suggest_index_fields(group_by, data_source=group.get("data_source"))
 
 
 def _api_export_target_uses_dwc(export_target: Dict[str, Any], group_by: str) -> bool:
@@ -3544,8 +3778,10 @@ async def suggest_api_export_auto_config(
             status_code=404, detail=f"API export target '{export_name}' not found"
         )
 
-    suggestions = await suggest_index_fields(group_by)
     existing_group = _find_target_group(export_target, group_by) or {}
+    suggestions = await suggest_index_fields(
+        group_by, data_source=existing_group.get("data_source")
+    )
     try:
         preview_items = _load_api_export_preview_items(
             group_by, existing_group.get("data_source"), []
@@ -4772,7 +5008,9 @@ def _infer_schema_from_transform_config(
 
 
 @router.get("/export/{group_by}/index-generator/suggestions")
-async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
+async def suggest_index_fields(
+    group_by: str, data_source: Optional[str] = None
+) -> IndexFieldSuggestions:
     """
     Analyze transformed data and suggest display fields and filters.
 
@@ -4784,6 +5022,7 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
 
     Args:
         group_by: The group name (e.g., 'taxons', 'plots', 'shapes')
+        data_source: Optional transformed table to inspect for API export groups
 
     Returns:
         Suggested display_fields and filters
@@ -4795,7 +5034,9 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
         from niamoto.core.imports.registry import EntityRegistry
         from sqlalchemy import text
 
-        db_path = get_working_directory() / "db" / "niamoto.duckdb"
+        db_path = get_database_path(get_working_directory())
+        if db_path is None:
+            raise HTTPException(status_code=404, detail="Database not configured")
         if not db_path.exists():
             raise HTTPException(status_code=404, detail="Database not found")
 
@@ -4853,7 +5094,12 @@ async def suggest_index_fields(group_by: str) -> IndexFieldSuggestions:
 
         db = Database(str(db_path), read_only=True)
         try:
-            for candidate in (group_by, f"{group_by}_stats"):
+            candidates = (
+                _api_export_table_candidates(group_by, data_source)
+                if data_source
+                else (group_by, f"{group_by}_stats")
+            )
+            for candidate in candidates:
                 if db.has_table(candidate):
                     transformed_table = candidate
                     break

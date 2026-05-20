@@ -9,6 +9,7 @@
 import { useMemo, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { LocalizedString } from '@/components/ui/localized-string'
+import { apiFetch } from '@/shared/lib/api/fetch'
 
 const API_BASE = '/api/config'
 
@@ -304,7 +305,7 @@ async function performUpdate(
         : currentWidget.transformerParams
     }
 
-    const res = await fetch(
+    const res = await apiFetch(
       `${API_BASE}/transform/${groupBy}/widgets/${widgetId}`,
       {
         method: 'PUT',
@@ -332,7 +333,7 @@ async function performUpdate(
         : currentWidget.widgetParams
     }
 
-    const res = await fetch(
+    const res = await apiFetch(
       `${API_BASE}/export/${groupBy}/widgets/${widgetId}`,
       {
         method: 'PUT',
@@ -349,7 +350,7 @@ async function performUpdate(
 
 /** Mutation : suppression d'un widget (transform + export) */
 async function performDelete(widgetId: string, groupBy: string): Promise<void> {
-  const transformRes = await fetch(
+  const transformRes = await apiFetch(
     `${API_BASE}/transform/${groupBy}/widgets/${widgetId}`,
     { method: 'DELETE' }
   )
@@ -358,7 +359,7 @@ async function performDelete(widgetId: string, groupBy: string): Promise<void> {
     throw new Error(errorData.detail || 'Failed to delete from transform config')
   }
 
-  const exportRes = await fetch(
+  const exportRes = await apiFetch(
     `${API_BASE}/export/${groupBy}/widgets/${widgetId}`,
     { method: 'DELETE' }
   )
@@ -381,7 +382,7 @@ async function performDuplicate(
     throw new Error(`Widget ${widgetId} cannot be duplicated`)
   }
 
-  const transformRes = await fetch(
+  const transformRes = await apiFetch(
     `${API_BASE}/transform/${groupBy}/widgets/${newId}`,
     {
       method: 'PUT',
@@ -398,7 +399,7 @@ async function performDuplicate(
   }
 
   try {
-    const exportRes = await fetch(
+    const exportRes = await apiFetch(
       `${API_BASE}/export/${groupBy}/widgets/${newId}`,
       {
         method: 'PUT',
@@ -417,7 +418,7 @@ async function performDuplicate(
       throw new Error(errorData.detail || 'Failed to create export config')
     }
   } catch (error) {
-    await fetch(
+    await apiFetch(
       `${API_BASE}/transform/${groupBy}/widgets/${newId}`,
       { method: 'DELETE' },
     ).catch(() => undefined)
@@ -427,7 +428,7 @@ async function performDuplicate(
 
 /** Mutation : réordonnancement des widgets */
 async function performReorder(widgetIds: string[], groupBy: string): Promise<void> {
-  const res = await fetch(`/api/recipes/${groupBy}/reorder`, {
+  const res = await apiFetch(`/api/recipes/${groupBy}/reorder`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ widget_ids: widgetIds })

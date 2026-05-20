@@ -1,6 +1,7 @@
 """Test export commands."""
 
 import pytest
+import click
 from click.testing import CliRunner
 from unittest import mock
 from pathlib import Path
@@ -115,17 +116,24 @@ def test_export_pages_invalid_group(mock_config, mock_path):
         assert result.exit_code == 1
 
 
-def test_export_pages_missing_config(mock_config):
+def test_export_pages_missing_config(mock_config, mock_path, mock_exporter):
     """Test export pages with missing config."""
     # Configure mock
     mock_config_instance = mock_config.return_value
     mock_config_instance.exports = None
+    mock_exporter.return_value.run_export.return_value = {}
 
     runner = CliRunner()
     result = runner.invoke(export_command, ["--target", "web_pages"])
 
-    # In test environment, we're not exiting but raising the exception
     assert result.exit_code == 0
+    mock_exporter.assert_called_once_with(
+        db_path="/mock/db/path", config=mock_config_instance
+    )
+    mock_exporter.return_value.run_export.assert_called_once_with(
+        target_name="web_pages", group_filter=None
+    )
+    assert "Database not found" not in result.output
 
 
 def test_export_pages_template_error(mock_config, mock_path, mock_exporter):
@@ -608,12 +616,10 @@ def test_list_export_targets_error():
     mock_service = mock.MagicMock()
     mock_service.get_export_targets.side_effect = Exception("Service error")
 
-    with mock.patch("niamoto.cli.commands.export.print_error") as mock_print_error:
+    with pytest.raises(
+        click.ClickException, match="Failed to list targets: Service error"
+    ):
         _list_export_targets(mock_service)
-
-        mock_print_error.assert_called_once_with(
-            "Failed to list targets: Service error"
-        )
 
 
 def test_show_dry_run_function():
@@ -672,12 +678,8 @@ def test_show_dry_run_target_not_found():
         "existing_target": {"enabled": True, "exporter": "html_page_exporter"}
     }
 
-    with mock.patch("niamoto.cli.commands.export.print_error") as mock_print_error:
+    with pytest.raises(click.ClickException, match="Target 'nonexistent' not found"):
         _show_dry_run(mock_service, "nonexistent", None)
-
-        mock_print_error.assert_called_once_with(
-            "Target 'nonexistent' not found in configuration."
-        )
 
 
 def test_show_dry_run_with_group_filter():
@@ -715,12 +717,10 @@ def test_show_dry_run_group_not_found():
         }
     }
 
-    with mock.patch("niamoto.cli.commands.export.print_warning") as mock_print_warning:
+    with pytest.raises(
+        click.ClickException, match="Group 'nonexistent' not found in this target"
+    ):
         _show_dry_run(mock_service, "web_pages", "nonexistent")
-
-        mock_print_warning.assert_called_once_with(
-            "   Group 'nonexistent' not found in this target"
-        )
 
 
 def test_show_dry_run_error():
@@ -730,9 +730,8 @@ def test_show_dry_run_error():
     mock_service = mock.MagicMock()
     mock_service.get_export_targets.side_effect = Exception("Service error")
 
-    with mock.patch("niamoto.cli.commands.export.print_error") as mock_print_error:
+    with pytest.raises(
+        click.ClickException,
+        match="Failed to analyze export configuration: Service error",
+    ):
         _show_dry_run(mock_service, None, None)
-
-        mock_print_error.assert_called_once_with(
-            "Failed to analyze export configuration: Service error"
-        )

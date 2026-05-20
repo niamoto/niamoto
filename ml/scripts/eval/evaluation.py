@@ -234,7 +234,10 @@ def _compute_ece(
 
     ece = 0.0
     for i in range(n_bins):
-        mask = (conf_arr > bin_boundaries[i]) & (conf_arr <= bin_boundaries[i + 1])
+        if i == 0:
+            mask = (conf_arr >= bin_boundaries[i]) & (conf_arr <= bin_boundaries[i + 1])
+        else:
+            mask = (conf_arr > bin_boundaries[i]) & (conf_arr <= bin_boundaries[i + 1])
         if mask.sum() == 0:
             continue
         bin_acc = correct[mask].mean()

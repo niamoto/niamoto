@@ -20,13 +20,17 @@ class _FakeResponse:
 
 
 class _FakeClient:
+    def __init__(self):
+        self.calls = []
+
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
         return False
 
-    async def post(self, *_args, **_kwargs):
+    async def post(self, *args, **kwargs):
+        self.calls.append(("post", args, kwargs))
         return _FakeResponse(200)
 
 
@@ -47,9 +51,10 @@ def test_render_deployer_triggers_hook_and_returns_url(
     exports_dir = tmp_path / "exports"
     exports_dir.mkdir()
 
+    fake_client = _FakeClient()
     monkeypatch.setattr(
         "niamoto.core.plugins.deployers.render.httpx.AsyncClient",
-        lambda **_kwargs: _FakeClient(),
+        lambda **_kwargs: fake_client,
     )
 
     deployer = RenderDeployer()
@@ -69,6 +74,7 @@ def test_render_deployer_triggers_hook_and_returns_url(
     )
     assert any("URL: https://niamoto-site.onrender.com" in line for line in lines)
     assert lines[-1].strip() == "data: DONE"
+    assert fake_client.calls == [("post", ("https://render.com/hook",), {})]
 
 
 def test_render_unpublish_reports_network_errors(monkeypatch, tmp_path: Path) -> None:

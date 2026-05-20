@@ -129,15 +129,13 @@ class TestTopRanking(unittest.TestCase):
         #   Species B (102): 2 (direct) + 1 (from Infra B1) = 3
         #   Species C (103): 3 (direct) = 3
         # --> Correction based on re-trace: A=5, B=3, C=3
-        # Top 2: Species A, Species B (or C, order might vary for ties)
-        expected_tops = ["Species A", "Species B"]  # Or ["Species A", "Species C"]
-        expected_counts = [5, 3]
-
         result = self.plugin.transform(SAMPLE_DATA.copy(), config)
 
         # Assertions
-        self.assertCountEqual(result["tops"], expected_tops, "Top names do not match")
-        self.assertCountEqual(result["counts"], expected_counts, "Counts do not match")
+        result_pairs = list(zip(result["tops"], result["counts"]))
+        self.assertEqual(result_pairs[0], ("Species A", 5))
+        self.assertIn(result_pairs[1], {("Species B", 3), ("Species C", 3)})
+        self.assertEqual(len(result_pairs), 2)
 
         # Verify db calls (optional but good practice)
         # Check that execute_select was called multiple times

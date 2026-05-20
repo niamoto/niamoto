@@ -1,12 +1,15 @@
 import asyncio
+import socket
 from io import BytesIO
 
+import pytest
 from fastapi import HTTPException, UploadFile
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers.feedback import (
     _MAX_SCREENSHOT_BYTES,
+    _forward_feedback,
     _normalize_worker_feedback_url,
     _read_upload_limited,
 )
@@ -96,6 +99,28 @@ def test_submit_feedback_proxies_to_worker(monkeypatch):
         "payload": '{"type":"bug","title":"Broken widget"}',
         "filename": "feedback.jpg",
     }
+
+
+def test_forward_feedback_revalidates_worker_dns_before_request(monkeypatch):
+    monkeypatch.setattr(
+        "niamoto.gui.api.url_security.socket.getaddrinfo",
+        lambda *args, **kwargs: [
+            (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("127.0.0.1", 443))
+        ],
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            _forward_feedback(
+                "https://feedback.example.com/feedback",
+                "secret",
+                '{"type":"bug"}',
+                None,
+            )
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "Feedback endpoint URL is not allowed."
 
 
 def test_read_upload_limited_accepts_small_screenshot():

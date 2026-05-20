@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from pydantic import BaseModel
 
 from niamoto.gui.api.services.enrichment_service import (
@@ -81,21 +81,30 @@ async def get_enrichment_config_for_reference(reference_name: str):
 async def get_enrichment_config():
     """Return the default enrichment config for legacy callers."""
 
-    return await asyncio.to_thread(get_default_enrichment_config)
+    try:
+        return await asyncio.to_thread(get_default_enrichment_config)
+    except ValueError as exc:
+        _raise_http_error(str(exc))
 
 
 @router.get("/stats/{reference_name}", response_model=EnrichmentStatsResponse)
 async def get_enrichment_stats_for_reference(reference_name: str):
     """Return per-source and aggregate stats for one reference."""
 
-    return await asyncio.to_thread(get_reference_enrichment_stats, reference_name)
+    try:
+        return await asyncio.to_thread(get_reference_enrichment_stats, reference_name)
+    except ValueError as exc:
+        _raise_http_error(str(exc))
 
 
 @router.get("/stats", response_model=EnrichmentStatsResponse)
 async def get_enrichment_stats():
     """Return aggregate stats for the default reference."""
 
-    return await asyncio.to_thread(get_default_enrichment_stats)
+    try:
+        return await asyncio.to_thread(get_default_enrichment_stats)
+    except ValueError as exc:
+        _raise_http_error(str(exc))
 
 
 @router.get("/job/{reference_name}", response_model=EnrichmentJob)
@@ -261,30 +270,38 @@ async def cancel_enrichment():
 @router.get("/results/{reference_name}", response_model=ResultsResponse)
 async def get_results_for_reference(
     reference_name: str,
-    page: int = 0,
-    limit: int = 50,
+    page: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=500),
     source_id: Optional[str] = None,
 ):
     """Return recent enrichment results for one reference."""
 
-    return await asyncio.to_thread(
-        get_results,
-        reference_name=reference_name,
-        page=page,
-        limit=limit,
-        source_id=source_id,
-    )
+    try:
+        return await asyncio.to_thread(
+            get_results,
+            reference_name=reference_name,
+            page=page,
+            limit=limit,
+            source_id=source_id,
+        )
+    except ValueError as exc:
+        _raise_http_error(str(exc))
 
 
 @router.get("/results", response_model=ResultsResponse)
 async def get_all_results(
-    page: int = 0, limit: int = 50, source_id: Optional[str] = None
+    page: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=500),
+    source_id: Optional[str] = None,
 ):
     """Return recent enrichment results for the default reference/job."""
 
-    return await asyncio.to_thread(
-        get_results, page=page, limit=limit, source_id=source_id
-    )
+    try:
+        return await asyncio.to_thread(
+            get_results, page=page, limit=limit, source_id=source_id
+        )
+    except ValueError as exc:
+        _raise_http_error(str(exc))
 
 
 @router.post("/preview/{reference_name}", response_model=PreviewResponse)
@@ -309,9 +326,12 @@ async def preview_enrichment_for_reference(
 async def preview_enrichment(request: PreviewRequest):
     """Legacy preview endpoint using the default reference."""
 
-    return await preview_default_enrichment(
-        request.taxon_name, source_id=request.source_id
-    )
+    try:
+        return await preview_default_enrichment(
+            request.taxon_name, source_id=request.source_id
+        )
+    except ValueError as exc:
+        _raise_http_error(str(exc))
 
 
 @router.get("/entities/{reference_name}")

@@ -60,6 +60,65 @@ def test_get_import_status_returns_500_without_working_directory(monkeypatch):
     assert response.json()["detail"] == "Working directory not set"
 
 
+def test_get_import_status_classifies_references_and_datasets(monkeypatch, tmp_path):
+    work_dir = tmp_path
+    (work_dir / "config").mkdir()
+
+    class FakeConfig:
+        def __init__(self, *args, **kwargs):
+            self.database_path = str(work_dir / "db" / "niamoto.duckdb")
+
+    class FakeDB:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+        def has_table(self, table_name):
+            return table_name in {"entity_taxons", "dataset_occurrences"}
+
+        def execute_sql(self, query, fetch=False):
+            if "entity_taxons" in query:
+                return [3]
+            if "dataset_occurrences" in query:
+                return [10]
+            return [0]
+
+    class FakeRegistry:
+        def __init__(self, db):
+            assert isinstance(db, FakeDB)
+
+        def list_all(self):
+            return [
+                SimpleNamespace(
+                    name="taxons",
+                    kind=imports.EntityKind.REFERENCE,
+                    table_name="entity_taxons",
+                ),
+                SimpleNamespace(
+                    name="occurrences",
+                    kind=imports.EntityKind.DATASET,
+                    table_name="dataset_occurrences",
+                ),
+            ]
+
+    monkeypatch.setattr(context, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(imports, "Config", FakeConfig)
+    monkeypatch.setattr(imports, "open_database", lambda _database_path: FakeDB())
+    monkeypatch.setattr(imports, "EntityRegistry", FakeRegistry)
+    monkeypatch.setattr(imports, "quote_identifier", lambda _db, table_name: table_name)
+
+    response = TestClient(create_app()).get("/api/imports/status")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert [item["entity_name"] for item in payload["references"]] == ["taxons"]
+    assert payload["references"][0]["row_count"] == 3
+    assert [item["entity_name"] for item in payload["datasets"]] == ["occurrences"]
+    assert payload["datasets"][0]["row_count"] == 10
+
+
 def test_process_generic_import_all_emits_entity_events(monkeypatch, tmp_path):
     work_dir = tmp_path
     (work_dir / "config").mkdir()
@@ -168,6 +227,73 @@ def test_execute_import_all_rejects_concurrent_job_for_same_workdir(
     }
 
 
+def test_execute_import_reference_rejects_active_all_job_for_same_workdir(
+    monkeypatch,
+    tmp_path,
+):
+    work_dir = tmp_path
+    active_job_id = "active-all-import"
+    before_job_ids = set(imports.import_jobs)
+    imports.import_jobs[active_job_id] = {
+        **_base_job(active_job_id),
+        "status": "running",
+        "import_type": "all",
+        "working_directory": str(work_dir.resolve()),
+    }
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+
+    try:
+        response = TestClient(create_app()).post(
+            "/api/imports/execute/reference/taxons",
+            data={"reset_table": "true"},
+        )
+    finally:
+        imports.import_jobs.pop(active_job_id, None)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {
+        "message": "An import-all job is already pending or running",
+        "job_id": active_job_id,
+    }
+    assert set(imports.import_jobs) == before_job_ids
+
+
+def test_execute_import_reference_rejects_concurrent_job_for_same_target(
+    monkeypatch,
+    tmp_path,
+):
+    work_dir = tmp_path
+    active_job_id = "active-reference-import"
+    before_job_ids = set(imports.import_jobs)
+    imports.import_jobs[active_job_id] = {
+        **_base_job(active_job_id),
+        "status": "running",
+        "import_type": "reference",
+        "entity_name": "taxons",
+        "working_directory": str(work_dir.resolve()),
+    }
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+
+    try:
+        response = TestClient(create_app()).post(
+            "/api/imports/execute/reference/taxons",
+            data={"reset_table": "true"},
+        )
+    finally:
+        imports.import_jobs.pop(active_job_id, None)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {
+        "message": "An import job for reference 'taxons' is already pending or running",
+        "job_id": active_job_id,
+    }
+    assert set(imports.import_jobs) == before_job_ids
+
+
 def test_execute_import_dataset_rejects_missing_desktop_auth_before_job_creation(
     monkeypatch,
 ):
@@ -182,6 +308,40 @@ def test_execute_import_dataset_rejects_missing_desktop_auth_before_job_creation
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid desktop auth token."
+    assert set(imports.import_jobs) == before_job_ids
+
+
+def test_execute_import_dataset_rejects_concurrent_job_for_same_target(
+    monkeypatch,
+    tmp_path,
+):
+    work_dir = tmp_path
+    active_job_id = "active-dataset-import"
+    before_job_ids = set(imports.import_jobs)
+    imports.import_jobs[active_job_id] = {
+        **_base_job(active_job_id),
+        "status": "running",
+        "import_type": "dataset",
+        "entity_name": "occurrences",
+        "working_directory": str(work_dir.resolve()),
+    }
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+
+    try:
+        response = TestClient(create_app()).post(
+            "/api/imports/execute/dataset/occurrences",
+            data={"reset_table": "true"},
+        )
+    finally:
+        imports.import_jobs.pop(active_job_id, None)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {
+        "message": "An import job for dataset 'occurrences' is already pending or running",
+        "job_id": active_job_id,
+    }
     assert set(imports.import_jobs) == before_job_ids
 
 
@@ -538,6 +698,63 @@ def test_delete_entity_drops_registry_table_before_removing_config(
     assert "plots" not in updated_config["entities"]["references"]
 
 
+def test_delete_dataset_fallback_drops_dataset_table_not_reference_collision(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path
+    config_dir = work_dir / "config"
+    config_dir.mkdir()
+    import_path = config_dir / "import.yml"
+    import_path.write_text(
+        yaml.safe_dump(
+            {
+                "version": "1.0",
+                "entities": {
+                    "datasets": {"plots": {"connector": {"type": "file"}}},
+                    "references": {"plots": {"connector": {"type": "file"}}},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    dropped = []
+
+    class FakeConfig:
+        def __init__(self, *args, **kwargs):
+            self.database_path = str(work_dir / "db" / "niamoto.duckdb")
+
+    class FakeDB:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def has_table(self, table_name):
+            return table_name in {"dataset_plots", "reference_plots"}
+
+        def execute_sql(self, sql):
+            dropped.append(sql)
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+    monkeypatch.setattr(imports, "Config", FakeConfig)
+    monkeypatch.setattr(imports, "open_database", lambda _path: FakeDB())
+    monkeypatch.setattr(imports, "quote_identifier", lambda _db, name: f'"{name}"')
+
+    response = asyncio.run(
+        imports.delete_entity(_request(), "dataset", "plots", delete_table=True)
+    )
+
+    assert response["success"] is True
+    assert response["table_dropped"] is True
+    assert dropped == ['DROP TABLE IF EXISTS "dataset_plots"']
+    updated_config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    assert "plots" not in updated_config["entities"]["datasets"]
+    assert "plots" in updated_config["entities"]["references"]
+
+
 def test_delete_entity_keeps_config_when_requested_table_drop_fails(
     monkeypatch, tmp_path
 ):
@@ -709,7 +926,8 @@ def test_get_job_status_redacts_internal_tracebacks():
     assert "traceback" not in payload["events"][0]["details"]
 
 
-def test_list_import_jobs_redacts_internal_tracebacks():
+def test_list_import_jobs_redacts_internal_tracebacks(monkeypatch):
+    monkeypatch.setattr("niamoto.gui.api.context.get_working_directory", lambda: None)
     job_id = "job-list-redacted"
     imports.import_jobs[job_id] = _base_job(job_id)
     imports.import_jobs[job_id].update(
@@ -755,7 +973,8 @@ def test_list_import_jobs_rejects_invalid_pagination(query):
     assert response.status_code == 422
 
 
-def test_list_import_jobs_accepts_valid_pagination():
+def test_list_import_jobs_accepts_valid_pagination(monkeypatch):
+    monkeypatch.setattr("niamoto.gui.api.context.get_working_directory", lambda: None)
     before_jobs = dict(imports.import_jobs)
     jobs = [
         ("old-job", "2026-01-01T00:00:00+00:00"),
@@ -783,6 +1002,51 @@ def test_list_import_jobs_accepts_valid_pagination():
     finally:
         imports.import_jobs.clear()
         imports.import_jobs.update(before_jobs)
+
+
+def test_list_import_jobs_filters_to_current_working_directory(monkeypatch, tmp_path):
+    project_a = tmp_path / "project-a"
+    project_b = tmp_path / "project-b"
+    project_a.mkdir()
+    project_b.mkdir()
+
+    imports.import_jobs["job-a"] = {
+        **_base_job("job-a"),
+        "working_directory": str(project_a.resolve()),
+        "created_at": "2026-01-02T00:00:00+00:00",
+    }
+    imports.import_jobs["job-b"] = {
+        **_base_job("job-b"),
+        "working_directory": str(project_b.resolve()),
+        "created_at": "2026-01-03T00:00:00+00:00",
+    }
+    imports.import_jobs["legacy-job"] = {
+        **_base_job("legacy-job"),
+        "working_directory": None,
+        "created_at": "2026-01-04T00:00:00+00:00",
+    }
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: project_b
+    )
+
+    response = TestClient(create_app()).get("/api/imports/jobs")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["total"] == 1
+    assert [job["id"] for job in payload["jobs"]] == ["job-b"]
+
+
+def test_impact_check_returns_500_without_working_directory(monkeypatch):
+    monkeypatch.setattr("niamoto.gui.api.context.get_working_directory", lambda: None)
+
+    response = TestClient(create_app()).post(
+        "/api/imports/impact-check",
+        json={"file_path": "imports/foo.csv"},
+    )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Working directory not set"
 
 
 def test_impact_check_returns_skip_reason_for_vector_entity(monkeypatch, tmp_path):

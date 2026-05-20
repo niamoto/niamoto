@@ -218,7 +218,9 @@ class TimeSeriesAnalysis(TransformerPlugin):
                 field for field in required_fields if field not in data.columns
             ]
             if missing_fields:
-                return {"month_data": {}, "labels": params.labels}
+                raise ValueError(
+                    "Missing required fields: " + ", ".join(missing_fields)
+                )
 
             # Work on a local copy to avoid pandas Copy-on-Write warnings when the
             # incoming dataframe is a slice from an upstream loader.

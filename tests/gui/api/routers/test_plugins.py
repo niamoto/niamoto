@@ -1,7 +1,7 @@
 """Tests for plugin registry API routes."""
 
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from niamoto.core.plugins.base import PluginType, WidgetPlugin
 from niamoto.core.plugins.registry import PluginRegistry
@@ -14,6 +14,18 @@ class DummyWidget(WidgetPlugin):
 
     class Params(BaseModel):
         title: str = "Demo"
+
+    param_schema = Params
+
+    def render(self, data, params):
+        return "<div></div>"
+
+
+class RequiredParamWidget(WidgetPlugin):
+    """Widget with a required parameter for compatibility checks."""
+
+    class Params(BaseModel):
+        title: str
 
     param_schema = Params
 
@@ -62,6 +74,21 @@ class CategorizedWidget(WidgetPlugin):
         return "<div></div>"
 
 
+class UiMetadataWidget(WidgetPlugin):
+    """Widget exposing UI metadata through Pydantic json_schema_extra."""
+
+    class Params(BaseModel):
+        field: str = Field(
+            default="height",
+            json_schema_extra={"ui:widget": "field-select"},
+        )
+
+    param_schema = Params
+
+    def render(self, data, params):
+        return "<div></div>"
+
+
 def test_check_compatibility_rejects_unknown_plugin(monkeypatch):
     monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
     PluginRegistry.clear()
@@ -98,6 +125,33 @@ def test_check_compatibility_accepts_known_plugin(monkeypatch):
             payload["reason"]
             == "Plugin 'dummy_widget' accepts the provided source data."
         )
+    finally:
+        PluginRegistry.clear()
+
+
+def test_check_compatibility_rejects_invalid_plugin_config(monkeypatch):
+    monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
+    PluginRegistry.clear()
+    try:
+        PluginRegistry.register_plugin(
+            "required_param_widget", RequiredParamWidget, PluginType.WIDGET
+        )
+        client = TestClient(create_app())
+
+        response = client.post(
+            "/api/plugins/check-compatibility",
+            json={
+                "plugin_id": "required_param_widget",
+                "source_data": {"type": "dataframe"},
+                "config": {},
+            },
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["compatible"] is False
+        assert "Plugin config is invalid" in payload["reason"]
+        assert "title" in payload["reason"]
     finally:
         PluginRegistry.clear()
 
@@ -161,6 +215,28 @@ def test_list_plugins_uses_registry_type_when_class_type_disagrees(monkeypatch):
         PluginRegistry.clear()
 
 
+def test_list_plugins_uses_top_level_ui_widget_metadata(monkeypatch):
+    monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
+    PluginRegistry.clear()
+    try:
+        PluginRegistry.register_plugin(
+            "ui_metadata_widget", UiMetadataWidget, PluginType.WIDGET
+        )
+        client = TestClient(create_app())
+
+        response = client.get("/api/plugins/")
+
+        assert response.status_code == 200
+        payload = response.json()
+        plugin = next(item for item in payload if item["id"] == "ui_metadata_widget")
+        field_param = next(
+            item for item in plugin["parameters_schema"] if item["name"] == "field"
+        )
+        assert field_param["type"] == "field-select"
+    finally:
+        PluginRegistry.clear()
+
+
 def test_list_categories_returns_registered_plugin_categories(monkeypatch):
     monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
     PluginRegistry.clear()
@@ -186,6 +262,20 @@ def test_list_categories_returns_empty_registry(monkeypatch):
 
         assert response.status_code == 200, response.text
         assert response.json() == {"categories": [], "count": 0}
+    finally:
+        PluginRegistry.clear()
+
+
+def test_list_plugin_types_route_is_not_shadowed(monkeypatch):
+    monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
+    PluginRegistry.clear()
+    try:
+        response = TestClient(create_app()).get("/api/plugins/types/list")
+
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["types"] == [plugin_type.value for plugin_type in PluginType]
+        assert payload["count"] == len(PluginType)
     finally:
         PluginRegistry.clear()
 

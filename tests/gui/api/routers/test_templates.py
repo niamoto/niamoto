@@ -5,8 +5,10 @@ These tests ensure that the templates endpoints work correctly
 and serve as regression tests during refactoring.
 """
 
+import asyncio
 import pytest
 from unittest.mock import patch
+import os
 from pathlib import Path
 import tempfile
 import shutil
@@ -312,6 +314,39 @@ class TestTemplatesEndpoints:
             }
         ]
 
+    def test_get_enrichment_catalog_dispatches_catalog_to_threadpool(self, monkeypatch):
+        from niamoto.gui.api.routers import templates
+
+        captured = {}
+
+        def fake_catalog(reference_name):
+            captured["reference_name"] = reference_name
+            return [
+                {
+                    "id": "gbif",
+                    "label": "GBIF",
+                    "field_count": 0,
+                    "fields": [],
+                }
+            ]
+
+        async def fake_run_in_threadpool(func, *args, **kwargs):
+            captured["thread_func"] = func
+            captured["thread_args"] = args
+            captured["thread_kwargs"] = kwargs
+            return func(*args, **kwargs)
+
+        monkeypatch.setattr(templates, "get_reference_enrichment_catalog", fake_catalog)
+        monkeypatch.setattr(templates, "run_in_threadpool", fake_run_in_threadpool)
+
+        response = asyncio.run(templates.get_enrichment_catalog("taxons"))
+
+        assert response[0].id == "gbif"
+        assert captured["thread_func"] is fake_catalog
+        assert captured["thread_args"] == ("taxons",)
+        assert captured["thread_kwargs"] == {}
+        assert captured["reference_name"] == "taxons"
+
     def test_generate_config_requires_body(self, client):
         """Test POST /api/templates/generate-config requires request body."""
         response = client.post("/api/templates/generate-config", json={})
@@ -343,6 +378,52 @@ class TestTemplatesEndpoints:
             "plugin": "binned_distribution",
             "params": {"field": "elevation"},
         }
+
+    def test_generate_config_rejects_duplicate_template_ids(self, client):
+        """Duplicate template IDs would otherwise overwrite selected widgets."""
+        response = client.post(
+            "/api/templates/generate-config",
+            json={
+                "templates": [
+                    {
+                        "template_id": "duplicate_widget",
+                        "plugin": "field_aggregator",
+                        "config": {"field": "name"},
+                    },
+                    {
+                        "template_id": "duplicate_widget",
+                        "plugin": "statistical_summary",
+                        "config": {"field": "height"},
+                    },
+                ],
+                "group_by": "taxons",
+                "reference_kind": "hierarchical",
+            },
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Duplicate template_id values"
+
+    def test_generate_config_rejects_malformed_combined_config(self, client):
+        response = client.post(
+            "/api/templates/generate-config",
+            json={
+                "templates": [
+                    {
+                        "template_id": "combined_widget",
+                        "plugin": "field_aggregator",
+                        "config": {"transformer": None, "widget": {}},
+                    }
+                ],
+                "group_by": "taxons",
+                "reference_kind": "hierarchical",
+            },
+        )
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == (
+            "Combined template config requires object transformer and widget sections"
+        )
 
     def test_generate_config_uses_import_relation_and_dataset(
         self, client, test_work_dir
@@ -627,6 +708,47 @@ class TestTemplatesEndpoints:
         assert transform_path.read_text(encoding="utf-8") == original_transform
         assert export_path.read_text(encoding="utf-8") == original_export
 
+    def test_save_config_rolls_back_transform_when_export_replace_fails(
+        self, client, test_work_dir
+    ):
+        config_dir = Path(test_work_dir) / "config"
+        transform_path = config_dir / "transform.yml"
+        export_path = config_dir / "export.yml"
+        original_transform = transform_path.read_text(encoding="utf-8")
+        original_export = export_path.read_text(encoding="utf-8")
+        real_replace = os.replace
+        replace_calls = 0
+
+        def fail_second_replace(src, dst):
+            nonlocal replace_calls
+            replace_calls += 1
+            if replace_calls == 2:
+                raise OSError("simulated export replace failure")
+            return real_replace(src, dst)
+
+        with patch(
+            "niamoto.gui.api.routers.templates.os.replace",
+            side_effect=fail_second_replace,
+        ):
+            response = client.post(
+                "/api/templates/save-config",
+                json={
+                    "group_by": "taxons",
+                    "sources": [],
+                    "widgets_data": {
+                        "summary": {
+                            "plugin": "field_aggregator",
+                            "params": {"field": "dbh"},
+                        }
+                    },
+                    "mode": "replace",
+                },
+            )
+
+        assert response.status_code == 500
+        assert transform_path.read_text(encoding="utf-8") == original_transform
+        assert export_path.read_text(encoding="utf-8") == original_export
+
     def test_save_config_rejects_non_list_transform_config(self, client, test_work_dir):
         config_dir = Path(test_work_dir) / "config"
         transform_path = config_dir / "transform.yml"
@@ -736,6 +858,9 @@ class TestTemplatesEndpoints:
                     "1,cover_forest,Forest,0.75",
                     "2,cover_forest,Open,0.25",
                     "3,elevation_max,,1622",
+                    "4,land_use,Forest,0.40",
+                    "5,land_use,Savanna,0.35",
+                    "6,land_use,Urban,0.25",
                 ]
             )
             + "\n",
@@ -773,8 +898,61 @@ class TestTemplatesEndpoints:
         assert class_objects["elevation_max"]["suggested_plugin"] == (
             "class_object_field_aggregator"
         )
+        assert class_objects["land_use"]["suggested_plugin"] == (
+            "class_object_series_extractor"
+        )
         assert "class_object_binary_aggregator" in payload["plugin_schemas"]
         assert "class_object_field_aggregator" in payload["plugin_schemas"]
+        for class_object in payload["class_objects"]:
+            assert class_object["suggested_plugin"] in payload["plugin_schemas"]
+
+    def test_widget_suggestions_accepts_tsv_class_object_source(
+        self, client, test_work_dir
+    ):
+        work_dir = Path(test_work_dir)
+        imports_dir = work_dir / "imports"
+        imports_dir.mkdir(exist_ok=True)
+        stats_path = imports_dir / "taxon_stats.tsv"
+        stats_path.write_text(
+            "\n".join(
+                [
+                    "id\tclass_object\tclass_name\tclass_value",
+                    "1\tcover_forest\tForest\t0.75",
+                    "2\tcover_forest\tOpen\t0.25",
+                    "3\televation_max\t\t1622",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        transform_path = work_dir / "config" / "transform.yml"
+        transform_config = yaml.safe_load(transform_path.read_text(encoding="utf-8"))
+        transform_config[0]["sources"] = [
+            {
+                "name": "taxon_stats",
+                "data": "imports/taxon_stats.tsv",
+                "grouping": "taxons",
+                "relation": {"plugin": "direct_reference", "key": "id"},
+            }
+        ]
+        transform_path.write_text(
+            yaml.safe_dump(transform_config, sort_keys=False),
+            encoding="utf-8",
+        )
+
+        response = client.get("/api/templates/widget-suggestions/taxons")
+
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["source_path"] == "imports/taxon_stats.tsv"
+        class_objects = {item["name"]: item for item in payload["class_objects"]}
+        assert class_objects["cover_forest"]["suggested_plugin"] == (
+            "class_object_binary_aggregator"
+        )
+        assert class_objects["elevation_max"]["suggested_plugin"] == (
+            "class_object_field_aggregator"
+        )
 
     def test_widget_suggestions_rejects_source_path_escape(self, client, test_work_dir):
         work_dir = Path(test_work_dir)
@@ -1024,6 +1202,29 @@ class TestTemplatesEndpoints:
         assert response.json()["detail"] == (
             "Source 'occurrences' is not configured for reference 'plots'"
         )
+
+    def test_reference_suggestions_rejects_missing_configured_registry_source(
+        self, client
+    ):
+        db_path = Path("/tmp/test-niamoto.duckdb")
+        with (
+            patch(
+                "niamoto.gui.api.routers.templates.get_database_path",
+                return_value=db_path,
+            ),
+            patch("niamoto.gui.api.routers.templates.Database") as database_cls,
+            patch("niamoto.core.imports.registry.EntityRegistry") as registry_cls,
+        ):
+            registry_cls.return_value.get.side_effect = KeyError("missing")
+            response = client.get(
+                "/api/templates/taxons/suggestions?entity=occurrences"
+            )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == (
+            "Source entity 'occurrences' is not available in the import registry"
+        )
+        database_cls.return_value.close_db_session.assert_called_once()
 
     def test_semantic_groups_endpoint(self, client):
         """Test GET /api/templates/{reference}/semantic-groups."""

@@ -102,12 +102,55 @@ def test_execute_transform_rejects_null_config_path():
     assert response.status_code == 422
 
 
+def test_get_transform_config_rejects_path_outside_project_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    project = tmp_path / "project"
+    (project / "config").mkdir(parents=True)
+    (project / "config" / "transform.yml").write_text("transforms: []\n")
+
+    monkeypatch.setattr(transform_router, "get_working_directory", lambda: project)
+
+    with pytest.raises(HTTPException) as exc_info:
+        transform_router.get_transform_config("../other.yml")
+
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.parametrize("config_path", ["/tmp/attacker-transform.yml", "../other.yml"])
+def test_execute_transform_rejects_unsandboxed_config_path_before_job_creation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, config_path: str
+):
+    project = tmp_path / "project"
+    (project / "config").mkdir(parents=True)
+    (project / "config" / "transform.yml").write_text("transforms: []\n")
+    job_store_called = False
+
+    def fail_if_job_store_requested(_request):
+        nonlocal job_store_called
+        job_store_called = True
+        raise AssertionError("Job store should not be resolved for invalid config_path")
+
+    monkeypatch.setattr(transform_router, "get_working_directory", lambda: project)
+    monkeypatch.setattr(transform_router, "_get_job_store", fail_if_job_store_requested)
+
+    response = TestClient(create_app()).post(
+        "/api/transform/execute",
+        json={"config_path": config_path},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid transform config path"
+    assert job_store_called is False
+
+
 @pytest.mark.anyio
 async def test_execute_transform_background_filters_requested_group_bys(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     captured_group_names: list[str] = []
+    captured_service_group_by: list[str | None] = []
 
     class DummyTransformerService:
         def __init__(self, db_path: str, config, enable_cli_integration: bool = False):
@@ -115,6 +158,7 @@ async def test_execute_transform_background_filters_requested_group_bys(
             self.config = type("DummyConfig", (), {"transforms": []})()
 
         def transform_data(self, group_by, csv_file, recreate_table, progress_callback):
+            captured_service_group_by.append(group_by)
             captured_group_names.extend(
                 [group["group_by"] for group in self.transforms_config]
             )
@@ -159,6 +203,7 @@ async def test_execute_transform_background_filters_requested_group_bys(
 
     assert job_store.failed_error is None
     assert captured_group_names == ["taxons", "shapes"]
+    assert captured_service_group_by == [None]
     assert job_store.completed_result is not None
     assert set(job_store.completed_result["transformations"].keys()) == {
         "widget_a",
@@ -423,6 +468,31 @@ def test_get_transform_sources_reads_root_dict_group(
     assert response == {"sources": ["raw_shape_stats", "shape_stats"]}
 
 
+def test_get_transform_sources_reads_singular_source_object(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "transform.yml").write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "group_by": "taxon",
+                    "source": {"data": "occurrences", "grouping": "taxon_id"},
+                    "widgets_data": {},
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(transform_router, "get_working_directory", lambda: tmp_path)
+
+    response = asyncio.run(transform_router.get_transform_sources(group_by="taxon"))
+
+    assert response == {"sources": ["occurrences"]}
+
+
 def test_get_transform_sources_skips_malformed_groups_and_sources(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -533,6 +603,57 @@ async def test_execute_transform_background_qualifies_all_duplicate_widget_resul
         "taxons:summary",
         "plots:summary",
     }
+
+
+@pytest.mark.anyio
+async def test_execute_transform_background_accepts_qualified_widget_filter(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class DummyTransformerService:
+        def __init__(self, db_path: str, config, enable_cli_integration: bool = False):
+            self.transforms_config = []
+            self.config = type("DummyConfig", (), {"transforms": []})()
+
+        def transform_data(self, group_by, csv_file, recreate_table, progress_callback):
+            return {
+                group["group_by"]: {
+                    "widgets": {name: 1 for name in group["widgets_data"]}
+                }
+                for group in self.transforms_config
+            }
+
+    transform_config = [
+        {"group_by": "taxons", "widgets_data": {"summary": {"plugin": "foo"}}},
+        {"group_by": "plots", "widgets_data": {"summary": {"plugin": "bar"}}},
+    ]
+
+    monkeypatch.setattr(
+        transform_router, "get_transform_config", lambda path: transform_config
+    )
+    monkeypatch.setattr(
+        transform_router, "get_database_path", lambda: tmp_path / "db.duckdb"
+    )
+    monkeypatch.setattr(transform_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        transform_router, "Config", lambda config_dir, create_default=False: object()
+    )
+    monkeypatch.setattr(transform_router, "TransformerService", DummyTransformerService)
+
+    job_store = _DummyJobStore()
+
+    await transform_router.execute_transform_background(
+        "job-1",
+        job_store,
+        "config/transform.yml",
+        transformations=["taxons:summary"],
+    )
+
+    assert set(job_store.completed_result["transformations"]) == {"taxons:summary"}
+    assert (
+        job_store.completed_result["transformations"]["taxons:summary"]["group"]
+        == "taxons"
+    )
 
 
 @pytest.mark.anyio

@@ -267,15 +267,20 @@ def _replace_cache_dir(staging_dir: Path, output_dir: Path) -> None:
     )
     backup_dir.rmdir()
 
+    output_moved_to_backup = False
+    staging_moved_to_output = False
     try:
         output_dir.rename(backup_dir)
+        output_moved_to_backup = True
         staging_dir.rename(output_dir)
+        staging_moved_to_output = True
+        shutil.rmtree(backup_dir, ignore_errors=False)
     except Exception:
-        if not output_dir.exists() and backup_dir.exists():
+        if staging_moved_to_output and output_dir.exists():
+            shutil.rmtree(output_dir, ignore_errors=True)
+        if output_moved_to_backup and not output_dir.exists() and backup_dir.exists():
             backup_dir.rename(output_dir)
         raise
-    else:
-        shutil.rmtree(backup_dir, ignore_errors=True)
 
 
 def main() -> None:

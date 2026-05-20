@@ -8,6 +8,7 @@ import math
 import os
 import re
 import shutil
+import tempfile
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -550,13 +551,13 @@ class StandardProfileOutputService:
         params = DwcArchiveExporterParams.model_validate(params_payload)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        staging_dir = output_dir / f".{params.archive_name}.tmp"
-        if staging_dir.exists():
-            if staging_dir.is_dir():
-                shutil.rmtree(staging_dir)
-            else:
-                staging_dir.unlink()
-        staging_dir.mkdir(parents=True)
+        staging_dir = Path(
+            tempfile.mkdtemp(
+                prefix=f".{params.archive_name}.",
+                suffix=".tmp",
+                dir=output_dir,
+            )
+        )
 
         exporter = DwcArchiveExporter(db=cast(Any, None))
         try:
@@ -722,13 +723,19 @@ def _generator_param_source_references(params: dict[str, Any]) -> list[str]:
 
     fields = params.get("fields")
     if isinstance(fields, list):
-        for field in fields:
-            if isinstance(field, str):
-                references.append(field)
-            elif isinstance(field, dict) and isinstance(field.get("field"), str):
-                references.append(str(field["field"]))
+        references.extend(_normalize_dynamic_property_fields(fields))
 
     return references
+
+
+def _normalize_dynamic_property_fields(fields: list[Any]) -> list[str]:
+    normalized: list[str] = []
+    for field in fields:
+        if isinstance(field, str):
+            normalized.append(field)
+        elif isinstance(field, dict) and isinstance(field.get("field"), str):
+            normalized.append(str(field["field"]))
+    return normalized
 
 
 def _is_context_reference(source: str) -> bool:
@@ -834,8 +841,7 @@ def _format_dynamic_properties(
     if not isinstance(raw_fields, list):
         return None
     properties: dict[str, Any] = {}
-    for raw_field in raw_fields:
-        field = str(raw_field)
+    for field in _normalize_dynamic_property_fields(raw_fields):
         value = _read_path(record, _normalize_source_path(field))
         if value is not None:
             properties[field] = value

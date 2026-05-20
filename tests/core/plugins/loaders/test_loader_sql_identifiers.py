@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from niamoto.common.exceptions import DataLoadError, DatabaseError, DatabaseQueryError
+from niamoto.core.plugins.loaders.adjacency_list import AdjacencyListLoader
 from niamoto.core.plugins.loaders._sql_identifier import quote_identifier
 from niamoto.core.plugins.loaders.direct_reference import DirectReferenceLoader
 from niamoto.core.plugins.loaders.join_table import JoinTableLoader
@@ -101,6 +102,65 @@ def test_nested_set_rejects_unsafe_table_before_sql_execution():
     db.connection.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    ("field_path", "unsafe_value", "expected_message"),
+    [
+        (
+            ("data",),
+            "occurrences; DROP TABLE occurrences",
+            "Invalid characters in data table name",
+        ),
+        (
+            ("grouping",),
+            "taxons; DROP TABLE taxons",
+            "Invalid characters in grouping table name",
+        ),
+        (
+            ("params", "key"),
+            "taxon_id) OR 1=1 --",
+            "Invalid characters in foreign key field",
+        ),
+        (
+            ("params", "parent_field"),
+            "parent_id) OR 1=1 --",
+            "Invalid characters in parent field",
+        ),
+        (
+            ("params", "hierarchy_id_field"),
+            "id) OR 1=1 --",
+            "Invalid characters in hierarchy id field",
+        ),
+    ],
+)
+def test_adjacency_list_rejects_unsafe_identifier_before_sql_execution(
+    field_path,
+    unsafe_value,
+    expected_message,
+):
+    db = MagicMock()
+    loader = AdjacencyListLoader(db, registry=_registry_missing())
+    config = {
+        "data": "occurrences",
+        "grouping": "taxons",
+        "params": {
+            "key": "taxon_id",
+            "parent_field": "parent_id",
+            "hierarchy_id_field": "id",
+        },
+    }
+    target = config
+    for key in field_path[:-1]:
+        target = target[key]
+    target[field_path[-1]] = unsafe_value
+
+    with patch("pandas.read_sql") as read_sql:
+        with pytest.raises(ValueError, match=expected_message):
+            loader.load_data(1, config)
+
+    db.connection.assert_not_called()
+    read_sql.assert_not_called()
+
+
 def test_spatial_rejects_unsafe_geometry_field_before_sql_execution():
     db = MagicMock()
     loader = SpatialLoader(db, registry=_registry_missing())
@@ -143,6 +203,7 @@ def test_stats_loader_accepts_safe_database_identifiers():
     conn.__exit__.return_value = False
     db.connection.return_value = conn
     loader = StatsLoader(db)
+    loader.imports_config = {}
     config = {
         "plugin": "stats_loader",
         "data": "main_table",

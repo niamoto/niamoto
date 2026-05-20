@@ -64,6 +64,16 @@ def test_occurrences_fields_follow_import_method_signature(monkeypatch):
     }
 
 
+def test_occurrences_fields_include_required_fallbacks_without_introspection():
+    payload = import_fields.get_required_fields_for_import_type("occurrences")
+
+    fields_by_key = {field["key"]: field for field in payload["fields"]}
+
+    assert fields_by_key["taxon_id"]["required"] is True
+    assert fields_by_key["location"]["required"] is True
+    assert fields_by_key["plot_name"]["required"] is False
+
+
 def test_unknown_import_type_returns_empty_payload():
     assert import_fields.get_required_fields_for_import_type("unknown") == {
         "fields": [],

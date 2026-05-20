@@ -90,11 +90,10 @@ def classify_html(status, html):
     if "info-grid" in html or "grid-item" in html:
         return "OK", "Info grid"
 
-    # Has substantial content
     body_match = re.search(r"<body>(.*?)</body>", html, re.DOTALL)
     body = body_match.group(1).strip() if body_match else html.strip()
     if len(body) > 100:
-        return "OK", f"HTML ({len(body)} chars)"
+        return "WARN", f"HTML sans marqueur widget ({len(body)} chars)"
 
     return "WARN", f"Contenu court ({len(body)} chars)"
 
@@ -113,6 +112,35 @@ def test_classify_html_detects_connection_error():
 
     assert category == "CONN"
     assert detail == "Serveur non joignable"
+
+
+def test_classify_html_rejects_unrecognized_long_html():
+    """Long generic HTML is not enough to prove a widget rendered."""
+    html = "<body><main>" + ("Generic placeholder content " * 10) + "</main></body>"
+
+    category, detail = classify_html(200, html)
+
+    assert category == "WARN"
+    assert "sans marqueur widget" in detail
+
+
+def test_main_returns_nonzero_when_preview_is_warn(monkeypatch):
+    """A WARN preview should fail the batch smoke test."""
+
+    def fake_fetch(url):
+        if url.endswith("/api/health"):
+            return 200, "OK"
+        return 200, "<body><main>" + ("Generic content " * 12) + "</main></body>"
+
+    monkeypatch.setattr(sys, "argv", ["test_shapes_previews.py"])
+    monkeypatch.setattr(sys.modules[__name__], "fetch", fake_fetch)
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "SHAPES_WIDGETS",
+        [("shape_info", "field_aggregator", "info_grid")],
+    )
+
+    assert main() == 1
 
 
 def main():

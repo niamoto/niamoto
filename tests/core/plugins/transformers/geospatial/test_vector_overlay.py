@@ -454,18 +454,26 @@ class TestClipOperation:
         assert min(feature["area"] for feature in result["clipped_features"]) > 1000
 
     def test_perform_clip_operation_error(self, plugin):
-        """Test clip operation error handling."""
-        # Create GeoDataFrames with incompatible CRS
-        gdf1 = gpd.GeoDataFrame({"geometry": []}, crs="EPSG:4326")
-        gdf2 = gpd.GeoDataFrame({"geometry": []})
+        """Test clip operation with an overlay that has no CRS."""
+        gdf1 = gpd.GeoDataFrame(
+            {"geometry": [Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])]},
+            crs="EPSG:4326",
+        )
+        gdf2 = gpd.GeoDataFrame(
+            {"geometry": [Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])]}
+        )
         params = {"area_unit": "ha"}
 
-        # Empty GeoDataFrames may not raise error, they just return empty result
-        try:
-            result = plugin._perform_clip_operation(gdf1, gdf2, params)
-            assert "clipped_features" in result
-        except DataTransformError:
-            pass  # Also acceptable
+        result = plugin._perform_clip_operation(gdf1, gdf2, params)
+
+        assert set(result) == {
+            "total_area",
+            "area_unit",
+            "clipped_features",
+            "feature_count",
+        }
+        assert result["area_unit"] == "ha"
+        assert result["feature_count"] == len(result["clipped_features"])
 
 
 class TestCoverageOperation:
@@ -593,7 +601,13 @@ class TestIdentityOperation:
             simple_polygon_gdf, overlay_polygon_gdf, params
         )
         # Should have summary when attribute_field is specified
-        assert "summary" in result or "identity_features" in result
+        assert "summary" in result
+        assert {"protected", "buffer"}.issubset(set(result["summary"]["categories"]))
+        assert len(result["summary"]["areas"]) == len(result["summary"]["categories"])
+        assert len(result["summary"]["percentages"]) == len(
+            result["summary"]["categories"]
+        )
+        assert sum(result["summary"]["areas"]) > 0
 
     def test_perform_identity_projects_geographic_feature_areas(
         self, plugin, simple_polygon_gdf, overlay_polygon_gdf
@@ -712,7 +726,10 @@ class TestTransformIntegration:
             },
         }
         result = plugin.transform(simple_polygon_gdf, config)
-        assert "stats" in result or "total_area" in result
+        assert set(result) == {"stats", "result_gdf"}
+        assert isinstance(result["result_gdf"], gpd.GeoDataFrame)
+        assert not result["result_gdf"].empty
+        assert result["stats"]["feature_count"] > 0
 
     def test_transform_crs_mismatch_handling(
         self, plugin, simple_polygon_gdf, overlay_polygon_gdf

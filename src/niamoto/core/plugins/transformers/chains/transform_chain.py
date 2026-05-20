@@ -85,6 +85,15 @@ class TransformChainParams(BasePluginParams):
         """Validate that steps list is not empty."""
         if not self.steps:
             raise ValueError("steps list cannot be empty")
+        seen: dict[str, int] = {}
+        for index, step in enumerate(self.steps):
+            previous_index = seen.get(step.output_key)
+            if previous_index is not None:
+                raise ValueError(
+                    f"Duplicate output_key '{step.output_key}' in steps "
+                    f"{previous_index + 1} and {index + 1}"
+                )
+            seen[step.output_key] = index
         return self
 
 

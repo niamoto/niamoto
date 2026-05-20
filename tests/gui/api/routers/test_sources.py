@@ -2,15 +2,67 @@ import asyncio
 from copy import deepcopy
 from pathlib import Path
 import threading
-import time
 
 import duckdb
+import pandas as pd
 import yaml
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers import config as config_router
 from niamoto.gui.api.routers import sources as sources_router
+
+
+def test_get_group_sources_disposes_database_after_builtin_lookup(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path / "project"
+    work_dir.mkdir()
+    fake_db_path = work_dir / "db" / "niamoto.duckdb"
+    fake_db_path.parent.mkdir()
+    fake_db_path.write_text("", encoding="utf-8")
+    closed = []
+    disposed = []
+
+    class FakeEngine:
+        def dispose(self):
+            disposed.append(True)
+
+    class FakeDatabase:
+        def __init__(self, path, read_only=False):
+            self.path = path
+            self.read_only = read_only
+            self.engine = FakeEngine()
+
+        def has_table(self, table_name):
+            return table_name == "entity_plots"
+
+        def close_db_session(self):
+            closed.append(True)
+
+    monkeypatch.setattr(sources_router, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(sources_router, "get_database_path", lambda: fake_db_path)
+    monkeypatch.setattr(sources_router, "Database", FakeDatabase)
+    monkeypatch.setattr(
+        sources_router, "quote_identifier", lambda _db, identifier: identifier
+    )
+    monkeypatch.setattr(
+        sources_router.pd,
+        "read_sql",
+        lambda *_args, **_kwargs: pd.DataFrame(columns=["id", "name", "geo_pt"]),
+    )
+    monkeypatch.setattr(
+        sources_router,
+        "_load_transform_config",
+        lambda _work_dir: {"groups": {}},
+    )
+
+    response = TestClient(create_app()).get("/api/sources/plots/sources")
+
+    assert response.status_code == 200
+    assert response.json()["sources"][0]["name"] == "plots"
+    assert closed == [True]
+    assert disposed == [True]
 
 
 def test_upload_rejects_files_over_size_limit(
@@ -56,6 +108,26 @@ def test_upload_rejects_existing_source_file(
 
     assert response.status_code == 409
     assert existing_file.read_text(encoding="utf-8") == "existing\n"
+
+
+def test_upload_rejects_source_name_path_components(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    response = gui_duckdb_client.post(
+        "/api/sources/taxons/upload",
+        params={"source_name": "../escape"},
+        files={
+            "file": (
+                "stats.csv",
+                b"class_object,class_name,class_value\n",
+                "text/csv",
+            )
+        },
+    )
+
+    assert response.status_code == 400
+    assert not (gui_duckdb_context / "raw_../escape.csv").exists()
 
 
 def test_upload_rejects_empty_csv_and_removes_saved_file(
@@ -261,6 +333,40 @@ def test_save_source_persists_canonical_imports_relative_path(
     assert source["data"] == "imports/raw_taxa_stats.csv"
 
 
+def test_save_source_rejects_unknown_reference_without_writing_transform(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    work_dir = gui_duckdb_context
+    imports_dir = work_dir / "imports"
+    imports_dir.mkdir(exist_ok=True)
+    (imports_dir / "raw_taxa_stats.csv").write_text(
+        "taxon_id;class_object;class_name;class_value\n"
+        "101;nbe_source_dataset;network;12\n",
+        encoding="utf-8",
+    )
+    transform_path = work_dir / "config" / "transform.yml"
+    before = (
+        transform_path.read_text(encoding="utf-8") if transform_path.exists() else None
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/sources/unknown/save",
+        json={
+            "source_name": "taxa_stats",
+            "file_path": "imports/raw_taxa_stats.csv",
+            "entity_id_column": "taxon_id",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Reference 'unknown' not found in import.yml"
+    after = (
+        transform_path.read_text(encoding="utf-8") if transform_path.exists() else None
+    )
+    assert after == before
+
+
 def test_save_source_rejects_non_csv_source_name_collision(
     gui_duckdb_client: TestClient,
     gui_duckdb_context: Path,
@@ -321,8 +427,14 @@ def test_source_save_shares_transform_write_lock_with_widget_updates(
     monkeypatch, tmp_path
 ):
     work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
     imports_dir = work_dir / "imports"
+    config_dir.mkdir(parents=True)
     imports_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump({"entities": {"references": {"taxons": {"kind": "taxon"}}}}),
+        encoding="utf-8",
+    )
     source_csv = imports_dir / "raw_taxa_stats.csv"
     source_csv.write_text(
         "taxon_id;class_object;class_name;class_value\n"
@@ -333,6 +445,7 @@ def test_source_save_shares_transform_write_lock_with_widget_updates(
     current_groups = [{"group_by": "taxons", "sources": [], "widgets_data": {}}]
     config_lock = threading.Lock()
     first_save_entered = threading.Event()
+    second_update_started = threading.Event()
     release_first_save = threading.Event()
     errors: list[BaseException] = []
 
@@ -394,6 +507,7 @@ def test_source_save_shares_transform_write_lock_with_widget_updates(
 
     def update_widget():
         try:
+            second_update_started.set()
             asyncio.run(
                 config_router.update_transform_widget(
                     "taxons",
@@ -413,7 +527,7 @@ def test_source_save_shares_transform_write_lock_with_widget_updates(
     first.start()
     assert first_save_entered.wait(timeout=2)
     second.start()
-    time.sleep(0.05)
+    assert second_update_started.wait(timeout=2)
     release_first_save.set()
     first.join(timeout=2)
     second.join(timeout=2)
@@ -427,8 +541,14 @@ def test_source_save_shares_transform_write_lock_with_widget_updates(
 
 def test_save_source_config_serializes_concurrent_source_writes(monkeypatch, tmp_path):
     work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
     imports_dir = work_dir / "imports"
+    config_dir.mkdir(parents=True)
     imports_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump({"entities": {"references": {"taxons": {"kind": "taxon"}}}}),
+        encoding="utf-8",
+    )
     for source_name in ("first_stats", "second_stats"):
         (imports_dir / f"raw_{source_name}.csv").write_text(
             "taxon_id;class_object;class_name;class_value\n"
@@ -439,6 +559,7 @@ def test_save_source_config_serializes_concurrent_source_writes(monkeypatch, tmp
     current_config = {"groups": {"taxons": {"sources": [], "widgets_data": {}}}}
     config_lock = threading.Lock()
     first_save_entered = threading.Event()
+    second_save_started = threading.Event()
     release_first_save = threading.Event()
     errors: list[BaseException] = []
 
@@ -466,6 +587,8 @@ def test_save_source_config_serializes_concurrent_source_writes(monkeypatch, tmp
 
     def save_source(source_name: str):
         try:
+            if source_name == "second_stats":
+                second_save_started.set()
             asyncio.run(
                 sources_router.save_source_config(
                     "taxons",
@@ -485,7 +608,7 @@ def test_save_source_config_serializes_concurrent_source_writes(monkeypatch, tmp
     first.start()
     assert first_save_entered.wait(timeout=2)
     second.start()
-    time.sleep(0.05)
+    assert second_save_started.wait(timeout=2)
     release_first_save.set()
     first.join(timeout=2)
     second.join(timeout=2)
@@ -496,6 +619,49 @@ def test_save_source_config_serializes_concurrent_source_writes(monkeypatch, tmp
     assert {
         source["name"] for source in current_config["groups"]["taxons"]["sources"]
     } == {"first_stats", "second_stats"}
+
+
+def test_remove_source_rejects_non_csv_source_without_mutating_config(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    work_dir = gui_duckdb_context
+    transform_path = work_dir / "config" / "transform.yml"
+    original_config = [
+        {
+            "group_by": "taxons",
+            "sources": [
+                {
+                    "name": "occurrences",
+                    "data": "occurrences",
+                    "grouping": "taxons",
+                    "relation": {
+                        "plugin": "direct_reference",
+                        "key": "taxon_id",
+                    },
+                },
+                {
+                    "name": "taxa_stats",
+                    "data": "imports/raw_taxa_stats.csv",
+                    "grouping": "taxons",
+                    "relation": {"plugin": "stats_loader", "key": "taxon_id"},
+                },
+            ],
+            "widgets_data": {},
+        }
+    ]
+    transform_path.write_text(
+        yaml.safe_dump(original_config, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.delete("/api/sources/taxons/sources/occurrences")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "Source 'occurrences' is not a removable pre-calculated CSV source"
+    )
+    assert yaml.safe_load(transform_path.read_text(encoding="utf-8")) == original_config
 
 
 def test_analyze_existing_source_rejects_paths_outside_imports(

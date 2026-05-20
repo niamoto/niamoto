@@ -60,8 +60,11 @@ def test_ssh_deployer_streams_successful_rsync(monkeypatch, tmp_path: Path) -> N
     exports_dir = tmp_path / "exports"
     exports_dir.mkdir()
     (exports_dir / "index.html").write_text("hello", encoding="utf-8")
+    captured = {}
 
-    async def fake_create_subprocess_exec(*_args, **_kwargs):
+    async def fake_create_subprocess_exec(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
         return _FakeProcess()
 
     monkeypatch.setattr(
@@ -93,3 +96,14 @@ def test_ssh_deployer_streams_successful_rsync(monkeypatch, tmp_path: Path) -> N
     )
     assert any("URL: https://example.org" in line for line in lines)
     assert lines[-1].strip() == "data: DONE"
+    assert captured["args"] == (
+        "rsync",
+        "-avz",
+        "--delete",
+        "-e",
+        "ssh -p 22",
+        f"{exports_dir}/",
+        "example.org:/srv/www/",
+    )
+    assert captured["kwargs"]["stdout"] is asyncio.subprocess.PIPE
+    assert captured["kwargs"]["stderr"] is asyncio.subprocess.PIPE

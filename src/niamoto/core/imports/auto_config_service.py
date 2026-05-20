@@ -153,6 +153,8 @@ class AutoConfigService:
         self, file_path: Path, filepath: str, *, role: str
     ) -> None:
         """Validate a file used by CSV relationship detection."""
+        if not file_path.is_file():
+            raise FileNotFoundError(f"{role.capitalize()} file not found: {filepath}")
         if file_path.suffix.lower() != ".csv":
             raise ValueError(
                 f"Unsupported {role} file type: {file_path.suffix or '<none>'}. "
@@ -164,8 +166,6 @@ class AutoConfigService:
     ) -> Dict[str, Any]:
         """Detect relationships between a source CSV and target CSVs."""
         source_path = self._resolve_project_path(source_file)
-        if not source_path.exists():
-            raise FileNotFoundError(f"Source file not found: {source_file}")
         self._ensure_relationship_csv_file(source_path, source_file, role="source")
 
         try:
@@ -181,8 +181,6 @@ class AutoConfigService:
 
         for target_file in target_files:
             target_path = self._resolve_project_path(target_file)
-            if not target_path.exists():
-                continue
             self._ensure_relationship_csv_file(target_path, target_file, role="target")
 
             try:

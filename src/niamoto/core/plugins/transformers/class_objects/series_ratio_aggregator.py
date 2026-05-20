@@ -240,11 +240,11 @@ class ClassObjectSeriesRatioAggregator(TransformerPlugin):
                 # Convert class names to numeric if requested
                 if numeric_class_name:
                     try:
-                        total_data_raw.loc[:, "class_name"] = pd.to_numeric(
-                            total_data_raw["class_name"]
+                        total_data_raw = total_data_raw.assign(
+                            class_name=pd.to_numeric(total_data_raw["class_name"])
                         )
-                        subset_data_raw.loc[:, "class_name"] = pd.to_numeric(
-                            subset_data_raw["class_name"]
+                        subset_data_raw = subset_data_raw.assign(
+                            class_name=pd.to_numeric(subset_data_raw["class_name"])
                         )
                     except Exception as e:
                         raise DataTransformError(

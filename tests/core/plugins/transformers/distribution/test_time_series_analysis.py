@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from niamoto.core.plugins.transformers.distribution.time_series_analysis import (
     TimeSeriesAnalysis,
@@ -54,3 +55,27 @@ def test_multi_field_non_binary_values_are_bounded_presence_percentages():
     assert all(
         value <= 100 for series in result["month_data"].values() for value in series
     )
+
+
+def test_missing_single_field_raises_clear_error():
+    plugin = TimeSeriesAnalysis(db=None, registry=object())
+    data = pd.DataFrame({"month_obs": [1], "other": [1]})
+    config = {
+        "plugin": "time_series_analysis",
+        "params": {"field": "missing", "time_field": "month_obs"},
+    }
+
+    with pytest.raises(ValueError, match="Missing required fields: missing"):
+        plugin.transform(data, config)
+
+
+def test_missing_time_field_raises_clear_error():
+    plugin = TimeSeriesAnalysis(db=None, registry=object())
+    data = pd.DataFrame({"abundance": [1]})
+    config = {
+        "plugin": "time_series_analysis",
+        "params": {"field": "abundance", "time_field": "month_obs"},
+    }
+
+    with pytest.raises(ValueError, match="Missing required fields: month_obs"):
+        plugin.transform(data, config)

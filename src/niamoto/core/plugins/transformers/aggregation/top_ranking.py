@@ -184,7 +184,13 @@ class TopRankingParams(BasePluginParams):
 
     @model_validator(mode="after")
     def validate_aggregate_field_requirement(self) -> "TopRankingParams":
-        """Ensure aggregate_field is provided and valid when required."""
+        """Ensure mode-specific parameters are provided and valid."""
+
+        if self.mode in {"hierarchical", "join"} and not self.hierarchy_table:
+            raise ValueError(
+                f"hierarchy_table is required when mode is '{self.mode}'. "
+                "Please specify the entity name (e.g., 'taxonomy', 'plots', 'shapes')"
+            )
 
         agg_func = self.aggregate_function
         if agg_func in {"sum", "avg"}:

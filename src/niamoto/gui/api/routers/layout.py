@@ -19,6 +19,7 @@ from starlette.concurrency import run_in_threadpool
 
 from niamoto.common.i18n import LocalizedString
 from niamoto.gui.api.context import get_database_path, get_working_directory
+from niamoto.gui.api.routers.config import EXPORT_CONFIG_WRITE_LOCK, _write_yaml_atomic
 from niamoto.gui.api.services.preview_utils import (
     error_html,
     wrap_html_response as _wrap_html_response,
@@ -93,6 +94,20 @@ class LayoutUpdateResponse(BaseModel):
     widgets_updated: int
 
 
+class AvailableGroup(BaseModel):
+    """Group available for layout configuration."""
+
+    name: str
+    widget_count: int
+
+
+class AvailableGroupsResponse(BaseModel):
+    """Response for available layout groups."""
+
+    groups: List[AvailableGroup]
+    total: int
+
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
@@ -115,15 +130,7 @@ def _save_export_config(work_dir: Path, config: Dict[str, Any]) -> None:
     """Save export.yml configuration."""
     export_path = work_dir / "config" / "export.yml"
 
-    with open(export_path, "w", encoding="utf-8") as f:
-        yaml.dump(
-            config,
-            f,
-            default_flow_style=False,
-            sort_keys=False,
-            allow_unicode=True,
-            width=120,
-        )
+    _write_yaml_atomic(export_path, config)
 
 
 def _find_group_config(
@@ -526,56 +533,59 @@ async def update_layout(group_by: str, request: LayoutUpdateRequest):
     work_dir = Path(work_dir)
 
     try:
-        export_config = _load_export_config(work_dir)
-        result = _get_group_and_export_index(export_config, group_by)
+        with EXPORT_CONFIG_WRITE_LOCK:
+            export_config = _load_export_config(work_dir)
+            result = _get_group_and_export_index(export_config, group_by)
 
-        if not result:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Group '{group_by}' has no export configuration yet. Import data first or run scaffold.",
+            if not result:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Group '{group_by}' has no export configuration yet. Import data first or run scaffold.",
+                )
+
+            export_idx, group_idx, group_config = result
+            widgets = group_config.get("widgets", [])
+
+            invalid_indices = [
+                update.index
+                for update in request.widgets
+                if update.index < 0 or update.index >= len(widgets)
+            ]
+            if invalid_indices:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid widget indices: {invalid_indices}",
+                )
+
+            # Apply updates
+            widgets_updated = 0
+            for update in request.widgets:
+                widget = widgets[update.index]
+
+                # Update title if provided
+                if update.title is not None:
+                    widget["title"] = update.title
+
+                # Update description if provided
+                if update.description is not None:
+                    widget["description"] = update.description
+
+                # Update or create layout section
+                if "layout" not in widget:
+                    widget["layout"] = {}
+
+                widget["layout"]["order"] = update.order
+
+                if update.colspan is not None:
+                    widget["layout"]["colspan"] = update.colspan
+
+                widgets_updated += 1
+
+            # Save updated config
+            export_config["exports"][export_idx]["groups"][group_idx]["widgets"] = (
+                widgets
             )
-
-        export_idx, group_idx, group_config = result
-        widgets = group_config.get("widgets", [])
-
-        invalid_indices = [
-            update.index
-            for update in request.widgets
-            if update.index < 0 or update.index >= len(widgets)
-        ]
-        if invalid_indices:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid widget indices: {invalid_indices}",
-            )
-
-        # Apply updates
-        widgets_updated = 0
-        for update in request.widgets:
-            widget = widgets[update.index]
-
-            # Update title if provided
-            if update.title is not None:
-                widget["title"] = update.title
-
-            # Update description if provided
-            if update.description is not None:
-                widget["description"] = update.description
-
-            # Update or create layout section
-            if "layout" not in widget:
-                widget["layout"] = {}
-
-            widget["layout"]["order"] = update.order
-
-            if update.colspan is not None:
-                widget["layout"]["colspan"] = update.colspan
-
-            widgets_updated += 1
-
-        # Save updated config
-        export_config["exports"][export_idx]["groups"][group_idx]["widgets"] = widgets
-        _save_export_config(work_dir, export_config)
+            _save_export_config(work_dir, export_config)
 
         return LayoutUpdateResponse(
             success=True,
@@ -698,8 +708,8 @@ def _preview_widget_sync(
     )
 
 
-@router.get("/{group_by}/groups")
-async def list_available_groups():
+@router.get("/{group_by}/groups", response_model=AvailableGroupsResponse)
+async def list_available_groups(group_by: str):
     """
     List all available groups in export.yml.
 

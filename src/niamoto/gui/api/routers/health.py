@@ -79,7 +79,7 @@ async def reload_project(request: Request):
         - project: The newly loaded project path (null if no project selected)
         - success: Whether the reload was successful
     """
-    _require_desktop_auth(request)
+    _require_desktop_auth(request, require_configured=True)
 
     reload_result = reload_project_from_desktop_config()
     cancel_enrichment_for_project_change(reload_result.project_path)
@@ -101,9 +101,15 @@ async def reload_project(request: Request):
     }
 
 
-def _require_desktop_auth(request: Request) -> None:
+def _require_desktop_auth(
+    request: Request, *, require_configured: bool = False
+) -> None:
     expected_token = os.environ.get("NIAMOTO_DESKTOP_AUTH_TOKEN")
     if not expected_token:
+        if require_configured:
+            raise HTTPException(
+                status_code=401, detail="Desktop auth token is not configured."
+            )
         return
 
     provided_token = request.headers.get(DESKTOP_TOKEN_HEADER)
@@ -139,13 +145,15 @@ async def check_connectivity():
 
 
 @router.get("/diagnostic")
-async def get_diagnostic():
+async def get_diagnostic(request: Request):
     """
     Get diagnostic information about the Niamoto GUI context.
 
     This endpoint returns information about the working directory,
     database path, and configuration files.
     """
+    _require_desktop_auth(request, require_configured=True)
+
     work_dir = get_working_directory()
     db_path = get_database_path()
 

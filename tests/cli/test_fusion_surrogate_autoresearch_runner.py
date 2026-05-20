@@ -94,6 +94,39 @@ def test_evaluate_metric_uses_current_python_executable(monkeypatch, tmp_path):
     assert str(runner.ROOT / ".venv" / "bin" / "python") not in calls[0]
 
 
+def test_run_codex_iteration_uses_codex_exec(monkeypatch):
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append((args, kwargs))
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(runner.shutil, "which", lambda name: "/usr/local/bin/codex")
+    monkeypatch.setattr(runner, "_run", fake_run)
+
+    result = runner.run_codex_iteration("try one candidate")
+
+    assert result.returncode == 0
+    args, kwargs = calls[0]
+    assert args[:2] == ["/usr/local/bin/codex", "exec"]
+    assert "--cd" in args
+    assert str(runner.ROOT) in args
+    assert "--sandbox" in args
+    assert "workspace-write" in args
+    assert "try one candidate" == args[-1]
+    assert kwargs == {"check": False}
+
+
+def test_run_codex_iteration_reports_missing_codex(monkeypatch):
+    monkeypatch.setattr(runner.shutil, "which", lambda name: None)
+
+    result = runner.run_codex_iteration("try one candidate")
+
+    assert result.returncode == 127
+    assert result.args == ["codex", "exec"]
+    assert "Codex CLI not found" in result.stderr
+
+
 def test_ablation_run_uses_uv_python_commands(monkeypatch):
     calls = []
 

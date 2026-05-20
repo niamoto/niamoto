@@ -4,7 +4,6 @@ import asyncio
 from copy import deepcopy
 import json
 import threading
-import time
 
 import duckdb
 import pytest
@@ -13,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers import config as config_router
+from tests.gui.api.routers.concurrency_helpers import TrackingRLock
 
 
 def test_update_reference_config_serializes_concurrent_import_writes(
@@ -39,6 +39,7 @@ def test_update_reference_config_serializes_concurrent_import_writes(
     )
 
     monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+    import_write_lock = TrackingRLock()
     first_backup_entered = threading.Event()
     release_first_backup = threading.Event()
     backup_call_count = 0
@@ -55,6 +56,7 @@ def test_update_reference_config_serializes_concurrent_import_writes(
         return None
 
     monkeypatch.setattr(config_router, "create_backup", delayed_backup)
+    monkeypatch.setattr(config_router, "IMPORT_CONFIG_WRITE_LOCK", import_write_lock)
 
     errors: list[BaseException] = []
 
@@ -76,7 +78,7 @@ def test_update_reference_config_serializes_concurrent_import_writes(
     first.start()
     assert first_backup_entered.wait(timeout=2)
     second.start()
-    time.sleep(0.05)
+    assert import_write_lock.contended_acquire.wait(timeout=2)
     release_first_backup.set()
     first.join(timeout=2)
     second.join(timeout=2)
@@ -91,9 +93,155 @@ def test_update_reference_config_serializes_concurrent_import_writes(
     assert refs["plots"]["description"] == "Plots updated"
 
 
+def test_update_reference_config_rejects_invalid_reference_without_writing(
+    monkeypatch,
+    tmp_path,
+):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True)
+    import_path = config_dir / "import.yml"
+    original_config = {
+        "entities": {
+            "datasets": {},
+            "references": {
+                "plots": {
+                    "kind": "spatial",
+                    "schema": {"id_field": "id", "fields": []},
+                }
+            },
+        }
+    }
+    original_text = yaml.safe_dump(original_config, sort_keys=False)
+    import_path.write_text(original_text, encoding="utf-8")
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    response = TestClient(create_app()).put(
+        "/api/config/references/plots/config",
+        json={"kind": "spatial", "schema": {"fields": "not-a-list"}},
+    )
+
+    assert response.status_code == 422
+    assert "Invalid reference configuration" in response.json()["detail"]
+    assert import_path.read_text(encoding="utf-8") == original_text
+    assert not (config_dir / "backups").exists()
+
+
+def test_update_dataset_config_serializes_concurrent_import_writes(
+    monkeypatch,
+    tmp_path,
+):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True)
+    import_path = config_dir / "import.yml"
+    import_path.write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "datasets": {
+                        "occurrences": {
+                            "connector": {
+                                "type": "file",
+                                "format": "csv",
+                                "path": "imports/occurrences.csv",
+                            }
+                        },
+                        "observations": {
+                            "connector": {
+                                "type": "file",
+                                "format": "csv",
+                                "path": "imports/observations.csv",
+                            }
+                        },
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+    import_write_lock = TrackingRLock()
+    first_backup_entered = threading.Event()
+    release_first_backup = threading.Event()
+    backup_call_count = 0
+    backup_call_lock = threading.Lock()
+
+    def delayed_backup(_config_path):
+        nonlocal backup_call_count
+        with backup_call_lock:
+            backup_call_count += 1
+            call_number = backup_call_count
+        if call_number == 1:
+            first_backup_entered.set()
+            release_first_backup.wait(timeout=2)
+        return None
+
+    monkeypatch.setattr(config_router, "create_backup", delayed_backup)
+    monkeypatch.setattr(config_router, "IMPORT_CONFIG_WRITE_LOCK", import_write_lock)
+
+    errors: list[BaseException] = []
+
+    def update_dataset(dataset_name: str, payload: dict):
+        try:
+            asyncio.run(config_router.update_dataset_config(dataset_name, payload))
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = threading.Thread(
+        target=update_dataset,
+        args=(
+            "occurrences",
+            {
+                "connector": {
+                    "type": "file",
+                    "format": "csv",
+                    "path": "imports/occurrences.csv",
+                },
+                "description": "One",
+            },
+        ),
+    )
+    second = threading.Thread(
+        target=update_dataset,
+        args=(
+            "observations",
+            {
+                "connector": {
+                    "type": "file",
+                    "format": "csv",
+                    "path": "imports/observations.csv",
+                },
+                "description": "Two",
+            },
+        ),
+    )
+
+    first.start()
+    assert first_backup_entered.wait(timeout=2)
+    second.start()
+    assert import_write_lock.contended_acquire.wait(timeout=2)
+    release_first_backup.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+
+    saved = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    datasets = saved["entities"]["datasets"]
+    assert datasets["occurrences"]["description"] == "One"
+    assert datasets["observations"]["description"] == "Two"
+
+
 def test_update_transform_widget_serializes_concurrent_writes(monkeypatch):
     current_groups = [{"group_by": "taxons", "sources": [], "widgets_data": {}}]
     config_lock = threading.Lock()
+    transform_write_lock = TrackingRLock()
     first_save_entered = threading.Event()
     release_first_save = threading.Event()
     errors: list[BaseException] = []
@@ -117,6 +265,9 @@ def test_update_transform_widget_serializes_concurrent_writes(monkeypatch):
     monkeypatch.setattr(
         config_router, "_save_transform_config", fake_save_transform_config
     )
+    monkeypatch.setattr(
+        config_router, "TRANSFORM_CONFIG_WRITE_LOCK", transform_write_lock
+    )
 
     def update_widget(widget_id: str):
         try:
@@ -139,7 +290,7 @@ def test_update_transform_widget_serializes_concurrent_writes(monkeypatch):
     first.start()
     assert first_save_entered.wait(timeout=2)
     second.start()
-    time.sleep(0.05)
+    assert transform_write_lock.contended_acquire.wait(timeout=2)
     release_first_save.set()
     first.join(timeout=2)
     second.join(timeout=2)

@@ -269,14 +269,12 @@ class ClassObjectSeriesMatrixExtractor(TransformerPlugin):
                             common_axis
                         )
                         continue
-                series_data.loc[:, axis_config.field] = current_axis_values
+                series_data = series_data.assign(
+                    **{axis_config.field: current_axis_values}
+                )
 
                 try:
-                    values = (
-                        series_data["class_value"].astype(float) * series_config.scale
-                    )
-                    if series_config.complement:
-                        values = 100 - values
+                    values = series_data["class_value"].astype(float)
                 except Exception as e:
                     log.warning(
                         f"Failed to process values for class_object '{series_config.class_object}'. Skipping series '{series_config.name}'. Error: {e}"
@@ -292,9 +290,14 @@ class ClassObjectSeriesMatrixExtractor(TransformerPlugin):
                         }
                     )
                     .groupby(axis_config.field)
-                    .mean()
+                    .sum()
                     .reset_index()
                 )
+                current_series_df["value"] = (
+                    current_series_df["value"] * series_config.scale
+                )
+                if series_config.complement:
+                    current_series_df["value"] = 100 - current_series_df["value"]
 
                 aligned_series = pd.merge(
                     axis_df, current_series_df, on=axis_config.field, how="left"
@@ -311,5 +314,4 @@ class ClassObjectSeriesMatrixExtractor(TransformerPlugin):
             raise DataTransformError(
                 "Failed to extract series matrix due to an unexpected error.",
                 details={"error": str(e), "config": config},
-                cause=e,
             )

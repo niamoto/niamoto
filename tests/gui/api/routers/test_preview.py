@@ -151,6 +151,41 @@ class TestPostPreview:
         assert response.status_code == 422
         mock_engine.render.assert_not_called()
 
+    def test_post_requires_desktop_auth_when_token_is_configured(
+        self, monkeypatch, client, mock_engine
+    ):
+        monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+
+        response = client.post(
+            "/api/preview",
+            json={
+                "group_by": "taxons",
+                "inline": {
+                    "transformer_plugin": "binned_distribution",
+                    "transformer_params": {"field": "elevation"},
+                    "widget_plugin": "bar_plot",
+                },
+            },
+        )
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid desktop auth token."
+        mock_engine.render.assert_not_called()
+
+    def test_post_accepts_desktop_auth_header_when_token_is_configured(
+        self, monkeypatch, client, mock_engine
+    ):
+        monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+
+        response = client.post(
+            "/api/preview",
+            headers={"x-niamoto-desktop-token": "desktop-secret"},
+            json={"template_id": "test_widget"},
+        )
+
+        assert response.status_code == 200
+        mock_engine.render.assert_called_once()
+
 
 class TestEngineUnavailable:
     """Tests quand le moteur n'est pas disponible."""

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import re
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -11,6 +13,7 @@ from typing import Any, Iterator, NoReturn
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from niamoto.core.collections import CollectionCatalogService
 from niamoto.core.plugins.models import ExportConfig as ExportConfigModel
@@ -47,6 +50,9 @@ from niamoto.gui.api.services.templates.config_service import (
 
 router = APIRouter()
 _standard_profile_write_lock = Lock()
+_draft_output_locks_guard = Lock()
+_draft_output_locks: dict[str, Lock] = {}
+_PROFILE_NAME_PATTERN = r"^[A-Za-z0-9_.-]+$"
 
 
 class StandardProfileListResponse(BaseModel):
@@ -60,7 +66,7 @@ class StandardProfileListResponse(BaseModel):
 class StandardProfileCreateRequest(BaseModel):
     """Payload for creating a standard publication profile."""
 
-    name: str = Field(min_length=1)
+    name: str = Field(min_length=1, pattern=_PROFILE_NAME_PATTERN)
     enabled: bool = True
     standard: StandardProfileType
     target_grain: str = Field(min_length=1)
@@ -95,7 +101,7 @@ class StandardProfileMutationResponse(BaseModel):
 class StandardProfileAutoConfigRequest(BaseModel):
     """Payload for building a reviewable standard profile proposal."""
 
-    name: str | None = None
+    name: str | None = Field(default=None, min_length=1, pattern=_PROFILE_NAME_PATTERN)
     standard: StandardProfileType
     target_grain: str | None = None
     source: StandardProfileSource
@@ -125,10 +131,10 @@ def _known_sources() -> list[dict[str, str]]:
     return sources
 
 
-def _profile_store() -> StandardProfileStore:
+def _profile_store(*, validate_sources: bool = True) -> StandardProfileStore:
     return StandardProfileStore(
         load_export_config(get_working_directory()),
-        known_sources=_known_sources(),
+        known_sources=_known_sources() if validate_sources else None,
     )
 
 
@@ -179,18 +185,41 @@ def _save_store_config(store: StandardProfileStore) -> None:
     save_export_config(get_working_directory(), store.export_config, create_backup=True)
 
 
+def _draft_output_lock(
+    profile_name: str, output_type: StandardProfileOutputType
+) -> Lock:
+    work_dir = get_working_directory()
+    lock_key = f"{work_dir.resolve()}::{profile_name}::{output_type}"
+    with _draft_output_locks_guard:
+        lock = _draft_output_locks.get(lock_key)
+        if lock is None:
+            lock = Lock()
+            _draft_output_locks[lock_key] = lock
+        return lock
+
+
 @contextmanager
 def _standard_profile_config_lock() -> Iterator[None]:
     """Serialize export.yml profile mutations across threads and processes."""
     with _standard_profile_write_lock:
         lock_path = _standard_profile_lock_path(get_working_directory())
-        with lock_path.open("w", encoding="utf-8") as lock_file:
-            fcntl_module = _fcntl_module()
-            if fcntl_module is None:
-                raise HTTPException(
-                    status_code=503,
-                    detail="Process-safe export configuration locking is unavailable.",
-                )
+        fcntl_module = _fcntl_module()
+        if fcntl_module is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Process-safe export configuration locking is unavailable.",
+            )
+        flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_CLOEXEC", 0)
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        try:
+            fd = os.open(lock_path, flags, 0o600)
+        except OSError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="Process-safe export configuration locking is unavailable.",
+            ) from exc
+        with os.fdopen(fd, "r+", encoding="utf-8") as lock_file:
             fcntl_module.flock(lock_file.fileno(), fcntl_module.LOCK_EX)
             try:
                 yield
@@ -218,6 +247,11 @@ def _raise_profile_error(exc: ValueError) -> NoReturn:
     if "already exists" in message:
         raise HTTPException(status_code=409, detail=message) from exc
     raise HTTPException(status_code=400, detail=message) from exc
+
+
+def _validate_profile_route_name(profile_name: str) -> None:
+    if not re.fullmatch(_PROFILE_NAME_PATTERN, profile_name):
+        raise HTTPException(status_code=422, detail="Invalid profile name")
 
 
 def _ensure_known_source(source: StandardProfileSource) -> None:
@@ -273,8 +307,8 @@ async def auto_configure_standard_profile(
     request: StandardProfileAutoConfigRequest,
 ) -> StandardProfileAutoConfigResult:
     """Build a reviewable profile proposal from imported source columns."""
-    _ensure_known_source(request.source)
     try:
+        _ensure_known_source(request.source)
         return _auto_config_service().propose(
             name=request.name,
             standard=request.standard,
@@ -290,8 +324,8 @@ async def list_standard_profile_source_fields(
     request: StandardProfileSourceFieldsRequest,
 ) -> StandardProfileSourceFieldsResult:
     """List imported fields available to manual standard term mappings."""
-    _ensure_known_source(request.source)
     try:
+        _ensure_known_source(request.source)
         return _auto_config_service().source_fields(
             standard=request.standard,
             source=request.source,
@@ -304,6 +338,7 @@ async def list_standard_profile_source_fields(
 @router.get("/{profile_name}", response_model=StandardProfileMutationResponse)
 async def get_standard_profile(profile_name: str) -> dict[str, Any]:
     """Return a single standard profile."""
+    _validate_profile_route_name(profile_name)
     store = _profile_store()
     try:
         profile = store.get_profile(profile_name)
@@ -344,7 +379,10 @@ async def get_standard_profile_validation(
         profile = store.get_profile(profile_name)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return _validation_service().validate(profile)
+    try:
+        return _validation_service().validate(profile)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post(
@@ -359,7 +397,11 @@ async def execute_standard_profile_output(
     store = _profile_store()
     try:
         profile = store.get_profile(profile_name)
-        return _output_service().execute_profile(profile, output_type=output_type)
+        return await run_in_threadpool(
+            _output_service().execute_profile,
+            profile,
+            output_type=output_type,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -378,11 +420,14 @@ async def execute_standard_profile_output_draft(
     store = _profile_store()
     try:
         profile = store.get_profile(profile_name)
-        return _output_service().execute_profile(
-            profile,
-            output_type=output_type,
-            draft=True,
-        )
+        lock = _draft_output_lock(profile_name, output_type)
+        with lock:
+            return await run_in_threadpool(
+                _output_service().execute_profile,
+                profile,
+                output_type=output_type,
+                draft=True,
+            )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -401,7 +446,11 @@ async def preview_standard_profile_output(
     store = _profile_store()
     try:
         profile = store.get_profile(profile_name)
-        return _output_service().preview_profile(profile, output_type=output_type)
+        return await run_in_threadpool(
+            _output_service().preview_profile,
+            profile,
+            output_type=output_type,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -434,6 +483,7 @@ async def update_standard_profile(
     update: StandardProfileUpdateRequest,
 ) -> dict[str, Any]:
     """Update a standard profile in export.yml."""
+    _validate_profile_route_name(profile_name)
     with _standard_profile_config_lock():
         store = _profile_store()
         try:
@@ -452,8 +502,9 @@ async def update_standard_profile(
 @router.delete("/{profile_name}")
 async def delete_standard_profile(profile_name: str) -> dict[str, Any]:
     """Delete a standard profile from export.yml."""
+    _validate_profile_route_name(profile_name)
     with _standard_profile_config_lock():
-        store = _profile_store()
+        store = _profile_store(validate_sources=False)
         try:
             store.delete_profile(profile_name)
         except KeyError as exc:

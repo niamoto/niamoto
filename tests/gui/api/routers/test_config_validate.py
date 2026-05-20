@@ -27,6 +27,22 @@ def test_get_missing_transform_config_returns_canonical_empty_list(
     assert response.json() == []
 
 
+def test_get_existing_empty_transform_config_preserves_list_shape(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "transform.yml").write_text("[]\n", encoding="utf-8")
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    client = TestClient(create_app())
+    response = client.get("/api/config/transform")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == []
+
+
 def test_validate_transform_accepts_canonical_list_payload():
     client = TestClient(create_app())
     transform_config = [
@@ -51,3 +67,13 @@ def test_validate_transform_rejects_invalid_canonical_list_payload():
     assert response.status_code == 200
     assert response.json()["valid"] is False
     assert response.json()["errors"]
+
+
+def test_validate_transform_rejects_dictionary_payload_like_update():
+    client = TestClient(create_app())
+
+    response = client.post("/api/config/transform/validate", json={"foo": "bar"})
+
+    assert response.status_code == 200
+    assert response.json()["valid"] is False
+    assert "transform.yml must be a list" in response.json()["errors"]

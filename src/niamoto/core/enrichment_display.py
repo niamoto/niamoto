@@ -235,6 +235,13 @@ def _looks_like_image_url(value: Any) -> bool:
     )
 
 
+def _looks_like_image_field_path(path: str) -> bool:
+    tokens = _image_path_tokens(path)
+    return any(
+        token in _IMAGE_KEYWORDS or token in _IMAGE_COLLECTION_HINTS for token in tokens
+    )
+
+
 def _is_image_like_mapping(value: Any) -> bool:
     if not isinstance(value, dict):
         return False
@@ -375,6 +382,11 @@ def infer_display_format(path: str, values: list[Any]) -> DisplayFormat:
         return "text"
 
     if any(is_image_like(value) for value in non_null_values):
+        return "image"
+
+    if _looks_like_image_field_path(path) and any(
+        _is_url(value) for value in non_null_values
+    ):
         return "image"
 
     if any(isinstance(value, list) for value in non_null_values):

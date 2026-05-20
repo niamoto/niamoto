@@ -91,14 +91,8 @@ class TestHierarchicalNavWidget:
         from niamoto.core.plugins.widgets import hierarchical_nav_widget  # noqa: F401
 
         registry = PluginRegistry()
-        try:
-            widget_class = registry.get_plugin(
-                "hierarchical_nav_widget", PluginType.WIDGET
-            )
-            assert widget_class == HierarchicalNavWidget
-        except Exception as e:
-            # Skip if plugin not found - this can happen due to test isolation issues
-            pytest.skip(f"Plugin registration test skipped due to registry state: {e}")
+        widget_class = registry.get_plugin("hierarchical_nav_widget", PluginType.WIDGET)
+        assert widget_class == HierarchicalNavWidget
 
     def test_param_validation(self):
         """Test parameter validation."""

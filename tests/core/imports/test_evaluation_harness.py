@@ -140,8 +140,8 @@ class TestECE:
         assert ece < 0.2
 
     def test_zero_confidence(self):
-        ece = _compute_ece(["a"], ["b"], [0.0])
-        assert ece >= 0.0
+        ece = _compute_ece(["a"], ["a"], [0.0])
+        assert ece == pytest.approx(1.0)
 
     def test_empty(self):
         assert _compute_ece([], [], []) == 0.0

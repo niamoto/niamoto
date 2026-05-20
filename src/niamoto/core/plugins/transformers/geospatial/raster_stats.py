@@ -57,7 +57,24 @@ class RasterStatsParams(BasePluginParams):
     )
 
     stats: List[
-        Literal["min", "max", "mean", "median", "sum", "count", "std", "histogram"]
+        Literal[
+            "min",
+            "max",
+            "mean",
+            "median",
+            "sum",
+            "count",
+            "std",
+            "variance",
+            "range",
+            "percentile_5",
+            "percentile_95",
+            "majority",
+            "minority",
+            "unique",
+            "histogram",
+            "area",
+        ]
     ] = Field(
         default=["min", "max", "mean", "median", "sum", "count", "std", "histogram"],
         description="Statistics to calculate",
@@ -166,13 +183,16 @@ class RasterStats(TransformerPlugin):
 
             # 1. Extract the geometry
             main_geom = self._extract_geometry(data, params)
+            geometry_crs = data.crs if isinstance(data, gpd.GeoDataFrame) else None
 
             # 2. Open the raster and extract the data
             raster_path = self._resolve_raster_path(params["raster_path"])
             masked_data = self._extract_raster_data(raster_path, main_geom, params)
 
             # 3. Calculate the statistics
-            result = self._calculate_statistics(masked_data, main_geom, params)
+            result = self._calculate_statistics(
+                masked_data, main_geom, params, geometry_crs=geometry_crs
+            )
 
             return result
 
@@ -298,7 +318,7 @@ class RasterStats(TransformerPlugin):
             )
 
     def _calculate_statistics(
-        self, data: np.ndarray, geometry, params: Dict[str, Any]
+        self, data: np.ndarray, geometry, params: Dict[str, Any], geometry_crs=None
     ) -> Dict[str, Any]:
         """
         Calculates the requested statistics.
@@ -329,7 +349,7 @@ class RasterStats(TransformerPlugin):
 
         # Area calculation
         if "area" in stats:
-            self._calculate_area(geometry, params, result)
+            self._calculate_area(geometry, params, result, geometry_crs=geometry_crs)
 
         # Add units if specified
         if params.get("units"):
@@ -459,7 +479,11 @@ class RasterStats(TransformerPlugin):
         }
 
     def _calculate_area(
-        self, geometry, params: Dict[str, Any], result: Dict[str, Any]
+        self,
+        geometry,
+        params: Dict[str, Any],
+        result: Dict[str, Any],
+        geometry_crs=None,
     ) -> None:
         """
         Calculates the surface area of the geometry.
@@ -478,7 +502,8 @@ class RasterStats(TransformerPlugin):
 
             # Temporarily create a GeoDataFrame for easy projection
             temp_gdf = gpd.GeoDataFrame(
-                geometry=[geometry], crs=getattr(geometry, "crs", None)
+                geometry=[geometry],
+                crs=geometry_crs or getattr(geometry, "crs", None),
             )
 
             # Project to an appropriate CRS for a precise calculation if necessary

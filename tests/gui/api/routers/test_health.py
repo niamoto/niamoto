@@ -47,6 +47,7 @@ class TestDiagnosticEndpoint:
     def test_disposes_database_engine_when_inspection_fails(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ):
+        monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
         db_path = tmp_path / "db.sqlite"
         db_path.write_text("", encoding="utf-8")
         disposed = []
@@ -63,13 +64,51 @@ class TestDiagnosticEndpoint:
         monkeypatch.setattr("sqlalchemy.create_engine", lambda url: FakeEngine())
         monkeypatch.setattr("sqlalchemy.inspect", fail_inspect)
 
-        response = create_test_client().get("/api/health/diagnostic")
+        response = create_test_client().get(
+            "/api/health/diagnostic",
+            headers={"x-niamoto-desktop-token": "desktop-secret"},
+        )
 
         assert response.status_code == 200, response.text
         assert response.json()["database"]["tables"] == [
             "Error reading tables: inspection failed"
         ]
         assert disposed == [True]
+
+    def test_rejects_missing_desktop_auth_token_when_configured(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+
+        response = create_test_client().get("/api/health/diagnostic")
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid desktop auth token."
+
+    def test_rejects_diagnostic_when_desktop_auth_token_is_not_configured(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.delenv("NIAMOTO_DESKTOP_AUTH_TOKEN", raising=False)
+
+        response = create_test_client().get("/api/health/diagnostic")
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Desktop auth token is not configured."
+
+    def test_accepts_valid_desktop_auth_token_when_configured(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+        monkeypatch.setattr(health, "get_working_directory", lambda: tmp_path)
+        monkeypatch.setattr(health, "get_database_path", lambda: None)
+
+        response = create_test_client().get(
+            "/api/health/diagnostic",
+            headers={"x-niamoto-desktop-token": "desktop-secret"},
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["working_directory"] == str(tmp_path)
 
 
 class TestConnectivityEndpoint:
@@ -172,6 +211,25 @@ class TestReloadProjectEndpoint:
         assert response.status_code == 401
         assert response.json()["detail"] == "Invalid desktop auth token."
 
+    def test_rejects_reload_when_desktop_auth_token_is_not_configured(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        client = create_test_client()
+        monkeypatch.setenv("NIAMOTO_RUNTIME_MODE", "desktop")
+        monkeypatch.delenv("NIAMOTO_DESKTOP_AUTH_TOKEN", raising=False)
+        monkeypatch.setattr(
+            health,
+            "reload_project_from_desktop_config",
+            lambda: pytest.fail("reload should not run without configured auth"),
+        )
+
+        response = client.post("/api/health/reload-project")
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Desktop auth token is not configured."
+        assert client.app.state.job_store == "sentinel"
+        assert client.app.state.job_store_work_dir == "sentinel"
+
     def test_loaded_state_resolves_job_store(self, monkeypatch: pytest.MonkeyPatch):
         client = create_test_client()
         monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
@@ -211,6 +269,7 @@ class TestReloadProjectEndpoint:
     def test_welcome_state_clears_job_store(self, monkeypatch: pytest.MonkeyPatch):
         client = create_test_client()
         reset_calls = []
+        monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
 
         monkeypatch.setattr(
             health,
@@ -230,7 +289,10 @@ class TestReloadProjectEndpoint:
             health, "reset_preview_engine", lambda: reset_calls.append(True)
         )
 
-        response = client.post("/api/health/reload-project")
+        response = client.post(
+            "/api/health/reload-project",
+            headers={"x-niamoto-desktop-token": "desktop-secret"},
+        )
 
         assert response.status_code == 200
         assert response.json() == {
@@ -287,6 +349,7 @@ def test_debug_test_500_endpoint_returns_intentional_server_error(monkeypatch):
 def test_invalid_project_state_clears_job_store(monkeypatch: pytest.MonkeyPatch):
     client = create_test_client()
     reset_calls = []
+    monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
 
     monkeypatch.setattr(
         health,
@@ -306,7 +369,10 @@ def test_invalid_project_state_clears_job_store(monkeypatch: pytest.MonkeyPatch)
         health, "reset_preview_engine", lambda: reset_calls.append(True)
     )
 
-    response = client.post("/api/health/reload-project")
+    response = client.post(
+        "/api/health/reload-project",
+        headers={"x-niamoto-desktop-token": "desktop-secret"},
+    )
 
     assert response.status_code == 200
     assert response.json() == {

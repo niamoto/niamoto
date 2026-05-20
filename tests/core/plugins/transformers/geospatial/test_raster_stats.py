@@ -505,6 +505,23 @@ class TestCalculateArea:
         # ha should be smaller value
         assert result_ha["total_area"] < result_m2["total_area"]
 
+    def test_calculate_area_projects_geographic_crs_before_measuring(
+        self, plugin, simple_polygon
+    ):
+        """Geographic CRS areas are projected before unit conversion."""
+        result = {}
+
+        plugin._calculate_area(
+            simple_polygon,
+            {"area_unit": "m2"},
+            result,
+            geometry_crs="EPSG:4326",
+        )
+
+        assert "area_error" not in result
+        assert result["total_area"] > 10_000_000_000
+        assert result["area_unit"] == "m2"
+
     def test_calculate_area_error_handling(self, plugin):
         """Test area calculation error handling."""
         # Invalid geometry
@@ -677,6 +694,42 @@ class TestTransformIntegration:
             for key in ["min", "max", "mean", "median", "sum", "count", "std"]
         )
         assert "histogram" in result
+
+    def test_transform_accepts_extended_public_stats(
+        self, plugin, simple_polygon_gdf, temp_raster
+    ):
+        """Stats implemented by the transformer are accepted by public config."""
+        config = {
+            "plugin": "raster_stats",
+            "params": {
+                "raster_path": temp_raster,
+                "stats": [
+                    "min",
+                    "variance",
+                    "range",
+                    "percentile_5",
+                    "percentile_95",
+                    "majority",
+                    "minority",
+                    "unique",
+                    "area",
+                ],
+                "band": 1,
+                "area_unit": "m2",
+            },
+        }
+
+        result = plugin.transform(simple_polygon_gdf, config)
+
+        assert "min" in result
+        assert "variance" in result
+        assert "range" in result
+        assert "percentile_5" in result
+        assert "percentile_95" in result
+        assert "majority" in result
+        assert "minority" in result
+        assert "unique_count" in result
+        assert "total_area" in result
 
     def test_transform_with_scale_offset(self, plugin, simple_polygon_gdf, temp_raster):
         """Test transform with scale factor and offset."""

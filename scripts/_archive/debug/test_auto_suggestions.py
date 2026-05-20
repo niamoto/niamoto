@@ -7,6 +7,7 @@ with the GenericImporter using real data.
 """
 
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -23,24 +24,28 @@ from niamoto.core.imports.engine import GenericImporter  # noqa: E402
 from niamoto.core.imports.registry import EntityRegistry, EntityKind  # noqa: E402
 
 
-def test_auto_suggestions():
+def test_auto_suggestions(tmp_path: Path):
     """Test auto-suggestions with test instance data."""
 
     # Use test instance
-    db_path = REPO_ROOT / "test-instance" / "niamoto-nc" / "db" / "niamoto.duckdb"
-    if not db_path.exists():
-        pytest.fail(f"Database fixture not found: {db_path}")
+    fixture_db_path = (
+        REPO_ROOT / "test-instance" / "niamoto-nc" / "db" / "niamoto.duckdb"
+    )
+    if not fixture_db_path.exists():
+        pytest.fail(f"Database fixture not found: {fixture_db_path}")
+    db_path = tmp_path / "niamoto.duckdb"
+    shutil.copy2(fixture_db_path, db_path)
 
     print("🔧 Connecting to database...")
     db = Database(str(db_path))
     registry = EntityRegistry(db)
     importer = GenericImporter(db, registry)
 
-    # Test with a small CSV (use occurrences if available)
+    # Test with a small real CSV first, then fall back to larger fixtures.
     csv_files = [
+        REPO_ROOT / "test-instance" / "niamoto-nc" / "imports" / "plots.csv",
         REPO_ROOT / "test-instance" / "niamoto-nc" / "imports" / "occurrences_mini.csv",
         REPO_ROOT / "test-instance" / "niamoto-nc" / "imports" / "occurrences.csv",
-        REPO_ROOT / "test-instance" / "niamoto-nc" / "imports" / "plots.csv",
     ]
 
     test_csv = None
@@ -81,17 +86,34 @@ def test_auto_suggestions():
             pytest.fail("No semantic_profile in metadata")
 
         semantic_profile = config["semantic_profile"]
-        print(f"✅ Semantic profile generated at: {semantic_profile['analyzed_at']}")
-        print(f"✅ Analyzed {len(semantic_profile['columns'])} columns")
-        print(
-            f"✅ Generated suggestions for {len(semantic_profile['transformer_suggestions'])} columns"
+        columns = semantic_profile["columns"]
+        semantic_columns = [col for col in columns if col.get("semantic_type")]
+        transformer_suggestions = semantic_profile["transformer_suggestions"]
+
+        assert columns, "Semantic profile should include analyzed columns"
+        assert semantic_columns, "At least one column should have a semantic type"
+        assert transformer_suggestions, "Transformer suggestions should not be empty"
+        assert "holdridge" in transformer_suggestions
+        assert any(
+            suggestion["transformer"] == "categorical_distribution"
+            for suggestion in transformer_suggestions["holdridge"]
         )
+
+        for col_name, suggestions in transformer_suggestions.items():
+            assert suggestions, f"Column '{col_name}' should have suggestions"
+            for suggestion in suggestions:
+                assert suggestion.get("transformer")
+                assert suggestion.get("reason")
+                assert suggestion.get("confidence", 0) > 0
+                assert suggestion.get("config", {}).get("plugin")
+
+        print(f"✅ Semantic profile generated at: {semantic_profile['analyzed_at']}")
+        print(f"✅ Analyzed {len(columns)} columns")
+        print(f"✅ Generated suggestions for {len(transformer_suggestions)} columns")
 
         # Display sample suggestions
         print("\n📝 Sample suggestions:")
-        for col_name, suggestions in list(
-            semantic_profile["transformer_suggestions"].items()
-        )[:3]:
+        for col_name, suggestions in list(transformer_suggestions.items())[:3]:
             print(f"\n  Column: {col_name}")
             for suggestion in suggestions:
                 print(
@@ -118,10 +140,13 @@ def test_auto_suggestions():
         # Cleanup
         try:
             db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
-            # Note: EntityRegistry cleanup would require additional methods
+            db.close_db_session()
         except Exception:
             pass
 
 
 if __name__ == "__main__":
-    sys.exit(test_auto_suggestions())
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="niamoto-auto-suggestions-") as temp_dir:
+        sys.exit(test_auto_suggestions(Path(temp_dir)))

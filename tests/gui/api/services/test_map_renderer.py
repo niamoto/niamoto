@@ -143,3 +143,44 @@ def test_render_leaflet_escapes_title_and_dataset_popup_content():
     assert "popupContent.textContent = String(popupLabel);" in html
     assert "layer.bindPopup('<strong>'" not in html
     assert "red&quot;;alert" not in html
+
+
+def test_render_leaflet_respects_explicit_view_when_auto_zoom_disabled():
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [166.4, -22.3]},
+                "properties": {},
+            }
+        ],
+    }
+    config = MapConfig(center_lat=0, center_lon=0, zoom=2, auto_zoom=False)
+
+    html = MapRenderer.render(geojson, config=config, engine="leaflet")
+
+    assert "setView([0, 0], 2)" in html
+    assert "const autoZoom = false;" in html
+    assert "if (autoZoom && geojson.features.length > 0)" in html
+    assert "if (geojson.features.length > 0)" not in html
+
+
+def test_render_leaflet_keeps_fit_bounds_when_auto_zoom_enabled():
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [166.4, -22.3]},
+                "properties": {},
+            }
+        ],
+    }
+
+    html = MapRenderer.render(
+        geojson, config=MapConfig(auto_zoom=True), engine="leaflet"
+    )
+
+    assert "const autoZoom = true;" in html
+    assert "map.fitBounds(geojsonLayer.getBounds()" in html

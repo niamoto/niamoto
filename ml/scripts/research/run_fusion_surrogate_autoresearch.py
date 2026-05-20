@@ -287,8 +287,26 @@ Axes recommandés:
 
 
 def run_codex_iteration(prompt: str) -> subprocess.CompletedProcess[str]:
+    codex_bin = shutil.which("codex")
+    if codex_bin is None:
+        return subprocess.CompletedProcess(
+            ["codex", "exec"],
+            127,
+            stdout="",
+            stderr="Codex CLI not found on PATH; install Codex or add it to PATH.",
+        )
     return _run(
-        ["claude", "-p", "--dangerously-skip-permissions", prompt],
+        [
+            codex_bin,
+            "exec",
+            "--cd",
+            str(ROOT),
+            "--sandbox",
+            "workspace-write",
+            "--ask-for-approval",
+            "never",
+            prompt,
+        ],
         check=False,
     )
 

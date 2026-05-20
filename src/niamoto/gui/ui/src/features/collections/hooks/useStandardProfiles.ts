@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch } from '@/shared/lib/api/fetch'
 
 const API_BASE = '/api/standard-profiles'
 export const standardProfilesQueryKey = ['standard-profiles'] as const
@@ -215,7 +216,7 @@ async function fetchStandardProfiles(): Promise<StandardProfileListResponse> {
 async function createStandardProfile(
   payload: StandardProfileCreate,
 ): Promise<StandardProfileMutationResponse> {
-  const response = await fetch(API_BASE, {
+  const response = await apiFetch(API_BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -226,7 +227,7 @@ async function createStandardProfile(
 async function autoConfigureStandardProfile(
   payload: StandardProfileAutoConfigRequest,
 ): Promise<StandardProfileAutoConfigResponse> {
-  const response = await fetch(`${API_BASE}/auto-config`, {
+  const response = await apiFetch(`${API_BASE}/auto-config`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -237,7 +238,7 @@ async function autoConfigureStandardProfile(
 async function fetchStandardProfileSourceFields(
   payload: StandardProfileSourceFieldsRequest,
 ): Promise<StandardProfileSourceFieldsResponse> {
-  const response = await fetch(`${API_BASE}/source-fields`, {
+  const response = await apiFetch(`${API_BASE}/source-fields`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -249,7 +250,7 @@ async function updateStandardProfile(
   profileName: string,
   payload: StandardProfileUpdate,
 ): Promise<StandardProfileMutationResponse> {
-  const response = await fetch(`${API_BASE}/${encodeURIComponent(profileName)}`, {
+  const response = await apiFetch(`${API_BASE}/${encodeURIComponent(profileName)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -279,7 +280,7 @@ async function executeStandardProfileOutput(
   profileName: string,
   outputType: StandardProfileOutputType,
 ): Promise<StandardProfileOutputResult> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/${encodeURIComponent(profileName)}/outputs/${outputType}`,
     { method: 'POST' },
   )
@@ -290,7 +291,7 @@ async function executeStandardProfileOutputDraft(
   profileName: string,
   outputType: StandardProfileOutputType,
 ): Promise<StandardProfileOutputResult> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE}/${encodeURIComponent(profileName)}/outputs/${outputType}/draft`,
     { method: 'POST' },
   )

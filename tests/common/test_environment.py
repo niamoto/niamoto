@@ -53,23 +53,23 @@ class TestEnvironment(NiamotoTestCase):
         mock_engine = MagicMock()
         mock_database.return_value.engine = mock_engine
 
-        # Create necessary parent directories
-        os.makedirs(os.path.dirname(self.mock_config.database_path), exist_ok=True)
-        os.makedirs(self.mock_config.logs_path, exist_ok=True)
-        for source in self.mock_config.data_sources.values():
-            os.makedirs(os.path.dirname(source["path"]), exist_ok=True)
-        for path in self.mock_config.get_export_config.values():
-            os.makedirs(path, exist_ok=True)
+        db_dir = os.path.dirname(self.mock_config.database_path)
+        imports_dir = os.path.join(self.test_dir, "imports")
+        expected_dirs = [
+            db_dir,
+            self.mock_config.logs_path,
+            *self.mock_config.get_export_config.values(),
+            imports_dir,
+        ]
+
+        for path in expected_dirs:
+            self.assertFalse(os.path.exists(path), f"{path} should start missing")
 
         # Initialize the environment
         self.environment.initialize()
 
         # Verify that all necessary directories have been created
-        self.assertTrue(os.path.exists(os.path.dirname(self.mock_config.database_path)))
-        self.assertTrue(os.path.exists(self.mock_config.logs_path))
-        for source in self.mock_config.data_sources.values():
-            self.assertTrue(os.path.exists(os.path.dirname(source["path"])))
-        for path in self.mock_config.get_export_config.values():
+        for path in expected_dirs:
             self.assertTrue(os.path.exists(path))
 
         # Verify that the database has been initialized

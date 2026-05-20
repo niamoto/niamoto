@@ -10,6 +10,7 @@ import { getFailedRequests } from '../lib/api-tracker'
 import { getRecentCrashes } from '../lib/crash-tracker'
 import { getStateSnapshot } from '../lib/state-snapshot'
 import type { FeedbackContext } from '../types'
+import { apiFetch } from '@/shared/lib/api/fetch'
 
 declare const __APP_VERSION__: string
 
@@ -69,7 +70,7 @@ export function useContextData() {
 
     // Optional diagnostic from local backend (non-blocking)
     try {
-      const response = await fetch('/api/health/diagnostic', {
+      const response = await apiFetch('/api/health/diagnostic', {
         signal: AbortSignal.timeout(1500),
       })
       if (response.ok) {

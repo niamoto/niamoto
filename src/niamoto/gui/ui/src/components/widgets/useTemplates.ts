@@ -9,6 +9,7 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { apiFetch } from '@/shared/lib/api/fetch'
 import type {
   TemplatesListResponse,
   SuggestionsResponse,
@@ -89,13 +90,14 @@ export function useTemplates(): UseTemplatesReturn {
 }
 
 /** Fetch des suggestions par groupe et entité */
-async function fetchSuggestions(
+export async function fetchSuggestions(
   groupBy: string,
-  entity: string,
+  entity: string | undefined,
   signal: AbortSignal
 ): Promise<SuggestionsResponse> {
+  const query = entity ? `?entity=${encodeURIComponent(entity)}` : ''
   const response = await fetch(
-    `${API_BASE}/${groupBy}/suggestions?entity=${entity}`,
+    `${API_BASE}/${groupBy}/suggestions${query}`,
     { signal }
   )
   if (!response.ok) {
@@ -110,7 +112,7 @@ async function fetchSuggestions(
  */
 export function useSuggestions(
   groupBy: string = 'taxons',
-  entity: string = 'occurrences',
+  entity?: string,
   enabled: boolean = true
 ): UseSuggestionsReturn {
   const { data, isLoading, error, refetch } = useQuery({
@@ -141,7 +143,7 @@ export function useGenerateConfig(): UseGenerateConfigReturn {
       groupBy: string
       referenceKind: string
     }) => {
-      const response = await fetch(`${API_BASE}/generate-config`, {
+      const response = await apiFetch(`${API_BASE}/generate-config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -187,7 +189,7 @@ export function useSaveConfig(): UseSaveConfigReturn {
       config: GenerateConfigResponse
       mode: 'merge' | 'replace'
     }) => {
-      const response = await fetch(`${API_BASE}/save-config`, {
+      const response = await apiFetch(`${API_BASE}/save-config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

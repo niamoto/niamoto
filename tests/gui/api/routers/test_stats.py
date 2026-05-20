@@ -2,6 +2,7 @@
 
 import asyncio
 import csv
+import inspect
 import io
 from typing import Any, Dict, List
 
@@ -558,6 +559,22 @@ def test_completeness_endpoint_uses_duckdb_fixture_without_reflection_errors(
     assert columns["locality"]["completeness"] == 1.0
 
 
+def test_completeness_endpoint_hides_unexpected_exception_details(
+    gui_duckdb_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def fail_open_database(*_args, **_kwargs):
+        raise RuntimeError("secret /private/db/path")
+
+    monkeypatch.setattr(stats_router, "open_database", fail_open_database)
+
+    response = gui_duckdb_client.get("/api/stats/completeness/dataset_occurrences")
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Error getting completeness"
+    assert "secret /private/db/path" not in response.text
+
+
 def test_completeness_endpoint_reports_partial_column_completeness(
     gui_duckdb_client: TestClient,
     gui_duckdb_project,
@@ -792,6 +809,42 @@ def test_taxonomy_consistency_counts_dangling_parent_orphans(
             "name": "Missing parent species",
         }
     ]
+
+
+def test_taxonomy_consistency_handles_ranked_table_without_parent_id(
+    gui_duckdb_client: TestClient, gui_duckdb_project
+):
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute("DROP TABLE entity_taxons")
+        conn.execute(
+            """
+            CREATE TABLE entity_taxons (
+                id INTEGER,
+                level INTEGER,
+                rank_name VARCHAR,
+                full_name VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_taxons VALUES
+                (101, 0, 'family', 'Araucariaceae'),
+                (102, 1, 'genus', 'Araucaria')
+            """
+        )
+    finally:
+        conn.close()
+
+    response = gui_duckdb_client.get("/api/stats/taxonomy-consistency?entity=taxons")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert {level["level"] for level in payload["levels"]} == {"family", "genus"}
+    assert all(level["orphan_count"] == 0 for level in payload["levels"])
+    assert payload["orphan_records"] == []
 
 
 def test_hierarchy_inspection_handles_textual_level_columns(
@@ -1236,6 +1289,88 @@ def test_spatial_stats_prefers_explicit_xy_columns_over_detected_wkt(
     }
 
 
+def test_geo_coverage_uses_configured_occurrence_geometry_column(
+    gui_duckdb_client: TestClient, gui_duckdb_project
+):
+    import_path = gui_duckdb_project / "config" / "import.yml"
+    config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    config["entities"]["datasets"]["occurrences"]["schema"] = {
+        "fields": [
+            {"name": "id", "type": "integer"},
+            {"name": "footprint", "type": "geometry"},
+        ]
+    }
+    config["entities"]["references"]["shapes"] = {
+        "kind": "spatial",
+        "schema": {
+            "id_field": "shape_id",
+            "name_field": "name",
+            "fields": [{"name": "location", "type": "geometry"}],
+        },
+    }
+    import_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute("ALTER TABLE dataset_occurrences ADD COLUMN footprint VARCHAR")
+        conn.execute(
+            """
+            UPDATE dataset_occurrences
+            SET footprint = CASE id
+                WHEN 1 THEN 'POINT (166.5 -21.5)'
+                WHEN 2 THEN 'POINT (166.6 -21.6)'
+                ELSE NULL
+            END
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE entity_shapes (
+                shape_id VARCHAR,
+                name VARCHAR,
+                location VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_shapes VALUES (
+                'covered',
+                'Covered area',
+                'POLYGON ((166 -22, 167 -22, 167 -21, 166 -21, 166 -22))'
+            )
+            """
+        )
+    finally:
+        conn.close()
+
+    response = gui_duckdb_client.get("/api/stats/geo-coverage")
+    assert response.status_code == 200, response.text
+    payload = response.json()
+
+    assert payload["geo_column"] == "footprint"
+    assert payload["total_occurrences"] == 3
+    assert payload["occurrences_with_geo"] == 2
+    assert payload["ready_for_analysis"] is True
+
+
+def test_geo_coverage_rejects_unknown_explicit_occurrence_entity(
+    gui_duckdb_client: TestClient,
+):
+    response = gui_duckdb_client.get(
+        "/api/stats/geo-coverage", params={"occurrence_entity": "missing"}
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+
+    assert payload["total_occurrences"] == 0
+    assert payload["occurrences_with_geo"] == 0
+    assert payload["geo_column"] is None
+    assert payload["available_shapes"] == []
+    assert payload["ready_for_analysis"] is False
+
+
 def test_geo_coverage_analyze_ignores_invalid_wkt_rows(
     gui_duckdb_client: TestClient, gui_duckdb_project
 ):
@@ -1357,6 +1492,10 @@ def test_geo_coverage_distribution_ignores_invalid_wkt_rows(
     ] == [("covered", 1)]
 
 
+def test_shape_distribution_is_sync_so_fastapi_runs_it_off_event_loop():
+    assert not inspect.iscoroutinefunction(stats_router.get_shape_distribution)
+
+
 def test_value_validation_histogram_includes_max_boundary(
     gui_duckdb_client: TestClient,
 ):
@@ -1436,17 +1575,18 @@ def test_export_outliers_csv_escapes_spreadsheet_formulas(
             CREATE TABLE formula_outlier_values (
                 value INTEGER,
                 note VARCHAR,
-                spaced_note VARCHAR
+                spaced_note VARCHAR,
+                "=header_formula" VARCHAR
             )
             """
         )
         conn.execute(
             """
             INSERT INTO formula_outlier_values VALUES
-                (1, 'normal', 'normal'),
-                (2, 'normal', 'normal'),
-                (3, 'normal', 'normal'),
-                (100, '=1+1', '  @cmd')
+                (1, 'normal', 'normal', 'normal'),
+                (2, 'normal', 'normal', 'normal'),
+                (3, 'normal', 'normal', 'normal'),
+                (100, '=1+1', '  @cmd', 'header')
             """
         )
     finally:
@@ -1462,6 +1602,7 @@ def test_export_outliers_csv_escapes_spreadsheet_formulas(
     headers = rows[0]
     outlier = rows[1]
 
+    assert "'=header_formula" in headers
     assert outlier[headers.index("value")] == "100"
     assert outlier[headers.index("note")] == "'=1+1"
     assert outlier[headers.index("spaced_note")] == "'  @cmd"
@@ -1586,6 +1727,22 @@ def test_spatial_map_inspection_hides_unexpected_exception_details(
 
     assert response.status_code == 500
     assert response.json()["detail"] == "Error getting spatial map data"
+    assert "secret /tmp/spatial.sql" not in response.text
+
+
+def test_spatial_map_render_hides_unexpected_exception_details(
+    gui_duckdb_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def fail_spatial_map(*_args, **_kwargs):
+        raise RuntimeError("secret /tmp/spatial.sql")
+
+    monkeypatch.setattr(stats_router, "_build_spatial_map_inspection", fail_spatial_map)
+
+    response = gui_duckdb_client.get("/api/stats/spatial-map/plots/render")
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Error rendering spatial map"
     assert "secret /tmp/spatial.sql" not in response.text
 
 
@@ -1723,6 +1880,76 @@ def test_spatial_map_wkt_fallback_paginates_valid_geometries(
     assert second_payload["with_geometry"] == 2
     assert second_payload["has_more"] is False
     assert second_payload["feature_collection"]["features"][0]["id"] == "polygon"
+
+
+def test_spatial_map_wkt_fallback_does_not_materialize_skipped_features(
+    gui_duckdb_client: TestClient, gui_duckdb_project, monkeypatch
+):
+    import_path = gui_duckdb_project / "config" / "import.yml"
+    config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    config["entities"]["references"]["shapes"] = {
+        "kind": "spatial",
+        "schema": {
+            "id_field": "shape_id",
+            "name_field": "name",
+            "fields": [{"name": "location", "type": "geometry"}],
+        },
+    }
+    import_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+    db_path = gui_duckdb_project / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE entity_shapes (
+                shape_id VARCHAR,
+                name VARCHAR,
+                location VARCHAR
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO entity_shapes VALUES
+                ('shape-0', 'Shape 0', 'POINT (164 -21)'),
+                ('shape-1', 'Shape 1', 'POINT (165 -21)'),
+                ('shape-2', 'Shape 2', 'POINT (166 -21)'),
+                ('shape-3', 'Shape 3', 'POINT (167 -21)'),
+                ('shape-4', 'Shape 4', 'POINT (168 -21)'),
+                ('shape-5', 'Shape 5', 'POINT (169 -21)')
+            """
+        )
+    finally:
+        conn.close()
+
+    def fail_spatial_extension(_conn):
+        raise RuntimeError("spatial extension unavailable")
+
+    original_row_value = stats_router._row_value
+
+    def guarded_row_value(row, key, index):
+        if key != "geometry_value":
+            shape_id = original_row_value(row, "id_value", 0)
+            if shape_id in {"shape-0", "shape-1", "shape-2"}:
+                raise AssertionError("Skipped features should not be materialized")
+        return original_row_value(row, key, index)
+
+    monkeypatch.setattr(
+        stats_router, "_load_spatial_extension_best_effort", fail_spatial_extension
+    )
+    monkeypatch.setattr(stats_router, "_row_value", guarded_row_value)
+
+    response = gui_duckdb_client.get("/api/stats/spatial-map/shapes?limit=2&offset=3")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert [feature["id"] for feature in payload["feature_collection"]["features"]] == [
+        "shape-3",
+        "shape-4",
+    ]
+    assert payload["has_more"] is True
+    assert payload["next_offset"] == 5
 
 
 def test_spatial_map_wkt_fallback_filters_layers_before_pagination(

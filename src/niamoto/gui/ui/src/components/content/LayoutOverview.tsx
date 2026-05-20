@@ -75,6 +75,7 @@ import {
   measureCollectionsContentSwitch,
   recordCollectionsPerf,
 } from '@/features/collections/performance/collectionsPerf'
+import { apiFetch } from '@/shared/lib/api/fetch'
 import { useDevListRenderMetric } from '@/shared/performance/devRenderMetrics'
 
 // Types matching layout-editor/types.ts
@@ -142,7 +143,7 @@ async function saveLayout(
   groupBy: string,
   updates: LayoutUpdateRequest
 ): Promise<{ success: boolean; message: string; widgets_updated: number }> {
-  const response = await fetch(`/api/layout/${groupBy}`, {
+  const response = await apiFetch(`/api/layout/${groupBy}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates),

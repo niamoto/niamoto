@@ -5,6 +5,7 @@ Run this to see how well the auto-detector works with actual Niamoto data.
 """
 
 import sys
+import tempfile
 from pathlib import Path
 import yaml
 
@@ -19,7 +20,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from niamoto.core.imports.auto_detector import AutoDetector  # noqa: E402
 
 
-def test_auto_detection():
+def test_auto_detection(tmp_path: Path | None = None):
     """Test auto-detection on real Niamoto data."""
     print("=" * 80)
     print("NIAMOTO AUTO-DETECTION TEST")
@@ -69,6 +70,8 @@ def test_auto_detection():
     print("✅ VALIDATION")
     print("-" * 40)
     validation = results["validation"]
+    assert validation["valid"] is True
+    assert validation["issues"] == []
 
     if validation["valid"]:
         print("✓ Configuration is valid")
@@ -88,11 +91,18 @@ def test_auto_detection():
     print("-" * 40)
 
     config = results["config"]
+    assert config.get("references"), "Auto-detection should generate references"
+    assert config.get("data"), "Auto-detection should generate data entities"
+    assert "plots" in config["references"]
+    assert "observations" in config["data"]
 
     # Save config to file
-    output_path = Path(__file__).parent / "auto_generated_import.yml"
-    with open(output_path, "w") as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+    output_dir = tmp_path or Path(tempfile.mkdtemp(prefix="niamoto-auto-detection-"))
+    output_path = output_dir / "auto_generated_import.yml"
+    output_path.write_text(
+        yaml.dump(config, default_flow_style=False, sort_keys=False),
+        encoding="utf-8",
+    )
 
     print(f"Configuration saved to: {output_path}")
     print()

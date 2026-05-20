@@ -80,8 +80,9 @@ def init_environment(
         project_created = False
 
         if path and project_name:
-            print_error("Cannot use both --path and project_name. Choose one.")
-            return
+            raise click.ClickException(
+                "Cannot use both --path and project_name. Choose one."
+            )
 
         if path:
             # Use absolute path provided
@@ -95,16 +96,14 @@ def init_environment(
 
                 if not reset:
                     if is_niamoto_env:
-                        print_error(
+                        raise click.ClickException(
                             f"Niamoto environment already exists at '{target_path}'. "
                             "Use --reset to reinitialize."
                         )
-                    else:
-                        print_error(
-                            f"Directory '{target_path}' already exists and is not empty. "
-                            "Please choose a different path or remove/empty the directory."
-                        )
-                    return
+                    raise click.ClickException(
+                        f"Directory '{target_path}' already exists and is not empty. "
+                        "Please choose a different path or remove/empty the directory."
+                    )
             else:
                 # Create directory
                 target_path.mkdir(parents=True, exist_ok=True)
@@ -120,11 +119,10 @@ def init_environment(
             target_path = original_dir / project_name
 
             if target_path.exists() and not is_directory_empty(target_path):
-                print_error(
+                raise click.ClickException(
                     f"Directory '{project_name}' already exists and is not empty. "
                     "Please choose a different name or remove/empty the directory."
                 )
-                return
 
             # Create project directory
             target_path.mkdir(parents=True, exist_ok=True)
@@ -179,6 +177,8 @@ def init_environment(
         else:
             display_next_steps()
 
+    except click.ClickException:
+        raise
     except Exception as e:
         raise CommandError(
             command="init", message="Initialization failed", details={"error": str(e)}

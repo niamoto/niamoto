@@ -89,7 +89,14 @@ class ColumnClassifier:
     def _ensure_loaded(self) -> bool:
         """Lazy-load models on first use."""
         if self._loaded:
-            return self._header_model is not None
+            return any(
+                model is not None
+                for model in (
+                    self._header_model,
+                    self._value_model,
+                    self._fusion_model,
+                )
+            )
 
         self._loaded = True
         try:
@@ -131,7 +138,14 @@ class ColumnClassifier:
                 self._fusion_concepts = fusion_data["all_concepts"]
                 logger.debug("Loaded fusion model from %s", fusion_path)
 
-            return self._header_model is not None
+            return any(
+                model is not None
+                for model in (
+                    self._header_model,
+                    self._value_model,
+                    self._fusion_model,
+                )
+            )
         except Exception as e:
             logger.warning("Could not load ML models: %s", e)
             return False
@@ -259,6 +273,13 @@ class ColumnClassifier:
                 idx = np.argmax(header_proba)
                 classes = self._header_model.classes_
                 results.append((classes[idx], float(header_proba[idx])))
+                continue
+
+            # Fallback: use value model alone when header resources are absent.
+            if value_proba is not None and self._value_model is not None:
+                idx = np.argmax(value_proba)
+                classes = self._value_model.classes_
+                results.append((classes[idx], float(value_proba[idx])))
                 continue
 
             results.append((None, 0.0))

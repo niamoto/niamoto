@@ -70,6 +70,16 @@ def _quote_table_identifier(repository: Database, table_name: str) -> str:
     return f'"{escaped}"'
 
 
+def _resolve_item_id(item: Dict[str, Any], group_name: str) -> Any:
+    """Return the group-specific item ID, preserving falsy IDs like 0."""
+    group_id_key = f"{group_name}_id"
+    if group_id_key in item and item[group_id_key] is not None:
+        return item[group_id_key]
+    if "id" in item and item["id"] is not None:
+        return item["id"]
+    return None
+
+
 # Pydantic models for configuration validation
 class JsonOptions(BaseModel):
     """Options for JSON file generation."""
@@ -588,8 +598,8 @@ class JsonApiExporter(ExporterPlugin):
     ) -> bool:
         """Generate a detail JSON file for a single item. Returns True if file was generated."""
         # Get item ID - try group-specific ID field first, then 'id'
-        item_id = item.get(f"{group_name}_id") or item.get("id")
-        if not item_id:
+        item_id = _resolve_item_id(item, group_name)
+        if item_id is None:
             raise ValueError(
                 f"Item in group {group_name} has no '{group_name}_id' or 'id' field"
             )
@@ -1196,7 +1206,9 @@ class DataMapper:
         """Generate endpoint URL for an item."""
         base_path = params.get("base_path", "/api")
         group_name = self._group_context.get("group_name", "unknown")
-        item_id = data.get(f"{group_name}_id") or data.get("id", "unknown")
+        item_id = _resolve_item_id(data, group_name)
+        if item_id is None:
+            item_id = "unknown"
 
         pattern = self._group_context["params"].detail_output_pattern
         path = pattern.format(group=group_name, id=item_id)
