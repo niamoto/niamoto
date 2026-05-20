@@ -2,9 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AxiosHeaders } from 'axios'
 
 const promptServerErrorBugReport = vi.hoisted(() => vi.fn())
+const getDesktopApiAuthToken = vi.hoisted(() => vi.fn())
 
 vi.mock('@/features/feedback/lib/server-error-feedback', () => ({
   promptServerErrorBugReport,
+}))
+
+vi.mock('@/shared/desktop/apiAuth', () => ({
+  DESKTOP_API_AUTH_HEADER: 'x-niamoto-desktop-token',
+  getDesktopApiAuthToken,
 }))
 
 function getRejectedResponseHandler(apiClient: {
@@ -36,10 +42,8 @@ function getRequestFulfilledHandler(apiClient: {
 describe('apiClient', () => {
   beforeEach(() => {
     vi.resetModules()
-    vi.doMock('@/shared/desktop/apiAuth', () => ({
-      DESKTOP_API_AUTH_HEADER: 'x-niamoto-desktop-token',
-      getDesktopApiAuthToken: vi.fn(async () => null),
-    }))
+    getDesktopApiAuthToken.mockReset()
+    getDesktopApiAuthToken.mockResolvedValue(null)
     promptServerErrorBugReport.mockReset()
   })
 
@@ -62,10 +66,7 @@ describe('apiClient', () => {
   })
 
   it('attaches the desktop API token when available', async () => {
-    vi.doMock('@/shared/desktop/apiAuth', () => ({
-      DESKTOP_API_AUTH_HEADER: 'x-niamoto-desktop-token',
-      getDesktopApiAuthToken: vi.fn(async () => 'desktop-token'),
-    }))
+    getDesktopApiAuthToken.mockResolvedValue('desktop-token')
     const { apiClient } = await import('./client')
     const fulfilled = getRequestFulfilledHandler(apiClient as never)
     const config = { headers: new AxiosHeaders() }
