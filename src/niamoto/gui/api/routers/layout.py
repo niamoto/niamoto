@@ -25,6 +25,7 @@ from niamoto.gui.api.services.preview_utils import (
     error_html,
     wrap_html_response as _wrap_html_response,
 )
+from niamoto.gui.api.utils.database import open_database
 
 logger = logging.getLogger(__name__)
 
@@ -809,104 +810,102 @@ def _get_representatives_sync(
 ) -> RepresentativesResponse:
     """Load representative entities in a worker thread."""
     import pandas as pd
-    from niamoto.common.database import Database
     from niamoto.common.table_resolver import (
         quote_identifier,
         resolve_reference_table,
     )
 
-    db = Database(str(db_path), read_only=True)
-
     try:
-        # Resolve reference table from logical group name
-        entity_table = resolve_reference_table(db, group_by)
+        with open_database(db_path, read_only=True) as db:
+            # Resolve reference table from logical group name
+            entity_table = resolve_reference_table(db, group_by)
 
-        if not entity_table:
+            if not entity_table:
+                return RepresentativesResponse(
+                    group_by=group_by,
+                    entities=[],
+                    total=0,
+                )
+            quoted_entity_table = quote_identifier(db, entity_table)
+            ref_config = _load_reference_config(work_dir, group_by)
+            entities = []
+
+            if ref_config.get("kind") == "hierarchical":
+                hierarchical_entities = _query_hierarchical_representatives(
+                    db=db,
+                    entity_table=entity_table,
+                    ref_config=ref_config,
+                    limit=limit,
+                )
+                entities.extend(
+                    RepresentativeEntity(
+                        id=item["id"],
+                        name=item["name"],
+                        count=item["count"],
+                    )
+                    for item in hierarchical_entities
+                )
+
+            if not entities:
+                # Generic approach for flat or fallback references.
+
+                # Get schema info
+                schema = ref_config.get("schema", {})
+                id_field = schema.get("id_field", "id")
+
+                # Get entity columns to detect name field
+                columns_df = pd.read_sql(
+                    f"SELECT * FROM {quoted_entity_table} LIMIT 0",
+                    db.engine,
+                )
+                columns = columns_df.columns.tolist()
+
+                # Detect name field
+                name_candidates = ["full_name", "name", "plot", "label", "title"]
+                name_field = next((c for c in name_candidates if c in columns), None)
+                if not name_field:
+                    name_field = next(
+                        (c for c in columns if "name" in c.lower()), id_field
+                    )
+
+                candidate_name_fields: List[str] = []
+                if name_field and name_field in columns and name_field != id_field:
+                    candidate_name_fields.append(name_field)
+                for candidate in name_candidates:
+                    if (
+                        candidate in columns
+                        and candidate != id_field
+                        and candidate not in candidate_name_fields
+                    ):
+                        candidate_name_fields.append(candidate)
+
+                result = _query_generic_representatives(
+                    db=db,
+                    entity_table=entity_table,
+                    id_field=id_field,
+                    candidate_name_fields=candidate_name_fields,
+                    limit=limit,
+                )
+                for _, row in result.iterrows():
+                    entities.append(
+                        RepresentativeEntity(
+                            id=str(row["id"]),
+                            name=str(row["name"]),
+                            count=0,  # Pre-aggregated data, not from occurrences
+                        )
+                    )
+
+            default_entity = entities[0] if entities else None
+
             return RepresentativesResponse(
                 group_by=group_by,
-                entities=[],
-                total=0,
+                default_entity=default_entity,
+                entities=entities,
+                total=len(entities),
             )
-        quoted_entity_table = quote_identifier(db, entity_table)
-        ref_config = _load_reference_config(work_dir, group_by)
-        entities = []
-
-        if ref_config.get("kind") == "hierarchical":
-            hierarchical_entities = _query_hierarchical_representatives(
-                db=db,
-                entity_table=entity_table,
-                ref_config=ref_config,
-                limit=limit,
-            )
-            entities.extend(
-                RepresentativeEntity(
-                    id=item["id"],
-                    name=item["name"],
-                    count=item["count"],
-                )
-                for item in hierarchical_entities
-            )
-
-        if not entities:
-            # Generic approach for flat or fallback references.
-
-            # Get schema info
-            schema = ref_config.get("schema", {})
-            id_field = schema.get("id_field", "id")
-
-            # Get entity columns to detect name field
-            columns_df = pd.read_sql(
-                f"SELECT * FROM {quoted_entity_table} LIMIT 0",
-                db.engine,
-            )
-            columns = columns_df.columns.tolist()
-
-            # Detect name field
-            name_candidates = ["full_name", "name", "plot", "label", "title"]
-            name_field = next((c for c in name_candidates if c in columns), None)
-            if not name_field:
-                name_field = next((c for c in columns if "name" in c.lower()), id_field)
-
-            candidate_name_fields: List[str] = []
-            if name_field and name_field in columns and name_field != id_field:
-                candidate_name_fields.append(name_field)
-            for candidate in name_candidates:
-                if (
-                    candidate in columns
-                    and candidate != id_field
-                    and candidate not in candidate_name_fields
-                ):
-                    candidate_name_fields.append(candidate)
-
-            result = _query_generic_representatives(
-                db=db,
-                entity_table=entity_table,
-                id_field=id_field,
-                candidate_name_fields=candidate_name_fields,
-                limit=limit,
-            )
-            for _, row in result.iterrows():
-                entities.append(
-                    RepresentativeEntity(
-                        id=str(row["id"]),
-                        name=str(row["name"]),
-                        count=0,  # Pre-aggregated data, not from occurrences
-                    )
-                )
-
-        default_entity = entities[0] if entities else None
-
-        return RepresentativesResponse(
-            group_by=group_by,
-            default_entity=default_entity,
-            entities=entities,
-            total=len(entities),
-        )
 
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("Error getting representatives for '%s': %s", group_by, e)
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        db.close_db_session()

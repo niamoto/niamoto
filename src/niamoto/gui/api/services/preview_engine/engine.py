@@ -325,7 +325,7 @@ class PreviewEngine:
                         wp = cfg.get("widget_plugin")
             return self._build_result(request, widget_html, warnings, widget_plugin=wp)
         finally:
-            pass  # DB instance is shared and reused across requests
+            self._close_db()
 
     # ------------------------------------------------------------------
     # Special widget handlers (used by dispatch table)
@@ -2056,20 +2056,19 @@ document.addEventListener('DOMContentLoaded', function() {{
     # ------------------------------------------------------------------
 
     def _open_db(self) -> Database | None:
-        """Return the shared DB instance for preview queries.
+        """Return a DB instance for preview queries.
 
         The preview engine lives in the same FastAPI process as long-running
-        transform/import jobs. Keeping a persistent DuckDB connection in
-        read-only mode causes configuration conflicts as soon as a writable
-        job connection is opened against the same file. For the in-process GUI
-        backend we therefore keep the shared preview connection in the default
-        writable-compatible mode, even though previews only perform reads.
+        transform/import jobs and project switching can trigger multiple preview
+        and layout requests at once. DuckDB rejects mixed connection
+        configurations for the same database file, so previews use a short-lived
+        read-only connection and dispose it after each render.
         """
         if self._db is not None:
             return self._db
         if not os.path.exists(self._db_path):
             return None
-        self._db = Database(self._db_path)
+        self._db = Database(self._db_path, read_only=True)
         return self._db
 
 

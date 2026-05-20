@@ -20,6 +20,7 @@ from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.gui.api.routers.imports import import_jobs
 from niamoto.gui.api.services.job_file_store import JobFileStore
 from niamoto.gui.api.services.job_store_runtime import resolve_job_store
+from niamoto.gui.api.utils.database import open_database
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,10 @@ class PipelineStatusResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _quote_identifier(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
 
 
 def _config_hash(path: Path) -> Optional[str]:
@@ -230,13 +235,11 @@ def _get_entities_last_updated() -> Optional[datetime]:
     if not db_path or not db_path.exists():
         return None
     try:
-        import duckdb
-
-        con = duckdb.connect(str(db_path), read_only=True)
-        result = con.sql(
-            "SELECT MAX(updated_at) FROM niamoto_metadata_entities"
-        ).fetchone()
-        con.close()
+        with open_database(db_path, read_only=True) as db:
+            with db.connection() as con:
+                result = con.exec_driver_sql(
+                    "SELECT MAX(updated_at) FROM niamoto_metadata_entities"
+                ).fetchone()
         if result and result[0]:
             return result[0]
     except Exception:
@@ -258,27 +261,27 @@ def _get_data_summary() -> Optional[dict]:
     if not db_path or not db_path.exists():
         return None
     try:
-        import duckdb
+        with open_database(db_path, read_only=True) as db:
+            with db.connection() as con:
+                rows = con.exec_driver_sql(
+                    "SELECT name, table_name FROM niamoto_metadata_entities ORDER BY name"
+                ).fetchall()
 
-        con = duckdb.connect(str(db_path), read_only=True)
-        rows = con.sql(
-            "SELECT name, table_name FROM niamoto_metadata_entities ORDER BY name"
-        ).fetchall()
+                if not rows:
+                    return None
 
-        if not rows:
-            con.close()
-            return None
+                entities = []
+                for name, table_name in rows:
+                    try:
+                        quoted_table = _quote_identifier(str(table_name))
+                        count_row = con.exec_driver_sql(
+                            f"SELECT COUNT(*) FROM {quoted_table}"
+                        ).fetchone()
+                        row_count = count_row[0] if count_row else 0
+                    except Exception:
+                        row_count = 0
+                    entities.append({"name": name, "row_count": row_count})
 
-        entities = []
-        for name, table_name in rows:
-            try:
-                count_row = con.sql(f'SELECT COUNT(*) FROM "{table_name}"').fetchone()
-                row_count = count_row[0] if count_row else 0
-            except Exception:
-                row_count = 0
-            entities.append({"name": name, "row_count": row_count})
-
-        con.close()
         return {"entities": entities}
     except Exception:
         logger.debug("Could not read entity summary", exc_info=True)
@@ -306,11 +309,11 @@ def _get_groups_summary(work_dir: Path) -> Optional[dict]:
             entity_count = None
             if db_path and db_path.exists():
                 try:
-                    import duckdb
-
-                    con = duckdb.connect(str(db_path), read_only=True)
-                    result = con.sql(f'SELECT COUNT(*) FROM "{name}"').fetchone()
-                    con.close()
+                    with open_database(db_path, read_only=True) as db:
+                        with db.connection() as con:
+                            result = con.exec_driver_sql(
+                                f"SELECT COUNT(*) FROM {_quote_identifier(str(name))}"
+                            ).fetchone()
                     entity_count = result[0] if result else None
                 except Exception:
                     pass

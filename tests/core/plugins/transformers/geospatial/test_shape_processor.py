@@ -4,6 +4,7 @@ Unit tests for the shape processor plugin.
 
 import copy
 import os
+import shutil
 import unittest
 import yaml
 import tempfile
@@ -203,6 +204,7 @@ class TestShapeProcessor(NiamotoTestCase):
 
         # Override the config_dir to use our test config directory
         self.processor.config_dir = self.temp_dir
+        self.processor.project_dir = self.temp_dir
         # Reload the imports config from our test config directory
         import_yml_path = os.path.join(self.config_dir, "import.yml")
         if os.path.exists(import_yml_path):
@@ -310,6 +312,49 @@ class TestShapeProcessor(NiamotoTestCase):
         self.assertIsInstance(gdf, gpd.GeoDataFrame)
         self.assertEqual(gdf.crs, "EPSG:4326")
         self.assertEqual(len(gdf), 1)
+
+    def test_relative_layer_paths_resolve_from_project_dir(self):
+        """Relative metadata layer paths should not depend on the process cwd."""
+        layer_dir = os.path.join(self.temp_dir, "imports")
+        os.makedirs(layer_dir, exist_ok=True)
+        relative_layer_path = os.path.join(layer_dir, "relative_layer.gpkg")
+        gpd.GeoDataFrame(
+            geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)])],
+            crs="EPSG:4326",
+        ).to_file(relative_layer_path, driver="GPKG")
+
+        self.processor.imports_config = {
+            "metadata": {
+                "layers": [
+                    {
+                        "name": "relative_layer",
+                        "type": "vector",
+                        "format": "geopackage",
+                        "path": "imports/relative_layer.gpkg",
+                    }
+                ]
+            }
+        }
+        self.processor.project_dir = self.temp_dir
+
+        previous_cwd = os.getcwd()
+        wrong_cwd = tempfile.mkdtemp()
+        try:
+            os.chdir(wrong_cwd)
+            shape_gdf = gpd.GeoDataFrame(
+                geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)])],
+                crs="EPSG:4326",
+            )
+            result = self.processor._process_layer(
+                "relative_layer",
+                {"clip": False, "simplify": False},
+                shape_gdf,
+            )
+        finally:
+            os.chdir(previous_cwd)
+            shutil.rmtree(wrong_cwd, ignore_errors=True)
+
+        self.assertEqual(len(result), 1)
 
     def test_transform(self):
         """Test complete transformation process."""

@@ -619,3 +619,47 @@ def test_representatives_route_uses_worker_thread(monkeypatch, tmp_path: Path):
         "func": layout_router._get_representatives_sync,
         "args": (tmp_path, db_path, "taxons", 7),
     }
+
+
+def test_representatives_disposes_database_engine(monkeypatch, tmp_path: Path):
+    closed = {"value": False}
+    disposed = {"value": False}
+
+    class FakeEngine:
+        def dispose(self):
+            disposed["value"] = True
+
+    class FakeDatabase:
+        engine = FakeEngine()
+
+        def close_db_session(self):
+            closed["value"] = True
+
+    class FakeOpenDatabase:
+        def __enter__(self):
+            return FakeDatabase()
+
+        def __exit__(self, exc_type, exc, tb):
+            FakeDatabase().close_db_session()
+            FakeDatabase.engine.dispose()
+
+    monkeypatch.setattr(
+        layout_router,
+        "open_database",
+        lambda path, read_only=True: FakeOpenDatabase(),
+    )
+    monkeypatch.setattr(
+        "niamoto.common.table_resolver.resolve_reference_table",
+        lambda db, group_by: None,
+    )
+
+    response = layout_router._get_representatives_sync(
+        tmp_path,
+        tmp_path / "db.duckdb",
+        "plots",
+        7,
+    )
+
+    assert response.total == 0
+    assert closed["value"] is True
+    assert disposed["value"] is True
