@@ -7,6 +7,313 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.19.0] - 2026-05-21
+
+### Features
+
+- Show collection computation progress in sidebar
+- Allow custom API export data source
+- Streamline collection data outputs
+- Refine collection data outputs
+- Complete standard profile workflows
+- Add standardized export profiles
+
+### Performance
+
+- Speed up import auto-configuration
+
+### Bug Fixes
+
+- Stabilize desktop API auth client test
+- Keep missing DuckDB read-only connections lazy
+- Stabilize DuckDB access in GUI previews
+- Eliminate pytest warnings
+- Stabilize plugin loading and test cleanup
+- Resolve high clawpatch findings
+- Resolve clawpatch review findings
+- Resolve clawpatch high findings
+- Resolve clawpatch findings
+- Close remaining clawpatch low findings
+- Stabilize preview and overlay regressions
+- Stabilize collection and index workflows
+- Stabilize API route regressions
+- Authorize desktop API requests
+- Preserve profiler total row count
+- Infer legacy top ranking mode
+- Resolve spatial preview geometry
+- Preserve group index generator fields
+- Discover recipe widget schemas
+- Align import v2 validation with model
+- Validate relationship CSV inputs
+- Escape BibTeX export values
+- Offload enrichment preview loading
+- Bound index suggestion record loads
+- Enforce query result limits
+- Preserve duplicate transform widgets
+- Fail transform jobs for unknown groups
+- Count hierarchical representatives from relation
+- Preserve registry plugin type
+- Translate standard compatibility errors
+- Translate enrichment preview errors
+- Mark publication stale after site config changes
+- Offload smart auto configure
+- Analyze spatial shape uploads
+- Drop registered import tables
+- Scope combined suggestions sources
+- Translate enrichment config errors
+- Honor configured spatial geometry fields
+- Bound csv import uploads
+- Hide non-transform job status
+- Parse underscored entity map references
+- Bound time series presence percentages
+- Resolve repository ml models
+- Aggregate duplicate class object rows
+- Validate outlier export thresholds
+- Reload desktop projects through native bridge
+- Bound retained import jobs
+- Validate stats validation rules
+- Bound data explorer query limits
+- Expose cli export jobs
+- Validate dataset config updates
+- Respect cleared preview fields
+- Align import v2 schema contract
+- Enforce export widget identifiers
+- Load all recipe widget plugins
+- Cancel export jobs
+- Validate canonical transform lists
+- Stream site file uploads
+- Align index generator group lookup
+- Read root transform source configs
+- Limit feedback screenshot uploads
+- Prefer explicit spatial coordinate columns
+- Preserve import status setup errors
+- Validate config updates before writing
+- Bind transformer package exports
+- Securely open exported files
+- Write validation rules atomically
+- Avoid leaking config file paths
+- Validate backup config names
+- Parameterize archive preview validation query
+- Escape Rich markup in stats output
+- Escape Rich markup in plugin listing
+- Escape Rich markup in direct CLI errors
+- Escape Rich markup in progress output
+- Escape Rich markup in CLI output
+- Block unsafe outbound test redirects
+- Write source transform config atomically
+- Use read-only table preview connection
+- Open table preview database read-only
+- Require auth for credential mutations
+- Serialize API export target updates
+- Escape formulas in outlier CSV exports
+- Validate API export target paths
+- Require auth for validation rule updates
+- Serialize config scaffolding updates
+- Serialize source config updates
+- Share transform config write lock
+- Serialize transform widget updates
+- Avoid orphan recipe transforms
+- Serialize collection metadata updates
+- Write data content atomically
+- Restrict data content writes
+- Serve uploaded SVGs as attachments
+- Create valid web export targets
+- Validate widget dependency scripts
+- Open template lookups read-only
+- Scope recipe widget deletion
+- Require desktop auth for import mutations
+- Write bulk import config atomically
+- Serialize index generator updates
+- Constrain backup restore paths
+- Stabilize pipeline history import snapshot
+- Write config updates atomically
+- Serialize reference config updates
+- Quote Darwin Core group queries
+- Merge enrichment updates with current data
+- Validate Darwin Core query identifiers
+- Resolve entity tables before querying
+- Restrict derived column formulas
+- Restrict custom formula evaluation
+- Resolve archived test fixture paths
+- Hide absolute export list paths
+- Guard widget suggestions without project
+- Preserve group index preview footers
+- Quote dataset count tables
+- Accept uppercase upload extensions
+- Hide combined suggestion internals
+- Hide backup filesystem paths
+- Avoid GUI backup collisions
+- Record JSON export metadata duration
+- Register plugins with correct arguments
+- Preserve benchmark logs
+- Escape class object CSV paths
+- Bound GBIF request timeouts
+- Open entity reads read-only
+- Limit BibTeX upload size
+- Constrain saved source paths
+- Restrict served project files
+- Tolerate empty BibTeX fields
+- Restrict API test targets
+- Constrain site file listing paths
+- Validate recipe plugin params
+- Preserve static page extensions
+- Limit extracted upload archives
+- Preserve uploads on failed overwrite
+- Preserve API export group settings
+- Preserve unresolved widgets on reorder
+- Return all recipe source columns
+- Ignore invalid WKT in shape distribution
+- Preserve deploy validation extras
+- Validate dataset config shape
+- Count dangling taxonomy orphans
+- Paginate valid WKT map features
+- Constrain configured source paths
+- Escape render widget messages
+- Restrict site file content access
+- Stream terminal auto config events
+- Reject concurrent import all jobs
+- Validate current import config schema
+- Preserve zero medians in validation stats
+- Include max values in validation histograms
+- Redact listed import job tracebacks
+- Redact import job tracebacks
+- Guard debug health error route
+- Tolerate invalid WKT in coverage analysis
+- Reject duplicate normalized CSV headers
+- Preserve layout widget index identity
+- Validate plugin compatibility requests
+- Include datasets for reference-only recipes
+- Reject colliding source uploads
+- Limit source upload memory use
+- Avoid backup filename collisions
+- Preserve upper edge in smart bins
+- Keep top ranking suggestion counts positive
+- Resolve humboldt collection backing sources
+- Filter horizontal bar zeros by value axis
+- Handle zero-width contextual gauge ranges
+- Render dictionary line plots with multiple y axes
+- Constrain exporter output paths
+- Sanitize leaflet map rendering
+- Use advanced transform chain references
+- Default static page context to none
+- Escape widget container metadata
+- Validate archived shapefile zip extraction
+- Resolve archived debug script roots
+- Run archived test helper from repo root
+- Resolve dev script repository root
+- Clean untracked autoresearch directories
+- Preserve fusion surrogate cache on rebuild failure
+- Handle help sections without index pages
+- Validate template config before export update
+- Surface geospatial source failures
+- Honor geospatial registry id fields
+- Copy semantic affordance sets
+- Calculate edge density per area unit
+- Align class object series by axis
+- Round scalar gauge maximums upward
+- Handle deployer unpublish network errors
+- Reject disjoint relationship samples
+- Project vector overlay feature areas
+- Honor raster nodata metadata
+- Convert table view data before empty check
+- Mark uvloop as non-windows dependency
+- Ignore invalid summary stat filters
+- Convert summary stats data before empty check
+- Handle plot import removal
+- Resolve query db paths from repo root
+- Use configured spatial preview dataset
+- Preserve DuckDB mode during selects
+- Substitute plain config env vars
+- Expand configured database paths
+- Tolerate partial UI builds
+- Fail plugin manifest on syntax errors
+- Validate aggregation SQL identifiers
+- Sanitize markdown preview html
+- Validate import v2 saves
+- Quote entity route identifiers
+- Constrain site uploads to files
+- Constrain preview source paths
+- Require desktop auth for project reload
+- Block private URL health checks
+- Use typed ecological transformer params
+- Preserve nojekyll in GitHub API deploys
+- Restrict file browser to project root
+- Keep desktop auth token private
+- Prevent docs help output deletion
+- Avoid export cwd lock deadlock
+- Preserve existing zip upload components
+- Skip empty product holdouts
+- Support validated query templates
+- Honor adjacency hierarchy id field
+- Validate loader SQL identifiers
+- Enforce GUI API path containment
+- Escape user values in CLI console output
+- Clean MagicMock artifacts between tests
+- Preserve unowned root databases in tests
+- Export transformer suggestion model
+- Match plugin structures by descriptor
+- Support empty widget transform tables
+- Honor top-level widget source
+- Prompt for deployment credentials
+- Fail pipeline on transform config errors
+- Prevent silent CLI startup failures
+- Use dropdown for export data sources
+- Improve export labels and warning handling
+- Harden generated exports and enrichment configs
+- Harden standard profile exports and tooling
+- Harden export profile fallbacks
+- Render void html tags without children
+- Address React Doctor UI findings
+
+### Refactoring
+
+- Reduce UI dead code
+- Prune unused UI code
+
+### Documentation
+
+- Fix plugin registry docstring
+- Refresh agent and GUI documentation
+- Update institutional site wording
+- Drop golden rule line from CLAUDE.md
+
+### Other
+
+- Snapshot fresh clawpatch review
+- Harden clawpatch regression coverage
+- Stabilize publication freshness check
+- Cover fragmentation metric calculations
+- Assert elevation profile calculations
+- Isolate nested axis config mutations
+- Restore plugin registry fixture state
+- Assert pipeline option propagation
+- Exercise layout preview delegation
+- Make pattern matching checks collectable
+- Enforce explicit schema fields
+- Assert json api security guards
+- Require template endpoint success
+- Cover field aggregator registration
+- Cover multi-group transform last run
+- Cover plugin list registry types
+- Cover index generator params groups
+- Cover export widgets params groups
+- Collect dev preview smoke scripts
+- Cover read-only entity listing
+- Fail plugin discovery regressions
+- Fail stale plugin sample imports
+- Preserve base test setup
+- Fail on plugin discovery errors
+- Tighten geospatial error contracts
+- Isolate shape processor fixtures
+- Assert import phase order
+- Assert raw data error rendering
+- Bump duckdb to 1.5.2
+- Fix pnpm build approvals
+- Avoid compatibility test module collision
+- Untrack planning notes from gitignored dirs
+- Gitignore skill working dirs (plans, brainstorms, superpowers, ideation)
+- Archive internal planning docs and tidy AI-related tracking
+
 ## [v0.18.1] - 2026-04-29
 
 ### Other

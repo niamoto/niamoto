@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-08T07:54:13.419077+00:00",
+  "generated_at": "2026-05-21T15:58:25.458492+00:00",
   "sections": [
     {
       "slug": "01-getting-started",
@@ -3125,33 +3125,33 @@
         {
           "slug": "06-reference/standard-profiles",
           "path": "/help/06-reference/standard-profiles",
-          "title": "Standard Profiles",
+          "title": "Standard profiles",
           "description": "Standard profiles describe publication ready biodiversity outputs separately from ordinary collection JSON APIs. They live in config/export.yml under the top level standard profiles key.",
           "page_type": "markdown",
           "is_section_index": false,
           "headings": [
             {
-              "title": "Configuration Shape",
+              "title": "Configuration shape",
               "level": 2,
               "id": "configuration-shape"
             },
             {
-              "title": "Supported Standards",
+              "title": "Supported standards",
               "level": 2,
               "id": "supported-standards"
             },
             {
-              "title": "Sources and Grain Compatibility",
+              "title": "Sources and grain compatibility",
               "level": 2,
               "id": "sources-and-grain-compatibility"
             },
             {
-              "title": "Validation States",
+              "title": "Validation states",
               "level": 2,
               "id": "validation-states"
             },
             {
-              "title": "Mapping Values",
+              "title": "Mapping values",
               "level": 2,
               "id": "mapping-values"
             },
@@ -3161,7 +3161,7 @@
               "id": "outputs"
             },
             {
-              "title": "API Surface",
+              "title": "API surface",
               "level": 2,
               "id": "api-surface"
             },
