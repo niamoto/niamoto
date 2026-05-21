@@ -23,8 +23,9 @@ the project.
 
 ![Import source review](../assets/screenshots/desktop/08.import-sources-review.png)
 
-The desktop app keeps the source list visible while you work, so you can check
-which files are in scope before analysis starts.
+The desktop app now keeps a single import cockpit visible while you work. The
+same file inventory follows the batch from selection to analysis, review, and
+import, so you do not need to compare several separate lists.
 
 Typical inputs include:
 
@@ -36,15 +37,18 @@ If your source is a shapefile, prefer converting it to GeoPackage when possible.
 The desktop upload accepts zipped shapefile packages, but the automatic import
 configuration is most reliable with GeoPackage or GeoJSON spatial layers.
 
-The import screen includes a compact preparation checklist before upload. It
-summarises these supported file families first, then keeps stricter rules in
-second-level panels so the first screen stays readable.
+The import screen uses a preparation assistant with a section selector on the
+left and contextual guidance on the right. Start with the overview, open
+**Files and models** when you want starter CSV templates, use **Key checks** to
+verify the minimum structure, and keep **Advanced details** for nested
+hierarchies or precomputed class/value data.
 
 When you select files, Niamoto also runs a lightweight local preview before
 upload. This does not import anything yet; it checks whether CSV headers are
 readable, whether likely identifier columns exist, and whether the file looks
-like a hierarchy or a class/value table. Use these hints to fix obvious issues
-before starting the heavier automatic configuration step.
+like a hierarchy or a class/value table. These hints appear as one status per
+file in the cockpit; open a file in the side panel when you want the detailed
+checks.
 
 For the most reliable automatic detection:
 
@@ -53,9 +57,10 @@ For the most reliable automatic detection:
 - reuse the same identifier values between related files
 - prefer GeoPackage or GeoJSON for spatial data
 
-The same help area provides starter CSV templates for the common project setup:
-occurrences with embedded taxonomy, site or plot references, and precomputed
-class/value data.
+The same help area provides starter CSV templates next to the relevant choice:
+one for occurrences with embedded taxonomy and one for site or plot references.
+The `class_object` template is kept inside the advanced class/value panel so it
+does not distract from the standard import path.
 
 If your data have nested levels, open the hierarchy help panel before upload.
 In the standard taxonomy workflow, you usually do not need a separate taxonomy
@@ -82,7 +87,8 @@ panel.
 
 ## 2. Let Niamoto analyse the files
 
-After selection, Niamoto runs live analysis and shows progress in place.
+After selection, Niamoto runs live analysis and updates the same cockpit in
+place.
 
 ![Import analysis progress](../assets/screenshots/desktop/10.import-analysis-progress.png)
 
@@ -93,13 +99,18 @@ This stage is where the app tries to recognise:
 - supporting sources
 - layers or auxiliary files that should stay attached to a collection
 
+Large batches are grouped by role when possible: occurrences, Sites/Parcelles,
+class/value tables, spatial layers, rasters, reference tables, and supporting
+tables. Repeated files such as many GeoPackage layers are grouped so the main
+screen stays scannable.
+
 You do not need to understand the ML pipeline to use this step, but if you want
 the deeper explanation, see [../05-ml-detection/README.md](../05-ml-detection/README.md).
 
 ## 3. Review the generated configuration
 
-When analysis finishes, the review surface shows what Niamoto inferred and what
-still needs confirmation.
+When analysis finishes, the cockpit shows what Niamoto inferred and what still
+needs confirmation.
 
 ![Detected import configuration](../assets/screenshots/desktop/11.import-config-detected.png)
 
@@ -110,10 +121,15 @@ At this point you can:
 - decide which sources become primary entities or supporting inputs
 - edit the generated YAML when you need more control
 
-If the automatic detection has low confidence, the review surface shows
-actionable checks rather than only technical warnings. For example, it may ask
-you to confirm the file role, choose a stable identifier, or verify that two
-related files share the same identifier values.
+If the automatic detection has low confidence, the cockpit marks the item as
+needing review and explains the reason in the context panel. For example, it
+may ask you to confirm the file role, choose a stable identifier, or verify that
+two related files share the same identifier values.
+
+The detailed configuration editor and YAML preview are still available from the
+advanced review panel, but they are no longer the first thing you need to read.
+Use them when you want to correct a detection or inspect the generated
+configuration.
 
 Behind the UI, this stage is mostly shaping `config/import.yml`. The goal is
 not to hand-edit YAML by default, but to understand that the review screen is

@@ -133,10 +133,239 @@
       }
     }
   },
+  "cockpit": {
+    "workflow": {
+      "title": "Import flow",
+      "files": "Add files",
+      "selection": "Selection",
+      "upload": "Upload",
+      "verification": "Verification",
+      "analysis": "Automatic analysis",
+      "import": "Import",
+      "itemCount_one": "{{count}} file",
+      "itemCount_other": "{{count}} files"
+    },
+    "inventory": {
+      "title": "Project files",
+      "descriptionEmpty": "Add files: the inventory will stay visible throughout analysis.",
+      "descriptionWithFiles_one": "{{count}} file tracked from selection to import.",
+      "descriptionWithFiles_other": "{{count}} files tracked from selection to import.",
+      "fileCount_one": "{{count}} file",
+      "fileCount_other": "{{count}} files",
+      "attentionCount_one": "{{count}} to check",
+      "attentionCount_other": "{{count}} to check",
+      "progress": "{{progress}}% of the batch analysed or imported",
+      "readyToUpload_one": "{{count}} file selected, ready to upload",
+      "readyToUpload_other": "{{count}} files selected, ready to upload",
+      "uploadingFiles_one": "{{count}} file uploading",
+      "uploadingFiles_other": "{{count}} files uploading",
+      "analysisProgress": "{{progress}}% of the batch analysed",
+      "analysisComplete_one": "Analysis complete for {{count}} file",
+      "analysisComplete_other": "Analysis complete for {{count}} files",
+      "importProgress": "{{progress}}% of the batch imported or stopped"
+    },
+    "summary": {
+      "total_one": "{{count}} file",
+      "total_other": "{{count}} files",
+      "attention_one": "{{count}} to check",
+      "attention_other": "{{count}} to check",
+      "imported_one": "{{count}} imported",
+      "imported_other": "{{count}} imported"
+    },
+    "roles": {
+      "occurrences": "Occurrences",
+      "sites": "Sites/Plots",
+      "class_values": "Class values",
+      "spatial_layer": "Spatial layers",
+      "raster_layer": "Rasters",
+      "dataset": "Data tables",
+      "reference": "Reference tables",
+      "auxiliary": "Attached tables",
+      "supporting_table": "Supporting tables",
+      "unknown": "To classify"
+    },
+    "status": {
+      "selected": "Selected",
+      "uploading": "Uploading",
+      "queued": "Queued",
+      "checking": "Checking",
+      "analysed": "Analysed",
+      "ready": "Ready",
+      "needs_attention": "Needs review",
+      "not_configured": "Not used automatically",
+      "importing": "Importing",
+      "imported": "Imported",
+      "failed": "Failed"
+    },
+    "messages": {
+      "not_configured": "Not used by automatic analysis"
+    },
+    "context": {
+      "emptyTitle": "Import assistant",
+      "helpTitle": "Import help",
+      "details": "Details",
+      "checks": "Detected signals",
+      "phase": {
+        "idle": "Add files to build the inventory.",
+        "uploading": "Files are being uploaded.",
+        "configuring": "Niamoto is analysing files and detecting their roles.",
+        "reviewing": "Validate the proposal before launching the import.",
+        "editing": "Adjust the existing configuration before reimporting.",
+        "importing": "Import is running.",
+        "complete": "Import is complete.",
+        "error": "An error is blocking import."
+      }
+    },
+    "detailLabels": {
+      "format": "Format",
+      "size": "Size",
+      "checks": "Checks",
+      "tips": "Tips",
+      "event": "Event",
+      "analysis": "Analysis",
+      "detected_as": "Detected as",
+      "source": "Source",
+      "id field": "Identifier",
+      "rows": "Rows",
+      "decision": "Decision",
+      "review": "Needs review",
+      "kind": "Type",
+      "hierarchy": "Hierarchy",
+      "attached to": "Attached to",
+      "relation": "Relation",
+      "description": "Description"
+    },
+    "review": {
+      "advancedTitle": "Advanced adjustments",
+      "advancedDescription": "Open the detailed configuration or YAML only if you need to correct detection."
+    }
+  },
   "preImport": {
     "title": "Before you import",
     "badge": "Quick check",
-    "description": "Niamoto can analyse several file types automatically. Start with the minimum checks below, then open the details only for nested levels or precomputed class values.",
+    "description": "Choose the starting point that best matches your data. You can still adjust the configuration after automatic analysis.",
+    "assistant": {
+      "nav": {
+        "overview": {
+          "title": "Before you import",
+          "description": "The minimum to start"
+        },
+        "files": {
+          "title": "Files and models",
+          "description": "Occurrences and sites"
+        },
+        "checks": {
+          "title": "Key checks",
+          "description": "What Niamoto looks at"
+        },
+        "advanced": {
+          "title": "Advanced details",
+          "description": "Hierarchies and class_object"
+        }
+      },
+      "overview": {
+        "title": "One occurrences CSV is enough to start.",
+        "description": "Import your records first. You can add sites, plots, spatial layers, or more specific values later.",
+        "steps": {
+          "read": {
+            "title": "1. Read your columns",
+            "description": "Niamoto inspects headers, identifiers, and geometries."
+          },
+          "derive": {
+            "title": "2. Derive taxonomy",
+            "description": "If family, genus, species, or id_taxonref are present, taxonomy can be extracted."
+          },
+          "review": {
+            "title": "3. Review before import",
+            "description": "You keep control over file roles and detected links."
+          }
+        }
+      },
+      "files": {
+        "title": "Choose the model that matches your data",
+        "description": "Templates are only starting points: replace the example rows with your own data.",
+        "occurrences": {
+          "title": "Occurrences",
+          "description": "The main file: observations, taxa, and optionally coordinates.",
+          "download": "Occurrences template"
+        },
+        "sites": {
+          "title": "Sites / plots",
+          "description": "A complementary file describing sites or plots linked to occurrences.",
+          "download": "Sites / plots template"
+        }
+      },
+      "checks": {
+        "title": "A few checks prevent the most common errors",
+        "description": "These points improve automatic detection without forcing you to configure import manually.",
+        "items": {
+          "headers": {
+            "title": "Headers",
+            "description": "One clear header row with stable column names.",
+            "status": "OK"
+          },
+          "identifiers": {
+            "title": "Identifiers",
+            "description": "One unique identifier for occurrences, sites, or taxa that need links.",
+            "status": "OK"
+          },
+          "matchingValues": {
+            "title": "Matching values",
+            "description": "Related files should reuse the same identifier values.",
+            "status": "Check"
+          },
+          "spatial": {
+            "title": "Spatial formats",
+            "description": "GeoPackage or GeoJSON is more reliable than shapefile for detection.",
+            "status": "Check"
+          }
+        }
+      },
+      "advanced": {
+        "title": "Open these details only if this sounds like your case",
+        "description": "These formats are useful, but more constrained than the standard occurrences path.",
+        "hierarchy": {
+          "title": "Hierarchies",
+          "description": "For nested levels such as family > genus > species or country > region > plot."
+        },
+        "classObject": {
+          "title": "Values already calculated by class",
+          "description": "For attaching one entity to one measured object, one class, and one numeric value.",
+          "download": "Class values template"
+        }
+      },
+      "resources": {
+        "title": "Resources",
+        "description": "Download a template or check accepted formats without leaving this help."
+      }
+    },
+    "start": {
+      "title": "You can start simply",
+      "description": "One occurrences file is often enough to begin. If it also contains family, genus, species, or id_taxonref, Niamoto can derive the taxonomy from it."
+    },
+    "paths": {
+      "occurrences": {
+        "title": "I have an occurrences file",
+        "badge": "Start here",
+        "description": "Observations, taxa, and optionally coordinates. This is the main file in the standard workflow.",
+        "download": "Occurrences template"
+      },
+      "siteReference": {
+        "title": "I also have sites / plots",
+        "badge": "Optional",
+        "description": "A list of sites, plots, or sampling locations to link with occurrences for spatial grouping.",
+        "download": "Sites / plots template"
+      },
+      "advanced": {
+        "title": "I have a more specific case",
+        "badge": "Advanced",
+        "description": "Separate hierarchies, values already calculated by class, or stricter file formats.",
+        "hint": "Open the panels below only if this sounds like your situation.",
+        "openHierarchy": "View hierarchies",
+        "openClassObject": "View class values"
+      }
+    },
+    "acceptedFormatsTitle": "Accepted formats",
     "formats": {
       "csv": {
         "title": "CSV tables",

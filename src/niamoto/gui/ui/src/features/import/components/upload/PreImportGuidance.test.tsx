@@ -15,47 +15,55 @@ const translations: Record<string, string> = {
   'preImport.title': 'Before you import',
   'preImport.badge': 'Quick check',
   'preImport.description': 'Prepare files before uploading.',
-  'preImport.formats.csv.title': 'CSV tables',
-  'preImport.formats.csv.description': 'Delimited attribute tables.',
-  'preImport.formats.vector.title': 'Vector layers',
-  'preImport.formats.vector.description': 'Spatial layers with geometry.',
-  'preImport.formats.raster.title': 'Raster layers',
-  'preImport.formats.raster.description': 'TIFF rasters.',
+  'preImport.acceptedFormatsTitle': 'Accepted formats',
   'preImport.shapefileNote': 'For shapefiles, prefer GeoPackage for automatic detection.',
-  'preImport.detectionTips.title': 'For more reliable automatic detection',
-  'preImport.detectionTips.items.headers': 'Keep one clear header row in CSV files.',
-  'preImport.detectionTips.items.identifiers': 'Use explicit identifier columns such as id, plot_id, or taxon_id.',
-  'preImport.detectionTips.items.matchingValues': 'Reuse the same identifier values between related files.',
-  'preImport.detectionTips.items.spatial': 'Prefer GeoPackage or GeoJSON for spatial data.',
-  'preImport.hierarchy.title': 'Do your data have nested levels?',
-  'preImport.hierarchy.summary': 'Use this for taxonomies or geographic levels.',
-  'preImport.hierarchy.meaningTitle': 'What Niamoto can detect',
-  'preImport.hierarchy.meaningDescription': 'A hierarchy moves from broad to precise levels.',
-  'preImport.hierarchy.standardTaxonomyTitle': 'Standard case: taxonomy derived from occurrences',
-  'preImport.hierarchy.standardTaxonomyDescription': 'You usually do not need a separate taxonomy file.',
-  'preImport.hierarchy.separateColumns': 'One column per level',
-  'preImport.hierarchy.separateColumnsDescription': 'Put at least two levels in the same CSV.',
-  'preImport.hierarchy.clearNames': 'Clear level names',
-  'preImport.hierarchy.clearNamesDescription': 'Use family, genus, species, country, region, locality, or plot.',
-  'preImport.hierarchy.order': 'Broad to precise',
-  'preImport.hierarchy.orderDescription': 'Keep broader levels less unique than deeper levels.',
-  'preImport.hierarchy.identifier': 'Stable identifiers help links',
-  'preImport.hierarchy.identifierDescription': 'Add taxon_id, plot_id, id_taxon, or id when possible.',
-  'preImport.templates.title': 'Need a starting file?',
-  'preImport.templates.description': 'Download a small CSV model.',
-  'preImport.templates.occurrences': 'Occurrences',
-  'preImport.templates.siteReference': 'Sites / plots',
-  'preImport.classObject.title': 'Do you have values already calculated by class?',
-  'preImport.classObject.summary': 'Use this when one entity has numeric values split into named classes.',
-  'preImport.classObject.meaningTitle': 'What this CSV represents',
-  'preImport.classObject.meaningDescription': 'Each row links one entity to one measured object, an optional class, and one numeric value.',
-  'preImport.classObject.example': 'Example: plot_001 + forest_cover + forest + 8.4.',
-  'preImport.classObject.requiredColumns': 'Required columns',
-  'preImport.classObject.identifier': 'Entity identifier',
-  'preImport.classObject.identifierDescription': 'Use entity_id, plot_id, shape_id, taxon_id, or id.',
-  'preImport.classObject.numericValues': 'Numeric values',
-  'preImport.classObject.numericValuesDescription': 'class_value must be numeric.',
-  'preImport.classObject.downloadTemplate': 'Download CSV template',
+  'preImport.assistant.nav.overview.title': 'Before you import',
+  'preImport.assistant.nav.overview.description': 'The minimum to start',
+  'preImport.assistant.nav.files.title': 'Files and models',
+  'preImport.assistant.nav.files.description': 'Occurrences and sites',
+  'preImport.assistant.nav.checks.title': 'Key checks',
+  'preImport.assistant.nav.checks.description': 'What Niamoto looks at',
+  'preImport.assistant.nav.advanced.title': 'Advanced details',
+  'preImport.assistant.nav.advanced.description': 'Hierarchies and class_object',
+  'preImport.assistant.overview.title': 'One occurrences CSV is enough to start.',
+  'preImport.assistant.overview.description': 'Import your records first.',
+  'preImport.assistant.overview.steps.read.title': '1. Read your columns',
+  'preImport.assistant.overview.steps.read.description': 'Niamoto inspects headers.',
+  'preImport.assistant.overview.steps.derive.title': '2. Derive taxonomy',
+  'preImport.assistant.overview.steps.derive.description': 'Taxonomy can be extracted.',
+  'preImport.assistant.overview.steps.review.title': '3. Review before import',
+  'preImport.assistant.overview.steps.review.description': 'You keep control.',
+  'preImport.assistant.files.title': 'Choose the model that matches your data',
+  'preImport.assistant.files.description': 'Templates are starting points.',
+  'preImport.assistant.files.occurrences.title': 'Occurrences',
+  'preImport.assistant.files.occurrences.description': 'The main file.',
+  'preImport.assistant.files.occurrences.download': 'Occurrences template',
+  'preImport.assistant.files.sites.title': 'Sites / plots',
+  'preImport.assistant.files.sites.description': 'A complementary file.',
+  'preImport.assistant.files.sites.download': 'Sites / plots template',
+  'preImport.assistant.checks.title': 'A few checks prevent errors',
+  'preImport.assistant.checks.description': 'These points improve automatic detection.',
+  'preImport.assistant.checks.items.headers.title': 'Headers',
+  'preImport.assistant.checks.items.headers.description': 'One clear header row.',
+  'preImport.assistant.checks.items.headers.status': 'OK',
+  'preImport.assistant.checks.items.identifiers.title': 'Identifiers',
+  'preImport.assistant.checks.items.identifiers.description': 'One unique identifier.',
+  'preImport.assistant.checks.items.identifiers.status': 'OK',
+  'preImport.assistant.checks.items.matchingValues.title': 'Matching values',
+  'preImport.assistant.checks.items.matchingValues.description': 'Related files reuse identifiers.',
+  'preImport.assistant.checks.items.matchingValues.status': 'Check',
+  'preImport.assistant.checks.items.spatial.title': 'Spatial formats',
+  'preImport.assistant.checks.items.spatial.description': 'GeoPackage or GeoJSON is more reliable.',
+  'preImport.assistant.checks.items.spatial.status': 'Check',
+  'preImport.assistant.advanced.title': 'Open these details only if this sounds like your case',
+  'preImport.assistant.advanced.description': 'More constrained than the standard path.',
+  'preImport.assistant.advanced.hierarchy.title': 'Hierarchies',
+  'preImport.assistant.advanced.hierarchy.description': 'For nested levels.',
+  'preImport.assistant.advanced.classObject.title': 'Values already calculated by class',
+  'preImport.assistant.advanced.classObject.description': 'Attach one entity to one value.',
+  'preImport.assistant.advanced.classObject.download': 'Class values template',
+  'preImport.assistant.resources.title': 'Resources',
+  'preImport.assistant.resources.description': 'Download a template.',
 }
 
 vi.mock('react-i18next', () => ({
@@ -97,105 +105,119 @@ describe('PreImportGuidance', () => {
     document.body.innerHTML = ''
   })
 
-  it('summarizes supported file families without opening the class_object details', async () => {
+  it('opens on a lightweight overview with navigation and resources', async () => {
     const harness = createHarness()
 
     await harness.render(<PreImportGuidance />)
 
-    expect(harness.container.textContent).toContain('CSV tables')
-    expect(harness.container.textContent).toContain('Vector layers')
-    expect(harness.container.textContent).toContain('Raster layers')
+    expect(harness.container.textContent).toContain('One occurrences CSV is enough to start.')
+    expect(harness.container.textContent).toContain('Files and models')
+    expect(harness.container.textContent).toContain('Key checks')
+    expect(harness.container.textContent).toContain('Advanced details')
+    expect(harness.container.textContent).toContain('Resources')
     expect(harness.container.textContent).toContain('.csv')
     expect(harness.container.textContent).toContain('.gpkg')
-    expect(harness.container.textContent).toContain('prefer GeoPackage for automatic detection')
-    expect(harness.container.textContent).toContain('For more reliable automatic detection')
-    expect(harness.container.textContent).toContain('Use explicit identifier columns')
-    expect(harness.container.textContent).toContain('Need a starting file?')
-    expect(harness.container.textContent).toContain('Occurrences')
-    expect(harness.container.textContent).toContain('Sites / plots')
-    expect(harness.container.textContent).not.toContain('Required columns')
-    expect(harness.container.textContent).not.toContain('One column per level')
+    expect(harness.container.textContent).toContain('prefer GeoPackage')
 
     await harness.unmount()
   })
 
-  it('reveals hierarchy guidance only when users ask for nested level details', async () => {
+  it('switches to file models and downloads both starter templates', async () => {
     const harness = createHarness()
 
     await harness.render(<PreImportGuidance />)
 
-    const trigger = Array.from(harness.container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Do your data have nested levels?')
+    const filesButton = Array.from(harness.container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Files and models')
     )
-    expect(trigger).toBeTruthy()
+    expect(filesButton).toBeTruthy()
 
     await act(async () => {
-      trigger?.click()
+      filesButton?.click()
       await Promise.resolve()
     })
 
-    expect(harness.container.textContent).toContain('What Niamoto can detect')
-    expect(harness.container.textContent).toContain('Standard case: taxonomy derived from occurrences')
-    expect(harness.container.textContent).toContain('You usually do not need a separate taxonomy file')
-    expect(harness.container.textContent).toContain('family')
-    expect(harness.container.textContent).toContain('genus')
-    expect(harness.container.textContent).toContain('species')
-    expect(harness.container.textContent).toContain('One column per level')
-    expect(harness.container.textContent).toContain('taxon_id, plot_id, id_taxon, or id')
+    expect(harness.container.textContent).toContain('Choose the model that matches your data')
+    expect(harness.container.textContent).toContain('id_taxonref')
+    expect(harness.container.textContent).toContain('id_plot')
 
-    await harness.unmount()
-  })
-
-  it('downloads concrete CSV templates from the starting file section', async () => {
-    const harness = createHarness()
-
-    await harness.render(<PreImportGuidance />)
-
-    const occurrencesTemplateButton = Array.from(harness.container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Occurrences')
+    const occurrencesButton = Array.from(harness.container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Occurrences template')
     )
-    expect(occurrencesTemplateButton).toBeTruthy()
+    expect(occurrencesButton).toBeTruthy()
 
     await act(async () => {
-      occurrencesTemplateButton?.click()
+      occurrencesButton?.click()
       await Promise.resolve()
     })
 
     expect(downloadCsvTemplateMock).toHaveBeenCalledWith('occurrences')
 
+    const sitesButton = Array.from(harness.container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Sites / plots template')
+    )
+    expect(sitesButton).toBeTruthy()
+
+    await act(async () => {
+      sitesButton?.click()
+      await Promise.resolve()
+    })
+
+    expect(downloadCsvTemplateMock).toHaveBeenCalledWith('siteReference')
+
     await harness.unmount()
   })
 
-  it('reveals class_object constraints and downloads the template on demand', async () => {
+  it('shows key checks as a focused preparation list', async () => {
     const harness = createHarness()
 
     await harness.render(<PreImportGuidance />)
 
-    const trigger = Array.from(harness.container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Do you have values already calculated by class?')
+    const checksButton = Array.from(harness.container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Key checks')
     )
-    expect(trigger).toBeTruthy()
+    expect(checksButton).toBeTruthy()
 
     await act(async () => {
-      trigger?.click()
+      checksButton?.click()
       await Promise.resolve()
     })
 
-    expect(harness.container.textContent).toContain('What this CSV represents')
-    expect(harness.container.textContent).toContain('plot_001 + forest_cover + forest + 8.4')
-    expect(harness.container.textContent).toContain('Required columns')
+    expect(harness.container.textContent).toContain('Headers')
+    expect(harness.container.textContent).toContain('Identifiers')
+    expect(harness.container.textContent).toContain('Matching values')
+    expect(harness.container.textContent).toContain('Spatial formats')
+
+    await harness.unmount()
+  })
+
+  it('keeps advanced formats separate and downloads class-value template there', async () => {
+    const harness = createHarness()
+
+    await harness.render(<PreImportGuidance />)
+
+    const advancedButton = Array.from(harness.container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Advanced details')
+    )
+    expect(advancedButton).toBeTruthy()
+
+    await act(async () => {
+      advancedButton?.click()
+      await Promise.resolve()
+    })
+
+    expect(harness.container.textContent).toContain('Hierarchies')
     expect(harness.container.textContent).toContain('class_object')
     expect(harness.container.textContent).toContain('class_name')
     expect(harness.container.textContent).toContain('class_value')
-    expect(harness.container.textContent).toContain('entity_id, plot_id, shape_id, taxon_id, or id')
 
-    const downloadButton = Array.from(harness.container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Download CSV template')
+    const classValuesButton = Array.from(harness.container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Class values template')
     )
-    expect(downloadButton).toBeTruthy()
+    expect(classValuesButton).toBeTruthy()
 
     await act(async () => {
-      downloadButton?.click()
+      classValuesButton?.click()
       await Promise.resolve()
     })
 
