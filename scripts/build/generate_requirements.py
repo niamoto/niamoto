@@ -3,6 +3,7 @@
 
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 
@@ -51,6 +52,29 @@ def run_command(cmd):
         sys.exit(1)
 
 
+def uv_resolution_args(lock_path: Path) -> list[str]:
+    """Return uv resolver options captured in uv.lock."""
+    if not lock_path.exists():
+        return []
+
+    lock_data = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+    options = lock_data.get("options", {})
+    args = []
+
+    exclude_newer = options.get("exclude-newer")
+    if isinstance(exclude_newer, str):
+        args.extend(["--exclude-newer", exclude_newer])
+
+    exclude_newer_packages = options.get("exclude-newer-package", {})
+    if isinstance(exclude_newer_packages, dict):
+        for package_name in sorted(exclude_newer_packages):
+            cutoff = exclude_newer_packages[package_name]
+            if isinstance(cutoff, str):
+                args.extend(["--exclude-newer-package", f"{package_name}={cutoff}"])
+
+    return args
+
+
 def main() -> int:
     """Generate requirements files."""
     project_root = Path(__file__).parent.parent.parent
@@ -66,9 +90,21 @@ def main() -> int:
         print("Activation script not found in virtual environment.", file=sys.stderr)
         sys.exit(1)
 
+    resolution_args = uv_resolution_args(project_root / "uv.lock")
+
     # Generate main requirements.txt
     print("Generating main requirements.txt...")
-    run_command(["uv", "pip", "compile", "pyproject.toml", "-o", "requirements.txt"])
+    run_command(
+        [
+            "uv",
+            "pip",
+            "compile",
+            "pyproject.toml",
+            *resolution_args,
+            "-o",
+            "requirements.txt",
+        ]
+    )
     add_platform_markers(project_root / "requirements.txt")
 
     # Generate dev-requirements.txt from the shared development dependency group.
@@ -81,6 +117,7 @@ def main() -> int:
             "pyproject.toml",
             "--group",
             "dev",
+            *resolution_args,
             "-o",
             "dev-requirements.txt",
         ]
