@@ -4,10 +4,11 @@
  * Extracted from WelcomeStep for reuse in Flow DataPanel
  */
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { getApiErrorMessage } from '@/shared/lib/api/errors'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -34,6 +35,10 @@ import {
   Plus,
 } from 'lucide-react'
 import { uploadFiles, type UploadedFileInfo } from '@/features/import/api/upload'
+import {
+  analyzeFilesBeforeUpload,
+  type FilePreflightSummary,
+} from '@/features/import/components/upload/filePreflight'
 
 export interface FileAnalysisStatus {
   state: 'queued' | 'analyzing' | 'detected' | 'review' | 'done'
@@ -68,6 +73,7 @@ export function FileUploadZone({
   const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [filePreflight, setFilePreflight] = useState<Record<string, FilePreflightSummary>>({})
   const [dragActive, setDragActive] = useState(false)
   const [existingFiles, setExistingFiles] = useState<string[]>([])
   const [showExistingDialog, setShowExistingDialog] = useState(false)
@@ -111,8 +117,27 @@ export function FileUploadZone({
 
   const clearFiles = () => {
     setSelectedFiles([])
+    setFilePreflight({})
     setError(null)
   }
+
+  useEffect(() => {
+    if (analysisMode || selectedFiles.length === 0) {
+      setFilePreflight({})
+      return
+    }
+
+    let cancelled = false
+    void analyzeFilesBeforeUpload(selectedFiles).then((summaries) => {
+      if (!cancelled) {
+        setFilePreflight(summaries)
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [analysisMode, selectedFiles])
 
   const handleUpload = async (overwrite: boolean = false) => {
     if (selectedFiles.length === 0) return
@@ -339,6 +364,32 @@ export function FileUploadZone({
                       <div className={`mt-1 flex items-center gap-1.5 text-xs ${getStatusMeta(file.name)?.tone}`}>
                         {getStatusMeta(file.name)?.icon}
                         <span>{getStatusMeta(file.name)?.label}</span>
+                      </div>
+                    )}
+                    {!analysisMode && filePreflight[file.name] && (
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Badge
+                            variant={filePreflight[file.name].status === 'review' ? 'secondary' : 'outline'}
+                            className="text-[10px]"
+                          >
+                            {t(`upload.preflight.status.${filePreflight[file.name].status}`, { ns: 'sources' })}
+                          </Badge>
+                          {filePreflight[file.name].badges.map((badge) => (
+                            <Badge key={badge} variant="outline" className="text-[10px]">
+                              {t(`upload.preflight.badges.${badge}`, { ns: 'sources' })}
+                            </Badge>
+                          ))}
+                        </div>
+                        {filePreflight[file.name].tips.length > 0 && (
+                          <ul className="space-y-0.5 text-xs text-amber-700 dark:text-amber-400">
+                            {filePreflight[file.name].tips.map((tip) => (
+                              <li key={tip}>
+                                {t(`upload.preflight.tips.${tip}`, { ns: 'sources' })}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     )}
                   </div>

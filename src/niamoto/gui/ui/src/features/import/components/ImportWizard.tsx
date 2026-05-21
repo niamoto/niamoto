@@ -34,6 +34,7 @@ import { type AutoConfigureResponse } from '@/features/import/api/smart-config'
 import { apiClient } from '@/shared/lib/api/client'
 import { FileUploadZone } from '@/features/import/components/upload/FileUploadZone'
 import { ExistingFilesSection } from '@/features/import/components/upload/ExistingFilesSection'
+import { PreImportGuidance } from '@/features/import/components/upload/PreImportGuidance'
 import { AutoConfigDisplay } from '@/features/import/components/review/AutoConfigDisplay'
 import { YamlPreview } from '@/features/import/components/review/YamlPreview'
 import type { FileAnalysisStatus } from '@/features/import/components/upload/FileUploadZone'
@@ -696,6 +697,8 @@ export function ImportWizard() {
           {/* Idle Phase */}
           {phase === 'idle' && (
             <div className={`space-y-4 ${phaseTransitionClassName}`}>
+              <PreImportGuidance />
+
               <ExistingFilesSection
                 onFilesSelected={handleExistingFilesSelected}
                 disabled={isProcessing}
