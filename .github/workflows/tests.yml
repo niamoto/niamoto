@@ -85,6 +85,7 @@ jobs:
         slug: niamoto/niamoto
         fail_ci_if_error: true
         flags: backend
+        use_pypi: true
         version: v11.2.7
 
     - name: Upload frontend coverage to Codecov
@@ -96,6 +97,7 @@ jobs:
         slug: niamoto/niamoto
         fail_ci_if_error: true
         flags: frontend
+        use_pypi: true
         version: v11.2.7
 
     - name: Upload coverage report
