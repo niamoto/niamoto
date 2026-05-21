@@ -80,7 +80,7 @@
   },
   "upload": {
     "dropFiles": "Drag and drop your files",
-    "supportedFormats": "CSV, GeoPackage, GeoJSON, TIFF",
+    "supportedFormats": "CSV, GeoPackage, GeoJSON, zipped shapefiles, TIFF",
     "addMore": "Add files",
     "uploading": "Uploading...",
     "uploadSelected_one": "Upload {{count}} file",
@@ -105,6 +105,96 @@
       "detected": "Detection updated",
       "review": "Needs review",
       "ready": "Analysis complete"
+    },
+    "preflight": {
+      "status": {
+        "ready": "Ready for detection",
+        "review": "Check before upload",
+        "info": "Detected format"
+      },
+      "badges": {
+        "headers": "Headers found",
+        "identifiers": "Identifiers found",
+        "hierarchy": "Nested levels",
+        "taxonomyFromOccurrences": "Taxonomy in occurrences",
+        "classObject": "Class values",
+        "spatial": "Spatial layer",
+        "raster": "Raster layer",
+        "zip": "ZIP archive"
+      },
+      "tips": {
+        "missingHeaders": "Add one clear header row so Niamoto can read the columns.",
+        "missingIdentifiers": "Add an explicit identifier such as id, plot_id, or taxon_id when this file must link to another file.",
+        "classObjectIdentifier": "Class-value CSVs also need entity_id, plot_id, shape_id, taxon_id, or id.",
+        "classObjectNumeric": "The class_value column should contain only numeric values.",
+        "zipShapefile": "ZIP shapefiles are accepted, but GeoPackage or GeoJSON gives more reliable automatic detection.",
+        "unsupported": "This extension may upload, but it is not part of the reliable auto-detection path.",
+        "unreadableCsv": "This CSV could not be previewed. Check encoding and the first header row."
+      }
+    }
+  },
+  "preImport": {
+    "title": "Before you import",
+    "badge": "Quick check",
+    "description": "Niamoto can analyse several file types automatically. Start with the minimum checks below, then open the details only for nested levels or precomputed class values.",
+    "formats": {
+      "csv": {
+        "title": "CSV tables",
+        "description": "Delimited tables for datasets, references, metadata, and supporting values."
+      },
+      "vector": {
+        "title": "Vector layers",
+        "description": "Spatial features with geometry, usually plots, areas, or boundaries."
+      },
+      "raster": {
+        "title": "Raster layers",
+        "description": "GeoTIFF layers used as gridded environmental or spatial inputs."
+      }
+    },
+    "shapefileNote": "For shapefiles, prefer GeoPackage when possible. ZIP shapefile uploads are accepted, but automatic detection is most reliable with GeoPackage or GeoJSON.",
+    "detectionTips": {
+      "title": "For more reliable automatic detection",
+      "items": {
+        "headers": "Keep one clear header row in CSV files.",
+        "identifiers": "Use explicit identifier columns such as id, plot_id, or taxon_id.",
+        "matchingValues": "Reuse the same identifier values between related files.",
+        "spatial": "Prefer GeoPackage or GeoJSON for spatial data."
+      }
+    },
+    "hierarchy": {
+      "title": "Do your data have nested levels?",
+      "summary": "Use this for taxonomies or geographic levels such as family > genus > species or country > region > locality > plot.",
+      "meaningTitle": "What Niamoto can detect",
+      "meaningDescription": "A hierarchy is a set of columns where each row moves from a broad level to a more precise level.",
+      "standardTaxonomyTitle": "Standard case: taxonomy derived from occurrences",
+      "standardTaxonomyDescription": "You usually do not need a separate taxonomy file. Put taxonomy columns directly in the occurrences CSV, for example id_taxonref, taxaname, family, genus, species, and infra.",
+      "separateColumns": "One column per level",
+      "separateColumnsDescription": "Put at least two levels in the same CSV, each in its own column.",
+      "clearNames": "Clear level names",
+      "clearNamesDescription": "Use names such as family, genus, species, country, region, locality, or plot.",
+      "order": "Broad to precise",
+      "orderDescription": "Keep values consistent so broader levels contain fewer unique values than deeper levels.",
+      "identifier": "Stable identifiers help links",
+      "identifierDescription": "When possible, add a stable id such as taxon_id, plot_id, id_taxon, or id."
+    },
+    "templates": {
+      "title": "Need a starting file?",
+      "description": "Download a small CSV model, then replace the example rows with your own data.",
+      "occurrences": "Occurrences",
+      "siteReference": "Sites / plots"
+    },
+    "classObject": {
+      "title": "Do you have values already calculated by class?",
+      "summary": "Use this only when one entity has numeric values split into named classes. Niamoto stores that as a class_object CSV.",
+      "meaningTitle": "What this CSV represents",
+      "meaningDescription": "Each row links one entity to one measured object, an optional class, and one numeric value.",
+      "example": "Example: plot_001 + forest_cover + forest + 8.4 means plot_001 has 8.4 units of forest cover in the forest class.",
+      "requiredColumns": "Required columns",
+      "identifier": "Entity identifier",
+      "identifierDescription": "Include one identifier column named entity_id, plot_id, shape_id, taxon_id, or id so each row can be attached to an entity.",
+      "numericValues": "Numeric values",
+      "numericValuesDescription": "The class_value column must contain numeric values. Leave class_name empty only when the value is not split by class.",
+      "downloadTemplate": "Download CSV template"
     }
   },
   "existingFiles": {
@@ -1467,6 +1557,14 @@
       "mlOverride": "ML influenced the decision",
       "conflict": "Heuristic and ML diverge",
       "mixed": "Mixed signals"
+    },
+    "actionableTips": {
+      "title": "What to check",
+      "lowConfidence": "Open the details and confirm whether this file should be a dataset, a reference, or a supporting source.",
+      "classificationConflict": "The signals disagree; check the detected role before importing.",
+      "missingIdentifier": "Choose or add a stable identifier column so this table can be linked later.",
+      "hierarchyIdentifier": "If this hierarchy must link to observations or stats, add a stable taxon_id, plot_id, or id.",
+      "noRelationship": "If this dataset should link to a reference, make sure both files share matching identifier values."
     },
     "detection": {
       "fileFormatRecognized": "{{format}} format recognized for \"{{name}}\"",
