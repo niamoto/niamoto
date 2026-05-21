@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-08T07:54:13.419077+00:00",
+  "generated_at": "2026-05-21T15:58:25.458492+00:00",
   "entries": [
     {
       "slug": "01-getting-started",
@@ -1837,31 +1837,31 @@
       "path": "/help/06-reference/standard-profiles",
       "section_slug": "06-reference",
       "section_title": "Reference",
-      "title": "Standard Profiles",
+      "title": "Standard profiles",
       "description": "Standard profiles describe publication ready biodiversity outputs separately from ordinary collection JSON APIs. They live in config/export.yml under the top level standard profiles key.",
       "page_type": "markdown",
       "is_section_index": false,
       "headings": [
-        "Configuration Shape",
-        "Supported Standards",
-        "Sources and Grain Compatibility",
-        "Validation States",
-        "Mapping Values",
+        "Configuration shape",
+        "Supported standards",
+        "Sources and grain compatibility",
+        "Validation states",
+        "Mapping values",
         "Outputs",
-        "API Surface",
+        "API surface",
         "Legacy Darwin Core JSON",
         "Related"
       ],
       "keywords": [
         "Reference",
-        "Standard Profiles",
-        "Configuration Shape",
-        "Supported Standards",
-        "Sources and Grain Compatibility",
-        "Validation States",
-        "Mapping Values",
+        "Standard profiles",
+        "Configuration shape",
+        "Supported standards",
+        "Sources and grain compatibility",
+        "Validation states",
+        "Mapping values",
         "Outputs",
-        "API Surface",
+        "API surface",
         "Legacy Darwin Core JSON",
         "Related"
       ]
