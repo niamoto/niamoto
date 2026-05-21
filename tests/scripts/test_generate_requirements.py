@@ -60,3 +60,26 @@ def test_add_platform_markers_keeps_existing_marker(tmp_path):
         requirements.read_text(encoding="utf-8")
         == 'uvloop==0.21.0 ; sys_platform != "win32"\n'
     )
+
+
+def test_uv_resolution_args_includes_lock_cutoffs(tmp_path):
+    lock_file = tmp_path / "uv.lock"
+    lock_file.write_text(
+        """
+[options]
+exclude-newer = "2026-05-14T16:00:51.329945Z"
+
+[options.exclude-newer-package]
+duckdb = "2026-05-21T00:00:00Z"
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    module = _load_module()
+
+    assert module.uv_resolution_args(lock_file) == [
+        "--exclude-newer",
+        "2026-05-14T16:00:51.329945Z",
+        "--exclude-newer-package",
+        "duckdb=2026-05-21T00:00:00Z",
+    ]
