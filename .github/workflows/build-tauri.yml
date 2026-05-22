@@ -160,7 +160,7 @@ jobs:
           sidecar_path="src-tauri/resources/sidecar/${{ matrix.target }}/niamoto/niamoto${{ matrix.binary_suffix }}"
           python3 scripts/build/smoke_test_packaged_sidecar.py \
             --sidecar-path "$sidecar_path" \
-            --project-dir test-instance/niamoto-subset
+            --project-dir tests/fixtures/desktop-smoke-project
 
       # --- Rust + Tauri ---
       - uses: dtolnay/rust-toolchain@stable

@@ -399,6 +399,52 @@ describe('buildImportInventory', () => {
     )
   })
 
+  it('does not fall back to basename when both uploaded and detected files have different concrete paths', () => {
+    const result: AutoConfigureResponse = {
+      success: true,
+      entities: {
+        datasets: {
+          north_sampling: {
+            connector: {
+              path: 'imports/north/plots.csv',
+              format: 'csv',
+            },
+          },
+          south_sampling: {
+            connector: {
+              path: 'imports/south/plots.csv',
+              format: 'csv',
+            },
+          },
+        },
+        references: {},
+      },
+      confidence: 0.9,
+      warnings: [],
+    }
+
+    const inventory = buildImportInventory({
+      uploadedFiles: [
+        { filename: 'plots.csv', path: 'imports/south/plots.csv', type: 'csv' },
+        { filename: 'plots.csv', path: 'imports/north/plots.csv', type: 'csv' },
+      ],
+      autoConfigResult: result,
+    })
+
+    expect(inventory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourcePath: 'imports/south/plots.csv',
+          detectedEntityName: 'south_sampling',
+        }),
+        expect.objectContaining({
+          sourcePath: 'imports/north/plots.csv',
+          detectedEntityName: 'north_sampling',
+        }),
+      ])
+    )
+  })
+
   it('applies import events to every uploaded file that belongs to the same multi-source entity', () => {
     const result: AutoConfigureResponse = {
       success: true,

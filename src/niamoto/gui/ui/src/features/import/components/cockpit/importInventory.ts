@@ -245,8 +245,8 @@ function sameSourceFile(left: ImportInventoryItem, right: ImportInventoryItem): 
     .map(normalizedPath)
     .filter(Boolean) as string[]
 
-  if (leftPath && rightPaths.includes(leftPath)) {
-    return true
+  if (leftPath && rightPaths.length > 0) {
+    return rightPaths.includes(leftPath)
   }
 
   const leftNames = inventoryFileNames(left)
