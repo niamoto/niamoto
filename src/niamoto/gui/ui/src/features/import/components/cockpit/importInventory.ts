@@ -62,7 +62,8 @@ export interface ImportInventoryDetail {
 export interface ImportInventoryItem {
   id: string
   name: string
-  sourceName?: string
+  sourceFileName?: string
+  detectedEntityName?: string
   sourcePath?: string
   sourcePaths?: string[]
   family: ImportInventoryFamily
@@ -232,6 +233,12 @@ function normalizedFileName(value?: string): string | undefined {
   return sourceFileName(value)?.toLowerCase()
 }
 
+function inventoryFileNames(item: ImportInventoryItem) {
+  return [item.sourcePath, item.sourceFileName, item.name]
+    .map(normalizedFileName)
+    .filter(Boolean) as string[]
+}
+
 function sameSourceFile(left: ImportInventoryItem, right: ImportInventoryItem): boolean {
   const leftPath = normalizedPath(left.sourcePath)
   const rightPaths = [right.sourcePath, ...(right.sourcePaths ?? [])]
@@ -242,12 +249,8 @@ function sameSourceFile(left: ImportInventoryItem, right: ImportInventoryItem): 
     return true
   }
 
-  const leftNames = [left.sourcePath, left.sourceName, left.name]
-    .map(normalizedFileName)
-    .filter(Boolean) as string[]
-  const rightNames = [right.sourcePath, ...(right.sourcePaths ?? []), right.sourceName]
-    .map(normalizedFileName)
-    .filter(Boolean) as string[]
+  const leftNames = inventoryFileNames(left)
+  const rightNames = inventoryFileNames(right)
 
   return leftNames.some((leftName) => rightNames.includes(leftName))
 }
@@ -292,7 +295,7 @@ function buildSelectedItem(
   return {
     id: `selected:${file.name}:${file.size}:${file.lastModified}`,
     name: file.name,
-    sourceName: file.name,
+    sourceFileName: file.name,
     family,
     role,
     status,
@@ -312,7 +315,7 @@ function buildUploadedItem(file: UploadedInventoryFile): ImportInventoryItem {
   return {
     id: `uploaded:${file.path || file.filename}`,
     name: filename,
-    sourceName: filename,
+    sourceFileName: filename,
     sourcePath: file.path,
     sourcePaths: [file.path],
     family,
@@ -332,9 +335,9 @@ function buildUploadedItem(file: UploadedInventoryFile): ImportInventoryItem {
 
 function matchEventToItem(event: AutoConfigureProgressEvent, item: ImportInventoryItem) {
   const eventFile = event.file?.split('/').pop()
-  if (eventFile && eventFile === item.sourceName) return true
-  if (eventFile && baseName(eventFile) === baseName(item.sourceName || item.name)) return true
-  if (event.entity && baseName(event.entity) === baseName(item.sourceName || item.name)) return true
+  if (eventFile && eventFile === item.sourceFileName) return true
+  if (eventFile && baseName(eventFile) === baseName(item.sourceFileName || item.name)) return true
+  if (event.entity && baseName(event.entity) === baseName(item.detectedEntityName || item.name)) return true
   return false
 }
 
@@ -403,7 +406,7 @@ function buildDatasetItem(
   return {
     id: `dataset:${name}`,
     name,
-    sourceName: sourcePath?.split('/').pop(),
+    sourceFileName: sourcePath?.split('/').pop(),
     sourcePath,
     sourcePaths,
     family,
@@ -443,7 +446,7 @@ function buildReferenceItem(
   return {
     id: `reference:${name}`,
     name,
-    sourceName: sourcePath?.split('/').pop(),
+    sourceFileName: sourcePath?.split('/').pop(),
     sourcePath,
     sourcePaths,
     family,
@@ -473,7 +476,7 @@ function buildAuxiliaryItem(source: unknown, index: number): ImportInventoryItem
   return {
     id: `auxiliary:${name}:${index}`,
     name,
-    sourceName: path?.split('/').pop(),
+    sourceFileName: path?.split('/').pop(),
     sourcePath: path,
     sourcePaths: path ? [path] : [],
     family,
@@ -501,7 +504,7 @@ function buildLayerItem(layer: unknown, index: number): ImportInventoryItem {
   return {
     id: `layer:${name}:${index}`,
     name,
-    sourceName: path?.split('/').pop(),
+    sourceFileName: path?.split('/').pop(),
     sourcePath: path,
     sourcePaths: path ? [path] : [],
     family,
@@ -545,7 +548,8 @@ function mergeDetectedResultIntoFile(
     quality: detectedItem.quality,
     primaryMessage: detectedItem.primaryMessage,
     summary: detectedItem.summary || fileItem.summary,
-    sourceName: detectedItem.name,
+    sourceFileName: fileItem.sourceFileName || detectedItem.sourceFileName,
+    detectedEntityName: detectedItem.name,
     sourcePath: fileItem.sourcePath || detectedItem.sourcePath,
     sourcePaths: fileItem.sourcePaths,
     details: [
@@ -576,11 +580,12 @@ function applyImportEvents(
 
   for (const event of events) {
     if (!event.entity_name) continue
+
     const targets = next.filter((item) =>
       item.name === event.entity_name
-      || item.sourceName === event.entity_name
+      || item.detectedEntityName === event.entity_name
       || baseName(item.name) === baseName(event.entity_name || '')
-      || baseName(item.sourceName || '') === baseName(event.entity_name || '')
+      || baseName(item.detectedEntityName || '') === baseName(event.entity_name || '')
     )
     if (targets.length === 0) continue
 

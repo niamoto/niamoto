@@ -211,10 +211,21 @@ class EntityRegistry:
                     message="Invalid JSON in config field",
                     details={"config": payload, "error": str(e)},
                 )
+            if not isinstance(config_dict, Mapping):
+                raise DatabaseQueryError(
+                    query="registry_lookup",
+                    message="Invalid config payload type",
+                    details={"config": payload, "type": type(config_dict).__name__},
+                )
+            config_dict = dict(config_dict)
         elif isinstance(payload, Mapping):
             config_dict = dict(payload)
         else:
-            config_dict = {}
+            raise DatabaseQueryError(
+                query="registry_lookup",
+                message="Invalid config payload type",
+                details={"config": payload, "type": type(payload).__name__},
+            )
 
         try:
             kind_enum = EntityKind(kind_value)

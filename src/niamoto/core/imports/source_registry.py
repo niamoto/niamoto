@@ -161,10 +161,21 @@ class TransformSourceRegistry:
                     message="Invalid JSON in transform source config",
                     details={"config": payload, "error": str(exc)},
                 )
+            if not isinstance(config_dict, Mapping):
+                raise DatabaseQueryError(
+                    query="transform_source_lookup",
+                    message="Invalid transform source config payload type",
+                    details={"config": payload, "type": type(config_dict).__name__},
+                )
+            config_dict = dict(config_dict)
         elif isinstance(payload, Mapping):
             config_dict = dict(payload)
         else:
-            config_dict = {}
+            raise DatabaseQueryError(
+                query="transform_source_lookup",
+                message="Invalid transform source config payload type",
+                details={"config": payload, "type": type(payload).__name__},
+            )
 
         return TransformSourceMetadata(
             name=name,
