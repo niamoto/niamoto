@@ -122,6 +122,29 @@ def test_invalid_json_config_raises_database_query_error(
     assert "Invalid JSON in transform source config" in str(exc_info.value)
 
 
+@pytest.mark.parametrize("payload", ["[]", "null", '"bad"'])
+def test_non_object_json_config_raises_database_query_error(
+    registry: TransformSourceRegistry, payload: str
+):
+    registry.db.execute_sql(
+        f"""
+        INSERT INTO {registry.SOURCES_TABLE} (name, path, grouping, config)
+        VALUES (:name, :path, :grouping, :config)
+        """,
+        {
+            "name": f"bad_source_{payload}",
+            "path": "imports/bad.csv",
+            "grouping": "plots",
+            "config": payload,
+        },
+    )
+
+    with pytest.raises(DatabaseQueryError) as exc_info:
+        registry.get(f"bad_source_{payload}")
+
+    assert "Invalid transform source config payload type" in str(exc_info.value)
+
+
 def test_list_sources_returns_empty_when_query_fails():
     class FailingDb:
         read_only = True

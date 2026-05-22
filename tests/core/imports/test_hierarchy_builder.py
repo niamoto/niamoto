@@ -271,6 +271,10 @@ def test_hierarchy_with_additional_columns(duckdb_database):
     # Note: id_column, name_column, and additional_columns are intentionally
     # excluded from the hierarchy table to prevent row duplication. These should
     # be joined from the source table when needed for display or enrichment.
+    assert "dbh" not in result_df.columns
+    assert "id_taxonref" not in result_df.columns
+    assert "taxaname" not in result_df.columns
+    assert result_df["full_path"].is_unique
 
 
 def test_hierarchy_extraction_quotes_source_table_and_columns(duckdb_database):

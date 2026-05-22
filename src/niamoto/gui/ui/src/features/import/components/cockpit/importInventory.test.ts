@@ -264,25 +264,25 @@ describe('buildImportInventory', () => {
       expect.arrayContaining([
         expect.objectContaining({
           name: 'occurrences.csv',
-          sourceName: 'occurrences',
+          detectedEntityName: 'occurrences',
           role: 'occurrences',
           status: 'analysed',
         }),
         expect.objectContaining({
           name: 'rainfall.tif',
-          sourceName: 'rainfall',
+          detectedEntityName: 'rainfall',
           role: 'raster_layer',
           status: 'analysed',
         }),
         expect.objectContaining({
           name: 'countries.gpkg',
-          sourceName: 'shapes',
+          detectedEntityName: 'shapes',
           role: 'spatial_layer',
           status: 'analysed',
         }),
         expect.objectContaining({
           name: 'communes.gpkg',
-          sourceName: 'shapes',
+          detectedEntityName: 'shapes',
           role: 'spatial_layer',
           status: 'analysed',
         }),
@@ -387,12 +387,12 @@ describe('buildImportInventory', () => {
       expect.arrayContaining([
         expect.objectContaining({
           name: 'plots.gpkg',
-          sourceName: 'plot_shapes',
+          detectedEntityName: 'plot_shapes',
           role: 'sites',
         }),
         expect.objectContaining({
           name: 'plots.csv',
-          sourceName: 'sampling_table',
+          detectedEntityName: 'sampling_table',
           role: 'dataset',
         }),
       ])
@@ -442,12 +442,12 @@ describe('buildImportInventory', () => {
       expect.arrayContaining([
         expect.objectContaining({
           name: 'countries.gpkg',
-          sourceName: 'shapes',
+          detectedEntityName: 'shapes',
           status: 'imported',
         }),
         expect.objectContaining({
           name: 'communes.gpkg',
-          sourceName: 'shapes',
+          detectedEntityName: 'shapes',
           status: 'imported',
         }),
       ])

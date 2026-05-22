@@ -31,6 +31,16 @@ router = APIRouter()
 MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024
 
 
+def _sanitize_file_analysis_response(
+    analysis: Dict[str, Any], requested_filepath: str
+) -> Dict[str, Any]:
+    """Avoid leaking resolved server paths in file-analysis responses."""
+    sanitized = dict(analysis)
+    if "filepath" in sanitized:
+        sanitized["filepath"] = requested_filepath
+    return sanitized
+
+
 class FileInfo(BaseModel):
     """Information about a file to analyze."""
 
@@ -674,11 +684,12 @@ async def analyze_file_smart(request: FileInfo) -> Dict[str, Any]:
             raise HTTPException(status_code=400, detail="Working directory not set")
 
         service = AutoConfigService(Path(work_dir))
-        return await asyncio.to_thread(
+        analysis = await asyncio.to_thread(
             service.analyze_file,
             request.filepath,
             entity_name=request.entity_name,
         )
+        return _sanitize_file_analysis_response(analysis, request.filepath)
 
     except HTTPException:
         raise
@@ -740,7 +751,8 @@ async def detect_relationships(
             raise HTTPException(status_code=400, detail="Working directory not set")
 
         service = AutoConfigService(Path(work_dir))
-        return service.detect_relationships(
+        return await asyncio.to_thread(
+            service.detect_relationships,
             source_file=request.source_file,
             target_files=request.target_files,
         )

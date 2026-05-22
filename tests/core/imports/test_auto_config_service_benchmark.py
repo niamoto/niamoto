@@ -11,6 +11,8 @@ from shapely.geometry import Polygon
 
 from niamoto.core.imports.auto_config_service import AutoConfigService
 
+pytestmark = [pytest.mark.slow, pytest.mark.integration]
+
 
 FIXTURES_DIR = Path(__file__).parents[2] / "gui" / "api" / "routers" / "fixtures"
 

@@ -42,7 +42,7 @@ const items: ImportInventoryItem[] = [
   {
     id: 'dataset:occurrences',
     name: 'occurrences',
-    sourceName: 'occurrences.csv',
+    sourceFileName: 'occurrences.csv',
     sourcePath: 'imports/occurrences.csv',
     family: 'csv',
     role: 'occurrences',
@@ -57,7 +57,7 @@ const items: ImportInventoryItem[] = [
   {
     id: 'layer:rainfall',
     name: 'rainfall',
-    sourceName: 'rainfall.tif',
+    sourceFileName: 'rainfall.tif',
     sourcePath: 'imports/rainfall.tif',
     family: 'raster',
     role: 'raster_layer',

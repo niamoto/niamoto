@@ -231,9 +231,9 @@ export function ImportInventoryList({
                         <div className="min-w-0 flex-1">
                           <div className="flex min-w-0 items-center gap-2">
                             <span className="truncate text-sm font-medium">{item.name}</span>
-                            {item.sourceName && item.sourceName !== item.name && (
+                            {item.detectedEntityName && item.detectedEntityName !== item.name && (
                               <span className="hidden truncate text-xs text-muted-foreground sm:inline">
-                                {item.sourceName}
+                                {item.detectedEntityName}
                               </span>
                             )}
                           </div>
