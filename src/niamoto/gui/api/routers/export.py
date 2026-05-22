@@ -973,7 +973,9 @@ async def execute_export_cli(
                 if _job_is_cancelled(job_store, job_id):
                     process.terminate()
                     try:
-                        await asyncio.wait_for(communicate_task, timeout=5)
+                        await asyncio.wait_for(
+                            asyncio.shield(communicate_task), timeout=5
+                        )
                     except asyncio.TimeoutError:
                         process.kill()
                         stdout, stderr = await communicate_task

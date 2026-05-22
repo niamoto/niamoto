@@ -399,6 +399,59 @@ class TestExportHistory:
         assert process.killed is False
         assert store.get_job(job_id)["status"] == "cancelled"
 
+    @pytest.mark.anyio
+    async def test_execute_cli_cancellation_kills_subprocess_after_timeout(
+        self, monkeypatch, tmp_path
+    ):
+        store = JobFileStore(tmp_path)
+        process_started = asyncio.Event()
+        process_killed = asyncio.Event()
+
+        class StubbornProcess:
+            def __init__(self):
+                self.returncode = None
+                self.terminated = False
+                self.killed = False
+
+            def terminate(self):
+                self.terminated = True
+
+            def kill(self):
+                self.killed = True
+                self.returncode = -9
+                process_killed.set()
+
+            async def communicate(self):
+                process_started.set()
+                await process_killed.wait()
+                return b"", b"killed after timeout"
+
+        process = StubbornProcess()
+
+        async def fake_create_subprocess_exec(*_args, **_kwargs):
+            return process
+
+        monkeypatch.setattr(
+            export_router.asyncio,
+            "create_subprocess_exec",
+            fake_create_subprocess_exec,
+        )
+        monkeypatch.setattr(export_router, "get_working_directory", lambda: tmp_path)
+        monkeypatch.setattr(export_router, "_get_job_store", lambda _request: store)
+
+        background_tasks = BackgroundTasks()
+        response = await export_router.execute_export_cli(background_tasks, object())
+        job_id = response["job_id"]
+
+        task = asyncio.create_task(background_tasks())
+        await asyncio.wait_for(process_started.wait(), timeout=2)
+        store.request_cancellation(job_id, "Export job cancellation requested")
+        await asyncio.wait_for(task, timeout=7)
+
+        assert process.terminated is True
+        assert process.killed is True
+        assert store.get_job(job_id)["status"] == "cancelled"
+
 
 class _DummyJobStore:
     def __init__(self) -> None:
