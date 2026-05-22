@@ -155,6 +155,16 @@ def test_prepare_release_commit_refreshes_and_stages_lockfiles(
     recorded_steps: list[tuple[str, list[str], Path]] = []
 
     monkeypatch.setattr(niamoto_release, "CHANGELOG_PATH", changelog_path)
+    monkeypatch.setattr(
+        niamoto_release,
+        "uv_lock_resolution_args",
+        lambda _lock_path: [
+            "--exclude-newer",
+            "2026-05-14T16:00:51.329945Z",
+            "--exclude-newer-package",
+            "duckdb=2026-05-21T00:00:00Z",
+        ],
+    )
 
     def fake_run_step(
         description: str, args: list[str], *, cwd: Path = niamoto_release.ROOT_DIR
@@ -180,7 +190,14 @@ def test_prepare_release_commit_refreshes_and_stages_lockfiles(
     ]
     assert recorded_steps[1] == (
         "Refresh uv.lock",
-        ["uv", "lock"],
+        [
+            "uv",
+            "lock",
+            "--exclude-newer",
+            "2026-05-14T16:00:51.329945Z",
+            "--exclude-newer-package",
+            "duckdb=2026-05-21T00:00:00Z",
+        ],
         niamoto_release.ROOT_DIR,
     )
     assert recorded_steps[2] == (
