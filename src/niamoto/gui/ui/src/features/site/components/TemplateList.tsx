@@ -251,7 +251,7 @@ export function TemplateList({ templates, onSelect, onBack }: TemplateListProps)
                         <img
                           src={thumbnail}
                           alt=""
-                          className="h-10 w-14 rounded border bg-white object-contain shrink-0"
+                          className="h-10 w-14 shrink-0 rounded border border-border/70 bg-card/80 object-contain shadow-inner"
                         />
                       ) : (
                         <div className={cn('p-2 rounded-md bg-muted', config.colorClass)}>

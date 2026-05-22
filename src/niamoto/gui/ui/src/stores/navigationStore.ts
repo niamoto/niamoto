@@ -114,12 +114,31 @@ export const navigationSections: NavigationSection[] = []
 
 // --- Store ---
 
+export type SidebarMode = 'full' | 'compact' | 'hidden'
+
+function buildSidebarState(mode: SidebarMode) {
+  return {
+    sidebarMode: mode,
+    sidebarExpanded: mode === 'full',
+  }
+}
+
+function resolvePersistedSidebarMode(persisted: unknown): SidebarMode {
+  const candidate = (persisted as { sidebarMode?: unknown } | null)?.sidebarMode
+
+  if (candidate === 'full' || candidate === 'compact' || candidate === 'hidden') {
+    return candidate
+  }
+
+  return 'full'
+}
+
 interface NavigationState {
   sidebarExpanded: boolean
-  sidebarMode: 'full' | 'compact' | 'hidden'
+  sidebarMode: SidebarMode
 
   toggleSidebar: () => void
-  setSidebarMode: (mode: 'full' | 'compact' | 'hidden') => void
+  setSidebarMode: (mode: SidebarMode) => void
 
   commandPaletteOpen: boolean
   setCommandPaletteOpen: (open: boolean) => void
@@ -134,21 +153,17 @@ interface NavigationState {
 export const useNavigationStore = create<NavigationState>()(
   persist(
     (set) => ({
-      sidebarExpanded: true,
-      sidebarMode: 'full',
+      ...buildSidebarState('full'),
       commandPaletteOpen: false,
       breadcrumbs: [],
       activePanel: null,
 
-      toggleSidebar: () => set((state) => ({
-        sidebarExpanded: !state.sidebarExpanded,
-        sidebarMode: !state.sidebarExpanded ? 'full' : 'compact'
-      })),
-
-      setSidebarMode: (mode) => set({
-        sidebarMode: mode,
-        sidebarExpanded: mode === 'full'
+      toggleSidebar: () => set((state) => {
+        const nextMode = state.sidebarMode === 'full' ? 'compact' : 'full'
+        return buildSidebarState(nextMode)
       }),
+
+      setSidebarMode: (mode) => set(buildSidebarState(mode)),
 
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
       setBreadcrumbs: (breadcrumbs) => set({ breadcrumbs }),
@@ -158,16 +173,28 @@ export const useNavigationStore = create<NavigationState>()(
       name: 'navigation-storage',
       version: 2,
       migrate: (persisted: unknown) => {
-        // Clean up old section-based state from v1
-        const old = persisted as Record<string, unknown>
-        return { sidebarMode: old.sidebarMode ?? 'full' } as unknown as NavigationState
+        return buildSidebarState(resolvePersistedSidebarMode(persisted)) as unknown as NavigationState
       },
+      merge: (persisted: unknown, current: NavigationState) => ({
+        ...current,
+        ...buildSidebarState(resolvePersistedSidebarMode(persisted)),
+      }),
       partialize: (state) => ({
         sidebarMode: state.sidebarMode,
-      } as unknown as NavigationState)
+      } as Pick<NavigationState, 'sidebarMode'>)
     }
   )
 )
+
+export function resetNavigationStoreForTests() {
+  useNavigationStore.setState({
+    ...buildSidebarState('full'),
+    commandPaletteOpen: false,
+    breadcrumbs: [],
+    activePanel: null,
+  })
+  useNavigationStore.persist.clearStorage()
+}
 
 export const useResponsiveSidebar = () => {
   const { setSidebarMode } = useNavigationStore()

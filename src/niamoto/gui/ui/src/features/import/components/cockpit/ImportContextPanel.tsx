@@ -27,7 +27,7 @@ function statusIcon(status: ImportInventoryStatus) {
     case 'checking':
     case 'uploading':
     case 'importing':
-      return <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+      return <Loader2 className="h-4 w-4 animate-spin text-primary" />
     default:
       return <Info className="h-4 w-4 text-muted-foreground" />
   }

@@ -28,7 +28,8 @@ import {
 } from '@/features/collections/utils/collectionDisplay'
 import { buildCollectionsPath } from '@/features/collections/routing'
 import { useNotificationStore } from '@/stores/notificationStore'
-import niamotoLogo from '@/assets/niamoto_logo.png'
+import { useTheme } from '@/stores/themeStore'
+import { getNiamotoLogoSrc } from '@/shared/branding/niamotoLogo'
 
 interface NavigationSidebarProps {
   className?: string
@@ -39,6 +40,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
   const { t } = useTranslation('common')
   const location = useLocation()
   const { sidebarMode } = useNavigationStore()
+  const { resolvedMode } = useTheme()
   const { isMac } = usePlatform()
   const { isDesktop, features } = useRuntimeMode()
   const feedback = useFeedback()
@@ -177,6 +179,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
   const isCompact = sidebarMode === 'compact'
   const showDesktopTrafficLightStrip = showHeader && isDesktop && isMac
   const showWebBrandHeader = showHeader && !isDesktop
+  const logoSrc = getNiamotoLogoSrc(resolvedMode)
 
   const isActive = (matchPrefix: string) => {
     // Home ("/") must be exact match to avoid highlighting on every route
@@ -208,9 +211,12 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
           {showWebBrandHeader && (
             <>
               <img
-                src={niamotoLogo}
+                src={logoSrc}
                 alt="Niamoto"
-                className="h-7 w-7 shrink-0 object-contain"
+                className={cn(
+                  'h-7 w-7 shrink-0 object-contain',
+                  resolvedMode === 'dark' && 'niamoto-brand-logo--dark'
+                )}
               />
               {!isCompact && (
                 <span className="text-base font-semibold tracking-tight text-foreground">
