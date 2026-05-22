@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -440,6 +441,29 @@ def run_preflight_checks() -> None:
             )
 
 
+def uv_lock_resolution_args(lock_path: Path) -> list[str]:
+    """Return uv lock resolver options captured in the existing lockfile."""
+    if not lock_path.exists():
+        return []
+
+    lock_data = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+    options = lock_data.get("options", {})
+    args: list[str] = []
+
+    exclude_newer = options.get("exclude-newer")
+    if isinstance(exclude_newer, str):
+        args.extend(["--exclude-newer", exclude_newer])
+
+    exclude_newer_packages = options.get("exclude-newer-package", {})
+    if isinstance(exclude_newer_packages, dict):
+        for package_name in sorted(exclude_newer_packages):
+            cutoff = exclude_newer_packages[package_name]
+            if isinstance(cutoff, str):
+                args.extend(["--exclude-newer-package", f"{package_name}={cutoff}"])
+
+    return args
+
+
 def prepare_release_commit(
     version: str, changelog_text: str, current_version: str
 ) -> None:
@@ -461,7 +485,10 @@ def prepare_release_commit(
             "patch",
         ],
     )
-    run_step("Refresh uv.lock", ["uv", "lock"])
+    run_step(
+        "Refresh uv.lock",
+        ["uv", "lock", *uv_lock_resolution_args(ROOT_DIR / "uv.lock")],
+    )
     run_step(
         "Refresh Cargo.lock",
         ["cargo", "update", "--workspace", "--offline", "--quiet"],
