@@ -26,7 +26,7 @@ export function AboutPartnersSection({
           const organizationUrl = organization.url
           const content = (
             <>
-              <div className="flex h-16 items-center justify-center rounded-theme-sm bg-background/80 p-3">
+              <div className="flex h-16 items-center justify-center rounded-theme-sm border border-border/60 bg-gradient-to-br from-background via-muted/35 to-muted/70 p-3 shadow-inner">
                 <img
                   src={organization.logoSrc}
                   alt={organization.logoAlt}
@@ -46,9 +46,9 @@ export function AboutPartnersSection({
           )
 
           const cardClassName = cn(
-            'rounded-theme-md border bg-muted/30 p-4 text-center transition-theme-fast',
+            'rounded-theme-md border bg-card/45 p-4 text-center transition-theme-fast supports-[backdrop-filter]:bg-card/60',
             organizationUrl
-              ? 'hover:border-primary/30 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+              ? 'hover:border-primary/30 hover:bg-accent/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
               : null
           )
 

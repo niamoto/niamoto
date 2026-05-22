@@ -209,12 +209,12 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <Card className="mt-2 bg-blue-50/50 border-blue-200">
+            <Card className="mt-2 border-primary/20 bg-primary/5">
               <CardContent className="pt-4">
                 <div className="space-y-3 text-sm">
                   <div>
                     <h4 className="font-medium flex items-center gap-2">
-                      <Info className="h-4 w-4 text-blue-600" />
+                      <Info className="h-4 w-4 text-primary" />
                       {t('validation.outlierTitle')}
                     </h4>
                     <SafeHtmlContent
@@ -228,7 +228,9 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
                       <div
                         key={key}
                         className={`p-3 rounded-lg border ${
-                          method === key ? 'border-blue-400 bg-blue-100/50' : 'border-gray-200 bg-white'
+                          method === key
+                            ? 'border-primary/35 bg-primary/10 shadow-sm'
+                            : 'border-border bg-card/80'
                         }`}
                       >
                         <h5 className="font-medium text-xs">{t(`validation.methods.${key}.name`)}</h5>
@@ -236,7 +238,7 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
                         <div className="mt-2 text-xs">
                           <span className="font-mono bg-muted px-1 rounded">{t(`validation.methods.${key}.formula`)}</span>
                         </div>
-                        <p className="text-xs text-blue-600 mt-2">{t(`validation.methods.${key}.sensitivity`)}</p>
+                        <p className="mt-2 text-xs text-primary">{t(`validation.methods.${key}.sensitivity`)}</p>
                       </div>
                     ))}
                   </div>
@@ -340,7 +342,7 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
           {totalOutliers > 0 ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant="outline" className="text-yellow-700 border-yellow-300 cursor-help">
+                <Badge variant="outline" className="cursor-help border-warning/35 text-warning">
                   <AlertTriangle className="mr-1 h-3 w-3" />
                   {t('validation.outliersDetected', { count: totalOutliers })}
                 </Badge>
@@ -351,7 +353,7 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
             </Tooltip>
           ) : (
             validation && (
-              <Badge variant="outline" className="text-green-700 border-green-300">
+              <Badge variant="outline" className="border-success/35 text-success">
                 <CheckCircle2 className="mr-1 h-3 w-3" />
                 {t('validation.noOutlier')}
               </Badge>
@@ -361,11 +363,11 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
 
         {/* Current method summary */}
         <div className="text-xs bg-muted/50 rounded-lg p-3 flex items-start gap-2">
-          <Info className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
           <div>
             <span className="font-medium">{t(`validation.methods.${method}.name`)} :</span>{' '}
             <span className="text-muted-foreground">{t(`validation.methods.${method}.description`)}</span>
-            <span className="block mt-1 font-mono text-blue-600">{t(`validation.methods.${method}.formula`)}</span>
+            <span className="mt-1 block font-mono text-primary">{t(`validation.methods.${method}.formula`)}</span>
           </div>
         </div>
 
@@ -379,7 +381,7 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
       ) : validation && validation.columns.length > 0 ? (
         <div className="space-y-3">
           {validation.columns.map((col) => (
-            <Card key={col.column} className={col.outlier_count > 0 ? 'border-yellow-300' : ''}>
+            <Card key={col.column} className={col.outlier_count > 0 ? 'border-warning/35' : ''}>
               <Collapsible
                 open={expandedColumn === col.column}
                 onOpenChange={(open) => setExpandedColumn(open ? col.column : null)}
@@ -388,12 +390,12 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
                   <CollapsibleTrigger asChild>
                     <div className="flex items-center justify-between cursor-pointer hover:bg-accent/50 -mx-4 -my-2 px-4 py-2 rounded">
                       <div className="flex items-center gap-3">
-                        <BarChart3 className="h-4 w-4 text-blue-500" />
+                        <BarChart3 className="h-4 w-4 text-primary" />
                         <CardTitle className="text-sm font-medium">
                           {col.column}
                         </CardTitle>
                         {col.outlier_count > 0 && (
-                          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                          <Badge variant="secondary" className="bg-warning/15 text-warning">
                             {col.outlier_count} outliers
                           </Badge>
                         )}
@@ -448,23 +450,23 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
 
                     {/* Outlier bounds and distribution */}
                     {col.outlier_count > 0 && col.lower_bound !== null && col.upper_bound !== null && (
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 space-y-3">
+                      <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 space-y-3">
                         {/* Bounds info */}
                         <div className="flex items-center justify-between">
                           <div className="text-sm">
                             <span className="text-muted-foreground">{t('validation.outlierBounds')}:</span>
                             <span className="ml-2 font-mono">
-                              &lt; <span className="text-red-600 font-semibold">{formatNumber(col.lower_bound)}</span>
+                              &lt; <span className="font-semibold text-destructive">{formatNumber(col.lower_bound)}</span>
                               {' '}{t('common:labels.or')}{' '}
-                              &gt; <span className="text-red-600 font-semibold">{formatNumber(col.upper_bound)}</span>
+                              &gt; <span className="font-semibold text-destructive">{formatNumber(col.upper_bound)}</span>
                             </span>
                           </div>
                           <div className="flex items-center gap-3 text-sm">
-                            <span className="flex items-center gap-1 text-blue-600">
+                            <span className="flex items-center gap-1 text-primary">
                               <ArrowDown className="h-3 w-3" />
                               {col.outliers_low_count} {t('validation.tooLow')}
                             </span>
-                            <span className="flex items-center gap-1 text-red-600">
+                            <span className="flex items-center gap-1 text-destructive">
                               <ArrowUp className="h-3 w-3" />
                               {col.outliers_high_count} {t('validation.tooHigh')}
                             </span>
@@ -485,8 +487,8 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
                                       <div
                                         className={`flex-1 rounded-t cursor-help transition-colors ${
                                           bin.is_outlier_zone
-                                            ? 'bg-red-400 hover:bg-red-500'
-                                            : 'bg-blue-400 hover:bg-blue-500'
+                                            ? 'bg-destructive/60 hover:bg-destructive/75'
+                                            : 'bg-primary/55 hover:bg-primary/70'
                                         }`}
                                         style={{ height: `${Math.max(2, height)}%` }}
                                       />
@@ -512,7 +514,7 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
                         <div className="space-y-1">
                           <p className="text-xs text-muted-foreground">{t('validation.sqlQuery')}</p>
                           <div className="flex items-center gap-2">
-                            <code className="flex-1 text-xs bg-gray-800 text-green-400 p-2 rounded font-mono overflow-x-auto">
+                            <code className="flex-1 overflow-x-auto rounded bg-slate-950/85 p-2 font-mono text-xs text-emerald-300 dark:bg-slate-950/65">
                               SELECT * FROM {selectedEntity} WHERE {col.column} &lt; {formatNumber(col.lower_bound)} OR {col.column} &gt; {formatNumber(col.upper_bound)}
                             </code>
                             <CopyButton
@@ -548,10 +550,10 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
                               {Object.keys(col.outliers[0]).slice(0, 6).map((key, idx) => (
                                 <TableHead
                                   key={key}
-                                  className={`text-xs ${idx === 0 ? 'bg-yellow-100 font-semibold' : ''}`}
+                                  className={`text-xs ${idx === 0 ? 'bg-warning/15 font-semibold' : ''}`}
                                 >
                                   {key}
-                                  {idx === 0 && <span className="ml-1 text-yellow-600">★</span>}
+                                  {idx === 0 && <span className="ml-1 text-warning">★</span>}
                                 </TableHead>
                               ))}
                             </TableRow>
@@ -568,16 +570,16 @@ export function ValueValidationView({ entities }: ValueValidationViewProps) {
                                   {Object.entries(outlier).slice(0, 6).map(([key, val], colIdx) => (
                                     <TableCell
                                       key={key}
-                                      className={`text-xs font-mono ${colIdx === 0 ? 'bg-yellow-50 font-semibold' : ''}`}
+                                      className={`text-xs font-mono ${colIdx === 0 ? 'bg-warning/10 font-semibold' : ''}`}
                                     >
                                       {colIdx === 0 ? (
                                         <span className="flex items-center gap-1">
                                           {isHigh ? (
                                             <ArrowUp className="h-3 w-3 text-red-500" />
                                           ) : (
-                                            <ArrowDown className="h-3 w-3 text-blue-500" />
+                                            <ArrowDown className="h-3 w-3 text-primary" />
                                           )}
-                                          <span className={isHigh ? 'text-red-600' : 'text-blue-600'}>
+                                          <span className={isHigh ? 'text-destructive' : 'text-primary'}>
                                             {formatNumber(val as number)}
                                           </span>
                                         </span>

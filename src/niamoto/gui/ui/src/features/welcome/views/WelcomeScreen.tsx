@@ -9,7 +9,6 @@ import {
   X,
   Settings2,
 } from 'lucide-react';
-import niamotoLogo from '@/assets/niamoto_logo.png';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -18,6 +17,8 @@ import { cn } from '@/lib/utils';
 import { DesktopTitlebar } from '@/components/layout/DesktopTitlebar';
 import type { ProjectEntry } from '@/shared/hooks/useProjectSwitcher';
 import type { AppSettings } from '@/shared/desktop/appSettings';
+import { useTheme } from '@/stores/themeStore';
+import { getNiamotoLogoSrc } from '@/shared/branding/niamotoLogo';
 import ProjectCreationWizard from './ProjectCreationWizard';
 
 interface WelcomeScreenProps {
@@ -49,6 +50,8 @@ export default function WelcomeScreen({
   const [showWizard, setShowWizard] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(externalError || null);
+  const { resolvedMode } = useTheme();
+  const logoSrc = getNiamotoLogoSrc(resolvedMode);
 
   useEffect(() => {
     setError(externalError ?? null);
@@ -149,9 +152,12 @@ export default function WelcomeScreen({
         <div className="mb-12 text-center">
           <div className="mb-6 flex items-center justify-center">
             <img
-              src={niamotoLogo}
+              src={logoSrc}
               alt="Niamoto"
-              className="h-32 w-auto object-contain"
+              className={cn(
+                'niamoto-brand-logo h-32 w-auto object-contain',
+                resolvedMode === 'dark' && 'niamoto-brand-logo--dark'
+              )}
             />
           </div>
           <h1 className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-4xl font-bold tracking-tight text-transparent dark:from-emerald-400 dark:to-teal-400">
