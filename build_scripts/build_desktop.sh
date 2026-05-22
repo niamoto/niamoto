@@ -193,7 +193,7 @@ if [ "$OS" == "windows" ]; then
 fi
 python3 scripts/build/smoke_test_packaged_sidecar.py \
   --sidecar-path "${SIDECAR_BIN}" \
-  --project-dir test-instance/niamoto-subset
+  --project-dir tests/fixtures/desktop-smoke-project
 echo -e "${GREEN}✓ Packaged sidecar started successfully${NC}"
 echo ""
 
