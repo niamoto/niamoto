@@ -152,6 +152,16 @@ jobs:
           New-Item -ItemType Directory -Force -Path src-tauri/resources/sidecar/${{ matrix.target }}
           Copy-Item dist/niamoto -Destination src-tauri/resources/sidecar/${{ matrix.target }}/niamoto -Recurse
 
+      - name: Smoke-test packaged sidecar
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sidecar_path="src-tauri/resources/sidecar/${{ matrix.target }}/niamoto/niamoto${{ matrix.binary_suffix }}"
+          python3 scripts/build/smoke_test_packaged_sidecar.py \
+            --sidecar-path "$sidecar_path" \
+            --project-dir test-instance/niamoto-subset
+
       # --- Rust + Tauri ---
       - uses: dtolnay/rust-toolchain@stable
 

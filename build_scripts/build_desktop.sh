@@ -155,6 +155,48 @@ fi
 echo -e "${GREEN}✓ Copied sidecar to ${RESOURCE_DIR}/niamoto${NC}"
 echo ""
 
+if [ "$OS" == "macos" ]; then
+    echo -e "${BLUE}🛠️  Step 4a: Repairing macOS Python framework layout...${NC}"
+    FRAMEWORK_PATH="${RESOURCE_DIR}/niamoto/_internal/Python.framework"
+    VERSIONED_PYTHON_PATH="$(find "${FRAMEWORK_PATH}/Versions" -type f -name Python | head -n 1)"
+
+    if [ -z "${VERSIONED_PYTHON_PATH}" ]; then
+        echo -e "${RED}❌ Could not locate versioned Python binary inside Python.framework${NC}"
+        exit 1
+    fi
+
+    PYTHON_FRAMEWORK_VERSION="$(basename "$(dirname "${VERSIONED_PYTHON_PATH}")")"
+
+    rm -f "${FRAMEWORK_PATH}/Versions/Current"
+    ln -s "${PYTHON_FRAMEWORK_VERSION}" "${FRAMEWORK_PATH}/Versions/Current"
+
+    rm -f "${FRAMEWORK_PATH}/Python"
+    ln -s "Versions/Current/Python" "${FRAMEWORK_PATH}/Python"
+
+    if [ -d "${FRAMEWORK_PATH}/Versions/${PYTHON_FRAMEWORK_VERSION}/Resources" ]; then
+        rm -rf "${FRAMEWORK_PATH}/Resources"
+        ln -s "Versions/Current/Resources" "${FRAMEWORK_PATH}/Resources"
+    fi
+
+    rm -f "${RESOURCE_DIR}/niamoto/_internal/Python"
+    ln -s "Python.framework/Versions/${PYTHON_FRAMEWORK_VERSION}/Python" "${RESOURCE_DIR}/niamoto/_internal/Python"
+
+    echo -e "${GREEN}✓ macOS Python framework layout repaired${NC}"
+    echo ""
+fi
+
+# Step 4b: Smoke-test the packaged sidecar before building the desktop shell
+echo -e "${BLUE}🩺 Step 4b: Smoke-testing packaged sidecar...${NC}"
+SIDECAR_BIN="${RESOURCE_DIR}/niamoto/niamoto"
+if [ "$OS" == "windows" ]; then
+    SIDECAR_BIN="${RESOURCE_DIR}/niamoto/niamoto.exe"
+fi
+python3 scripts/build/smoke_test_packaged_sidecar.py \
+  --sidecar-path "${SIDECAR_BIN}" \
+  --project-dir test-instance/niamoto-subset
+echo -e "${GREEN}✓ Packaged sidecar started successfully${NC}"
+echo ""
+
 # Step 5: Build Tauri app
 echo -e "${BLUE}🦀 Step 5: Building Tauri application...${NC}"
 echo "This may take several minutes on first build..."
