@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+import pytest
 
 from niamoto.gui.api.app import create_app
 
@@ -518,3 +519,53 @@ def test_health_rejects_redirect_to_private_url(monkeypatch):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Health check redirect URL is not allowed."
+
+
+@pytest.mark.parametrize(
+    "meta_tag",
+    [
+        '<meta content="0; url=/missing" http-equiv="refresh">',
+        "<meta http-equiv='refresh' content='0; URL=\"/missing\"'>",
+    ],
+)
+def test_health_follows_meta_refresh_variants(monkeypatch, meta_tag):
+    class FakeResponse:
+        def __init__(self, status_code, text, url):
+            self.status_code = status_code
+            self.text = text
+            self.content = text.encode("utf-8")
+            self.headers = {}
+            self.url = url
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            self.calls = []
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def get(self, url):
+            self.calls.append(url)
+            if url == "https://example.com":
+                return FakeResponse(200, meta_tag, url)
+            return FakeResponse(404, "missing", url)
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.url_security.socket.getaddrinfo",
+        lambda *args, **kwargs: [(None, None, None, None, ("93.184.216.34", 443))],
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.deploy.httpx.AsyncClient",
+        FakeAsyncClient,
+    )
+
+    response = TestClient(create_app()).get(
+        "/api/deploy/health", params={"url": "https://example.com"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "down"
+    assert response.json()["statusCode"] == 404

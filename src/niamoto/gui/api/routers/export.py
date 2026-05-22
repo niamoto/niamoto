@@ -115,6 +115,55 @@ def _job_is_cancelled(job_store: JobFileStore, job_id: str) -> bool:
     return bool(job and job.get("status") in {"cancelled", "cancelling"})
 
 
+def _default_export_metrics() -> dict[str, Any]:
+    """Return the stable metrics shape exposed by the export API."""
+    return {
+        "total_exports": 0,
+        "completed_exports": 0,
+        "failed_exports": 0,
+        "generated_pages": 0,
+        "static_site_path": None,
+        "execution_time": 0,
+    }
+
+
+def _normalize_export_metrics(metrics: Any) -> dict[str, Any]:
+    """Merge persisted metrics with the stable API contract."""
+    normalized = _default_export_metrics()
+    if isinstance(metrics, dict):
+        normalized.update(
+            {
+                key: metrics.get(key, default_value)
+                for key, default_value in normalized.items()
+            }
+        )
+    return normalized
+
+
+def _finalize_cancelled_export_job(
+    job_store: JobFileStore,
+    job_id: str,
+    message: str = "Export job cancelled",
+) -> bool:
+    """Move a cancelling export job to its terminal cancelled state."""
+    if not _job_is_cancelled(job_store, job_id):
+        return False
+
+    try:
+        job = job_store.get_job(job_id)
+    except AttributeError:
+        job = None
+
+    if job and job.get("status") == "cancelled":
+        return True
+
+    try:
+        job_store.cancel_job(job_id, message)
+    except AttributeError:
+        pass
+    return True
+
+
 async def _wait_for_cancelled_thread_export(export_task: asyncio.Task) -> None:
     """Keep cwd lock ownership until a non-cooperative export thread exits."""
     try:
@@ -127,15 +176,26 @@ async def _wait_for_cancelled_thread_export(export_task: asyncio.Task) -> None:
 
 def _resolve_export_config_path(config_path: str | Path, work_dir: Path) -> Path:
     """Resolve an export config path against an explicit project directory."""
-    path = Path(config_path)
+    config_root = (work_dir / "config").resolve()
+    config_path_str = str(config_path).strip()
+    path = Path(config_path_str)
+
     if path.is_absolute():
-        return path
+        candidate = path.resolve()
+    elif config_path_str.startswith("config/"):
+        candidate = (work_dir / config_path_str).resolve()
+    else:
+        candidate = (config_root / config_path_str).resolve()
 
-    config_path_str = str(config_path)
-    if config_path_str.startswith("config/"):
-        return work_dir / config_path_str
+    try:
+        candidate.relative_to(config_root)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="config_path must stay inside the project config directory",
+        ) from exc
 
-    return work_dir / "config" / config_path_str
+    return candidate
 
 
 def get_config_path(config_file: str | Path) -> Path:
@@ -344,7 +404,7 @@ async def execute_export_background(
     try:
         logger.info("Starting export job %s", job_id)
         job_store.update_progress(job_id, 0, "Loading configuration...")
-        if _job_is_cancelled(job_store, job_id):
+        if _finalize_cancelled_export_job(job_store, job_id):
             return
         logger.info(
             "Job %s: Loading configuration from %s",
@@ -380,7 +440,7 @@ async def execute_export_background(
         # Phase 1 (optionnelle) : Transform
         if include_transform:
             job_store.update_progress(job_id, 0, "transform.running", phase="transform")
-            if _job_is_cancelled(job_store, job_id):
+            if _finalize_cancelled_export_job(job_store, job_id):
                 return
             logger.info("Job %s: Running transform phase", job_id)
 
@@ -406,14 +466,14 @@ async def execute_export_background(
                 True,
                 transform_progress_callback,
             )
-            if _job_is_cancelled(job_store, job_id):
+            if _finalize_cancelled_export_job(job_store, job_id):
                 return
             logger.info("Job %s: Transform phase completed", job_id)
             job_store.update_progress(job_id, 50, "export.starting", phase="export")
         else:
             job_store.update_progress(job_id, 0, "export.starting", phase="export")
 
-        if _job_is_cancelled(job_store, job_id):
+        if _finalize_cancelled_export_job(job_store, job_id):
             return
 
         # Phase 2 : Export
@@ -445,7 +505,7 @@ async def execute_export_background(
                 export_types,
             )
             for idx, export_name in enumerate(export_types):
-                if _job_is_cancelled(job_store, job_id):
+                if _finalize_cancelled_export_job(job_store, job_id):
                     return
                 pct = (
                     progress_base
@@ -470,7 +530,7 @@ async def execute_export_background(
                     result = await asyncio.to_thread(
                         exporter_service.run_export, target_name=export_name
                     )
-                    if _job_is_cancelled(job_store, job_id):
+                    if _finalize_cancelled_export_job(job_store, job_id):
                         return
                     export_result = (
                         result.get(export_name, {}) if isinstance(result, dict) else {}
@@ -542,7 +602,7 @@ async def execute_export_background(
 
             try:
                 result = await export_task
-                if _job_is_cancelled(job_store, job_id):
+                if _finalize_cancelled_export_job(job_store, job_id):
                     return
                 logger.info("Job %s: Export task returned results", job_id)
 
@@ -851,20 +911,10 @@ async def get_export_metrics(http_request: Request):
     result = last.get("result") if last else None
     metrics = result.get("metrics") if isinstance(result, dict) else None
     if not isinstance(metrics, dict):
-        return {
-            "metrics": {
-                "total_exports": 0,
-                "completed_exports": 0,
-                "failed_exports": 0,
-                "generated_pages": 0,
-                "static_site_path": None,
-                "execution_time": 0,
-            },
-            "last_run": None,
-        }
+        return {"metrics": _default_export_metrics(), "last_run": None}
 
     return {
-        "metrics": metrics,
+        "metrics": _normalize_export_metrics(metrics),
         "last_run": last.get("completed_at"),
         "job_id": last["id"],
     }
@@ -912,16 +962,23 @@ async def execute_export_cli(
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
+            communicate_task = asyncio.create_task(process.communicate())
 
-            while process.returncode is None:
+            while True:
+                done, _ = await asyncio.wait({communicate_task}, timeout=0.25)
+                if communicate_task in done:
+                    stdout, stderr = await communicate_task
+                    break
+
                 if _job_is_cancelled(job_store, job_id):
                     process.terminate()
                     try:
-                        await asyncio.wait_for(process.wait(), timeout=5)
+                        await asyncio.wait_for(communicate_task, timeout=5)
                     except asyncio.TimeoutError:
                         process.kill()
-                        await process.wait()
-                    stdout, stderr = await process.communicate()
+                        stdout, stderr = await communicate_task
+                    else:
+                        stdout, stderr = communicate_task.result()
                     try:
                         job_store.cancel_job(job_id, "Export CLI command cancelled")
                     except AttributeError:
@@ -934,12 +991,6 @@ async def execute_export_cli(
                             },
                         )
                     return
-                try:
-                    await asyncio.wait_for(process.wait(), timeout=0.25)
-                except asyncio.TimeoutError:
-                    continue
-
-            stdout, stderr = await process.communicate()
 
             if process.returncode == 0:
                 job_store.complete_job(
