@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.19.1] - 2026-05-22
+
+### Features
+
+- Streamline import cockpit workflow
+- Guide users before import uploads
+
+### Bug Fixes
+
+- Preserve uv lock resolution options in releases
+- Narrow import status badge variants
+- Preserve export cancellation fallback
+- Address PR review blockers
+- Harden publish and import dashboard flows
+- Gate desktop releases on sidecar startup
+- Polish dark mode branding and sidebar state
+- Tighten import file handling
+- Harden import cockpit file matching
+- Preserve duckdb resolution cutoff
+
+### Other
+
+- Cover release lock resolution args
+- Use PyPI Codecov CLI
+
 ## [v0.19.0] - 2026-05-21
 
 ### Features
