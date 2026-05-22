@@ -38,6 +38,7 @@ import { uploadFiles, type UploadedFileInfo } from '@/features/import/api/upload
 import {
   analyzeFilesBeforeUpload,
   type FilePreflightSummary,
+  getFilePreflightKey,
 } from '@/features/import/components/upload/filePreflight'
 
 export interface FileAnalysisStatus {
@@ -46,6 +47,11 @@ export interface FileAnalysisStatus {
 }
 
 type DisplayFile = File | { name: string; path: string; size?: number }
+type GroupedDisplayFile = {
+  file: DisplayFile
+  key: string
+  originalIndex: number | null
+}
 
 interface FileUploadZoneProps {
   onFilesReady: (files: UploadedFileInfo[], paths: string[]) => void
@@ -255,7 +261,7 @@ export const FileUploadZone = forwardRef<FileUploadZoneHandle, FileUploadZonePro
   const displayFiles = initialFiles ?? selectedFiles
 
   const groupedFiles = displayFiles.reduce(
-    (acc, file) => {
+    (acc, file, index) => {
       const ext = file.name.split('.').pop()?.toLowerCase() || 'other'
       const category =
         ext === 'csv'
@@ -266,10 +272,17 @@ export const FileUploadZone = forwardRef<FileUploadZoneHandle, FileUploadZonePro
               ? 'tif'
               : 'other'
       if (!acc[category]) acc[category] = []
-      acc[category].push(file)
+      acc[category].push({
+        file,
+        key:
+          file instanceof File
+            ? getFilePreflightKey(file)
+            : `${file.path}:${file.name}:${index}`,
+        originalIndex: file instanceof File && initialFiles === undefined ? index : null,
+      })
       return acc
     },
-    {} as Record<string, DisplayFile[]>
+    {} as Record<string, GroupedDisplayFile[]>
   )
 
   const minHeight = compact ? 'min-h-[100px]' : 'min-h-[150px]'
@@ -378,9 +391,15 @@ export const FileUploadZone = forwardRef<FileUploadZoneHandle, FileUploadZonePro
                 )}
               </div>
 
-              {files.map((file, idx) => (
+              {files.map((entry) => {
+                const file = entry.file
+                const preflightKey = file instanceof File ? getFilePreflightKey(file) : null
+                const preflight = preflightKey ? filePreflight[preflightKey] : undefined
+                const removableIndex = entry.originalIndex
+
+                return (
                 <div
-                  key={idx}
+                  key={entry.key}
                   className="flex items-center gap-3 rounded-md border bg-muted/30 p-2"
                 >
                   {getFileIcon(file)}
@@ -392,24 +411,24 @@ export const FileUploadZone = forwardRef<FileUploadZoneHandle, FileUploadZonePro
                         <span>{getStatusMeta(file.name)?.label}</span>
                       </div>
                     )}
-                    {!analysisMode && filePreflight[file.name] && (
+                    {!analysisMode && preflight && (
                       <div className="mt-2 space-y-1.5">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <Badge
-                            variant={filePreflight[file.name].status === 'review' ? 'secondary' : 'outline'}
+                            variant={preflight.status === 'review' ? 'secondary' : 'outline'}
                             className="text-[10px]"
                           >
-                            {t(`upload.preflight.status.${filePreflight[file.name].status}`, { ns: 'sources' })}
+                            {t(`upload.preflight.status.${preflight.status}`, { ns: 'sources' })}
                           </Badge>
-                          {filePreflight[file.name].badges.map((badge) => (
+                          {preflight.badges.map((badge) => (
                             <Badge key={badge} variant="outline" className="text-[10px]">
                               {t(`upload.preflight.badges.${badge}`, { ns: 'sources' })}
                             </Badge>
                           ))}
                         </div>
-                        {filePreflight[file.name].tips.length > 0 && (
+                        {preflight.tips.length > 0 && (
                           <ul className="space-y-0.5 text-xs text-amber-700 dark:text-amber-400">
-                            {filePreflight[file.name].tips.map((tip) => (
+                            {preflight.tips.map((tip) => (
                               <li key={tip}>
                                 {t(`upload.preflight.tips.${tip}`, { ns: 'sources' })}
                               </li>
@@ -422,14 +441,14 @@ export const FileUploadZone = forwardRef<FileUploadZoneHandle, FileUploadZonePro
                   <span className="text-xs text-muted-foreground">
                     {typeof file.size === 'number' ? formatFileSize(file.size) : ''}
                   </span>
-                  {!analysisMode && (
+                  {!analysisMode && removableIndex !== null && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-6 w-6 p-0"
                       onClick={(e) => {
                         e.stopPropagation()
-                        removeFile(selectedFiles.findIndex((selected) => selected.name === file.name))
+                        removeFile(removableIndex)
                       }}
                       disabled={uploading}
                     >
@@ -437,7 +456,8 @@ export const FileUploadZone = forwardRef<FileUploadZoneHandle, FileUploadZonePro
                     </Button>
                   )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           ))}
 

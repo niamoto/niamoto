@@ -5,7 +5,10 @@ import type {
   DecisionSummary,
   ReviewLevel,
 } from '@/features/import/api/smart-config'
-import type { FilePreflightSummary } from '@/features/import/components/upload/filePreflight'
+import {
+  getFilePreflightKey,
+  type FilePreflightSummary,
+} from '@/features/import/components/upload/filePreflight'
 
 export type ImportInventoryStatus =
   | 'selected'
@@ -221,17 +224,32 @@ function sourceFileName(value?: string): string | undefined {
   return value?.split('/').pop()
 }
 
+function normalizedPath(value?: string): string | undefined {
+  return value?.replace(/\\/g, '/').toLowerCase()
+}
+
+function normalizedFileName(value?: string): string | undefined {
+  return sourceFileName(value)?.toLowerCase()
+}
+
 function sameSourceFile(left: ImportInventoryItem, right: ImportInventoryItem): boolean {
-  const leftName = sourceFileName(left.sourcePath) || left.sourceName || left.name
-  const rightNames = [
-    right.sourceName,
-    right.sourcePath,
-    ...(right.sourcePaths ?? []),
-    right.name,
-  ]
-    .map(sourceFileName)
+  const leftPath = normalizedPath(left.sourcePath)
+  const rightPaths = [right.sourcePath, ...(right.sourcePaths ?? [])]
+    .map(normalizedPath)
     .filter(Boolean) as string[]
-  return rightNames.some((rightName) => baseName(leftName) === baseName(rightName))
+
+  if (leftPath && rightPaths.includes(leftPath)) {
+    return true
+  }
+
+  const leftNames = [left.sourcePath, left.sourceName, left.name]
+    .map(normalizedFileName)
+    .filter(Boolean) as string[]
+  const rightNames = [right.sourcePath, ...(right.sourcePaths ?? []), right.sourceName]
+    .map(normalizedFileName)
+    .filter(Boolean) as string[]
+
+  return leftNames.some((leftName) => rightNames.includes(leftName))
 }
 
 function canReuseDetectedItem(item: ImportInventoryItem): boolean {
@@ -558,29 +576,31 @@ function applyImportEvents(
 
   for (const event of events) {
     if (!event.entity_name) continue
-    const target = next.find((item) =>
+    const targets = next.filter((item) =>
       item.name === event.entity_name
       || item.sourceName === event.entity_name
       || baseName(item.name) === baseName(event.entity_name || '')
       || baseName(item.sourceName || '') === baseName(event.entity_name || '')
     )
-    if (!target) continue
+    if (targets.length === 0) continue
 
-    if (event.kind === 'error') {
-      target.status = 'failed'
-      target.quality = 'error'
-      target.primaryMessage = event.message
-    } else if (event.kind === 'finding' || event.kind === 'complete') {
-      const lowered = event.message.toLowerCase()
-      if (lowered.includes('imported') || lowered.includes('completed')) {
-        target.status = 'imported'
-        target.quality = 'good'
+    for (const target of targets) {
+      if (event.kind === 'error') {
+        target.status = 'failed'
+        target.quality = 'error'
+        target.primaryMessage = event.message
+      } else if (event.kind === 'finding' || event.kind === 'complete') {
+        const lowered = event.message.toLowerCase()
+        if (lowered.includes('imported') || lowered.includes('completed')) {
+          target.status = 'imported'
+          target.quality = 'good'
+          target.primaryMessage = event.message
+        }
+      } else if (event.kind === 'detail' || event.kind === 'stage') {
+        target.status = 'importing'
+        target.quality = 'info'
         target.primaryMessage = event.message
       }
-    } else if (event.kind === 'detail' || event.kind === 'stage') {
-      target.status = 'importing'
-      target.quality = 'info'
-      target.primaryMessage = event.message
     }
   }
 
@@ -627,7 +647,7 @@ export function buildImportInventory({
   }
 
   return selectedFiles.map((file) =>
-    buildSelectedItem(file, filePreflight[file.name], selectedFilesUploading)
+    buildSelectedItem(file, filePreflight[getFilePreflightKey(file)], selectedFilesUploading)
   )
 }
 
