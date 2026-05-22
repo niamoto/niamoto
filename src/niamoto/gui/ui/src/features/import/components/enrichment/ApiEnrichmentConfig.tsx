@@ -393,8 +393,8 @@ export function ApiEnrichmentConfig({
         <AccordionItem value="connection" className="border rounded-lg">
           <AccordionTrigger className="px-4 py-3 hover:no-underline">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 border border-blue-200">
-                <Plug className="h-4 w-4 text-blue-600" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/20 bg-primary/10">
+                <Plug className="h-4 w-4 text-primary" />
               </div>
               <div>
                 <p className="text-sm font-medium text-left">{t('apiEnrichment.connection.title')}</p>

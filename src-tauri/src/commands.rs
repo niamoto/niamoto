@@ -365,6 +365,41 @@ pub async fn browse_folder(app: tauri::AppHandle) -> Result<Option<String>, Stri
     }
 }
 
+/// Save a text file through the native desktop save dialog.
+#[tauri::command]
+pub async fn save_text_file(
+    app: tauri::AppHandle,
+    filename: String,
+    contents: String,
+) -> Result<bool, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let safe_filename = PathBuf::from(&filename)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.trim().is_empty())
+        .ok_or_else(|| "Invalid filename".to_string())?
+        .to_string();
+
+    let selected_path = app
+        .dialog()
+        .file()
+        .set_title("Save file")
+        .set_file_name(&safe_filename)
+        .blocking_save_file();
+
+    let Some(file_path) = selected_path else {
+        return Ok(false);
+    };
+
+    let path = file_path
+        .into_path()
+        .map_err(|e| format!("Failed to convert save path: {}", e))?;
+
+    fs::write(&path, contents).map_err(|e| format!("Failed to save file: {}", e))?;
+    Ok(true)
+}
+
 fn validate_external_url(url: &str) -> Result<Url, String> {
     let trimmed_url = url.trim();
     if trimmed_url.is_empty() {

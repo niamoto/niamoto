@@ -669,3 +669,73 @@ def test_get_transform_widget_treats_null_widgets_data_as_empty(monkeypatch):
 
     assert response.status_code == 404
     assert "Widget 'missing' not found" in response.json()["detail"]
+
+
+def test_get_references_marks_spatial_and_coordinate_references_as_enrichable(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "references": {
+                        "taxons": {
+                            "kind": "hierarchical",
+                            "schema": {
+                                "fields": [
+                                    {"name": "id"},
+                                    {"name": "full_name"},
+                                ]
+                            },
+                        },
+                        "plots": {
+                            "kind": "generic",
+                            "schema": {
+                                "fields": [
+                                    {"name": "plot_id"},
+                                    {"name": "latitude"},
+                                    {"name": "longitude"},
+                                ]
+                            },
+                        },
+                        "shapes": {
+                            "kind": "spatial",
+                            "schema": {
+                                "fields": [
+                                    {"name": "shape_id"},
+                                    {"name": "geom", "type": "geometry"},
+                                ]
+                            },
+                        },
+                        "authors": {
+                            "kind": "generic",
+                            "schema": {
+                                "fields": [
+                                    {"name": "author_id"},
+                                    {"name": "full_name"},
+                                ]
+                            },
+                        },
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+
+    response = TestClient(create_app()).get("/api/config/references")
+
+    assert response.status_code == 200, response.text
+    references = {
+        reference["name"]: reference for reference in response.json()["references"]
+    }
+    assert references["taxons"]["can_enrich"] is True
+    assert references["plots"]["can_enrich"] is True
+    assert references["shapes"]["can_enrich"] is True
+    assert references["authors"]["can_enrich"] is False

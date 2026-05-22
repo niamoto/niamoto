@@ -4,10 +4,11 @@
  * Extracted from WelcomeStep for reuse in Flow DataPanel
  */
 
-import { useState, useCallback, useRef } from 'react'
+import { forwardRef, useState, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
 import { getApiErrorMessage } from '@/shared/lib/api/errors'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -34,6 +35,11 @@ import {
   Plus,
 } from 'lucide-react'
 import { uploadFiles, type UploadedFileInfo } from '@/features/import/api/upload'
+import {
+  analyzeFilesBeforeUpload,
+  type FilePreflightSummary,
+  getFilePreflightKey,
+} from '@/features/import/components/upload/filePreflight'
 
 export interface FileAnalysisStatus {
   state: 'queued' | 'analyzing' | 'detected' | 'review' | 'done'
@@ -41,33 +47,54 @@ export interface FileAnalysisStatus {
 }
 
 type DisplayFile = File | { name: string; path: string; size?: number }
+type GroupedDisplayFile = {
+  file: DisplayFile
+  key: string
+  originalIndex: number | null
+}
 
 interface FileUploadZoneProps {
   onFilesReady: (files: UploadedFileInfo[], paths: string[]) => void
   onError?: (error: string) => void
+  onSelectionChange?: (
+    files: File[],
+    preflight: Record<string, FilePreflightSummary>
+  ) => void
+  onUploadingChange?: (uploading: boolean) => void
   disabled?: boolean
   compact?: boolean
   fileStatuses?: Record<string, FileAnalysisStatus>
   analysisMode?: boolean
   hideActions?: boolean
+  showSelectedFileList?: boolean
   initialFiles?: Array<{ name: string; path: string; size?: number }>
 }
 
-export function FileUploadZone({
+export interface FileUploadZoneHandle {
+  clearFiles: () => void
+  openFilePicker: () => void
+  uploadFiles: () => void
+}
+
+export const FileUploadZone = forwardRef<FileUploadZoneHandle, FileUploadZoneProps>(function FileUploadZone({
   onFilesReady,
   onError,
+  onSelectionChange,
+  onUploadingChange,
   disabled = false,
   compact = false,
   fileStatuses = {},
   analysisMode = false,
   hideActions = false,
+  showSelectedFileList = true,
   initialFiles,
-}: FileUploadZoneProps) {
+}, ref) {
   const { t } = useTranslation(['sources', 'common'])
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [filePreflight, setFilePreflight] = useState<Record<string, FilePreflightSummary>>({})
   const [dragActive, setDragActive] = useState(false)
   const [existingFiles, setExistingFiles] = useState<string[]>([])
   const [showExistingDialog, setShowExistingDialog] = useState(false)
@@ -109,16 +136,40 @@ export function FileUploadZone({
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const clearFiles = () => {
+  const clearFiles = useCallback(() => {
     setSelectedFiles([])
+    setFilePreflight({})
     setError(null)
-  }
+  }, [])
 
-  const handleUpload = async (overwrite: boolean = false) => {
+  useEffect(() => {
+    if (analysisMode || selectedFiles.length === 0) {
+      setFilePreflight({})
+      return
+    }
+
+    let cancelled = false
+    void analyzeFilesBeforeUpload(selectedFiles).then((summaries) => {
+      if (!cancelled) {
+        setFilePreflight(summaries)
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [analysisMode, selectedFiles])
+
+  useEffect(() => {
+    onSelectionChange?.(selectedFiles, filePreflight)
+  }, [filePreflight, onSelectionChange, selectedFiles])
+
+  const handleUpload = useCallback(async (overwrite: boolean = false) => {
     if (selectedFiles.length === 0) return
 
     try {
       setUploading(true)
+      onUploadingChange?.(true)
       setError(null)
       setUploadProgress(0)
 
@@ -135,7 +186,6 @@ export function FileUploadZone({
       if (!overwrite && result.existing_files && result.existing_files.length > 0) {
         setExistingFiles(result.existing_files)
         setShowExistingDialog(true)
-        setUploading(false)
         return
       }
 
@@ -154,8 +204,9 @@ export function FileUploadZone({
       onError?.(errMsg)
     } finally {
       setUploading(false)
+      onUploadingChange?.(false)
     }
-  }
+  }, [onError, onFilesReady, onUploadingChange, selectedFiles, t])
 
   const handleUseExistingFiles = () => {
     const filePaths = existingFiles.map((filename) => `imports/${filename}`)
@@ -177,6 +228,12 @@ export function FileUploadZone({
     setShowExistingDialog(false)
     await handleUpload(true)
   }
+
+  useImperativeHandle(ref, () => ({
+    clearFiles,
+    openFilePicker,
+    uploadFiles: () => void handleUpload(),
+  }), [clearFiles, handleUpload, openFilePicker])
 
   const getFileIcon = (file: DisplayFile) => {
     const ext = file.name.split('.').pop()?.toLowerCase()
@@ -204,7 +261,7 @@ export function FileUploadZone({
   const displayFiles = initialFiles ?? selectedFiles
 
   const groupedFiles = displayFiles.reduce(
-    (acc, file) => {
+    (acc, file, index) => {
       const ext = file.name.split('.').pop()?.toLowerCase() || 'other'
       const category =
         ext === 'csv'
@@ -215,10 +272,17 @@ export function FileUploadZone({
               ? 'tif'
               : 'other'
       if (!acc[category]) acc[category] = []
-      acc[category].push(file)
+      acc[category].push({
+        file,
+        key:
+          file instanceof File
+            ? getFilePreflightKey(file)
+            : `${file.path}:${file.name}:${index}`,
+        originalIndex: file instanceof File && initialFiles === undefined ? index : null,
+      })
       return acc
     },
-    {} as Record<string, DisplayFile[]>
+    {} as Record<string, GroupedDisplayFile[]>
   )
 
   const minHeight = compact ? 'min-h-[100px]' : 'min-h-[150px]'
@@ -298,7 +362,7 @@ export function FileUploadZone({
       {/* Selected files list */}
       {displayFiles.length > 0 && (
         <div className="space-y-3">
-          {Object.entries(groupedFiles).map(([category, files]) => (
+          {showSelectedFileList && Object.entries(groupedFiles).map(([category, files]) => (
             <div key={category} className="space-y-2">
               <div className="flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
                 {category === 'csv' && (
@@ -327,9 +391,15 @@ export function FileUploadZone({
                 )}
               </div>
 
-              {files.map((file, idx) => (
+              {files.map((entry) => {
+                const file = entry.file
+                const preflightKey = file instanceof File ? getFilePreflightKey(file) : null
+                const preflight = preflightKey ? filePreflight[preflightKey] : undefined
+                const removableIndex = entry.originalIndex
+
+                return (
                 <div
-                  key={idx}
+                  key={entry.key}
                   className="flex items-center gap-3 rounded-md border bg-muted/30 p-2"
                 >
                   {getFileIcon(file)}
@@ -341,18 +411,44 @@ export function FileUploadZone({
                         <span>{getStatusMeta(file.name)?.label}</span>
                       </div>
                     )}
+                    {!analysisMode && preflight && (
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Badge
+                            variant={preflight.status === 'review' ? 'secondary' : 'outline'}
+                            className="text-[10px]"
+                          >
+                            {t(`upload.preflight.status.${preflight.status}`, { ns: 'sources' })}
+                          </Badge>
+                          {preflight.badges.map((badge) => (
+                            <Badge key={badge} variant="outline" className="text-[10px]">
+                              {t(`upload.preflight.badges.${badge}`, { ns: 'sources' })}
+                            </Badge>
+                          ))}
+                        </div>
+                        {preflight.tips.length > 0 && (
+                          <ul className="space-y-0.5 text-xs text-amber-700 dark:text-amber-400">
+                            {preflight.tips.map((tip) => (
+                              <li key={tip}>
+                                {t(`upload.preflight.tips.${tip}`, { ns: 'sources' })}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <span className="text-xs text-muted-foreground">
                     {typeof file.size === 'number' ? formatFileSize(file.size) : ''}
                   </span>
-                  {!analysisMode && (
+                  {!analysisMode && removableIndex !== null && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-6 w-6 p-0"
                       onClick={(e) => {
                         e.stopPropagation()
-                        removeFile(selectedFiles.findIndex((selected) => selected.name === file.name))
+                        removeFile(removableIndex)
                       }}
                       disabled={uploading}
                     >
@@ -360,7 +456,8 @@ export function FileUploadZone({
                     </Button>
                   )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           ))}
 
@@ -393,7 +490,7 @@ export function FileUploadZone({
 
           {/* Actions */}
           {!uploading && !hideActions && (
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="outline" size="sm" onClick={clearFiles}>
                   {t('common:actions.cancel')}
@@ -457,4 +554,4 @@ export function FileUploadZone({
       </AlertDialog>
     </div>
   )
-}
+})

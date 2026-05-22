@@ -7,7 +7,7 @@
  * 3. Execute import with progress
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -24,7 +24,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -32,11 +32,14 @@ import { PanelTransition } from '@/components/motion/PanelTransition'
 import { Textarea } from '@/components/ui/textarea'
 import { type AutoConfigureResponse } from '@/features/import/api/smart-config'
 import { apiClient } from '@/shared/lib/api/client'
-import { FileUploadZone } from '@/features/import/components/upload/FileUploadZone'
+import { FileUploadZone, type FileUploadZoneHandle } from '@/features/import/components/upload/FileUploadZone'
 import { ExistingFilesSection } from '@/features/import/components/upload/ExistingFilesSection'
+import { PreImportGuidance } from '@/features/import/components/upload/PreImportGuidance'
+import { ImportCockpit } from '@/features/import/components/cockpit/ImportCockpit'
+import { buildImportInventory } from '@/features/import/components/cockpit/importInventory'
 import { AutoConfigDisplay } from '@/features/import/components/review/AutoConfigDisplay'
 import { YamlPreview } from '@/features/import/components/review/YamlPreview'
-import type { FileAnalysisStatus } from '@/features/import/components/upload/FileUploadZone'
+import type { FilePreflightSummary } from '@/features/import/components/upload/filePreflight'
 import { useAutoConfigureJob } from '@/features/import/hooks/useAutoConfigureJob'
 import { useImportJob } from '@/features/import/hooks/useImportJob'
 import { requestBugReport } from '@/features/feedback'
@@ -66,13 +69,19 @@ export function ImportWizard() {
   const { pathname, state: locationState } = useLocation()
   const queryClient = useQueryClient()
   const autoStartedRef = useRef(false)
+  const fileUploadZoneRef = useRef<FileUploadZoneHandle>(null)
 
   const [phase, setPhase] = useState<ImportPhase>('idle')
   const [error, setError] = useState<string | null>(null)
   const [configResult, setConfigResult] = useState<AutoConfigureResponse | null>(null)
   const [filePaths, setFilePaths] = useState<string[]>([])
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; path: string; size?: number }>>([])
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const [pendingFilePreflight, setPendingFilePreflight] = useState<Record<string, FilePreflightSummary>>({})
+  const [selectedInventoryItemId, setSelectedInventoryItemId] = useState<string | null>(null)
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false)
   const [showImportErrorDetails, setShowImportErrorDetails] = useState(false)
+  const [showAdvancedReview, setShowAdvancedReview] = useState(false)
   const [reviewTab, setReviewTab] = useState<'config' | 'yaml'>('config')
   const autoConfigureJob = useAutoConfigureJob()
   const importJob = useImportJob()
@@ -114,6 +123,9 @@ export function ImportWizard() {
   // Handle files ready from upload
   const handleFilesReady = useCallback(
     async (files: UploadedFileInfo[], paths: string[]) => {
+      setIsUploadingFiles(false)
+      setPendingFiles([])
+      setPendingFilePreflight({})
       setUploadedFiles(
         files.map((file) => ({
           name: file.filename,
@@ -124,6 +136,14 @@ export function ImportWizard() {
       await runAutoConfigure(paths)
     },
     [runAutoConfigure]
+  )
+
+  const handleSelectionChange = useCallback(
+    (files: File[], preflight: Record<string, FilePreflightSummary>) => {
+      setPendingFiles(files)
+      setPendingFilePreflight(preflight)
+    },
+    []
   )
 
   // Handle existing files selected for re-import
@@ -184,6 +204,11 @@ export function ImportWizard() {
     setConfigResult(null)
     setFilePaths([])
     setUploadedFiles([])
+    setPendingFiles([])
+    setPendingFilePreflight({})
+    setSelectedInventoryItemId(null)
+    setIsUploadingFiles(false)
+    setShowAdvancedReview(false)
   }
 
   const importErrorDetailsJson = importJob.state.errorDetails
@@ -340,21 +365,45 @@ export function ImportWizard() {
     [configResult]
   )
 
-  const isProcessing = ['uploading', 'configuring', 'importing', 'editing'].includes(phase)
-  const showCardHeader = phase !== 'configuring'
+  const cockpitPhase = phase === 'idle' && isUploadingFiles ? 'uploading' : phase
+  const isProcessing = isUploadingFiles || ['uploading', 'configuring', 'importing', 'editing'].includes(phase)
   const phaseTransitionClassName =
     'animate-in fade-in-0 slide-in-from-bottom-1 duration-300'
 
-  const fileAnalysisStatuses: Record<string, FileAnalysisStatus> = uploadedFiles.reduce(
-    (acc, file) => {
-      acc[file.name] = {
-        state: 'queued',
-        message: t('upload.status.queued'),
-      }
-      return acc
-    },
-    {} as Record<string, FileAnalysisStatus>
+  const cockpitItems = useMemo(
+    () =>
+      buildImportInventory({
+        selectedFiles: pendingFiles,
+        filePreflight: pendingFilePreflight,
+        uploadedFiles,
+        autoConfigEvents: autoConfigureJob.events,
+        autoConfigResult: ['reviewing', 'editing', 'importing'].includes(phase) ? configResult : null,
+        importEvents: importJob.state.events,
+        importing: phase === 'importing',
+        selectedFilesUploading: cockpitPhase === 'uploading',
+      }),
+    [
+      autoConfigureJob.events,
+      configResult,
+      importJob.state.events,
+      pendingFilePreflight,
+      pendingFiles,
+      phase,
+      cockpitPhase,
+      uploadedFiles,
+    ]
   )
+
+  useEffect(() => {
+    if (cockpitItems.length === 0) {
+      if (selectedInventoryItemId) setSelectedInventoryItemId(null)
+      return
+    }
+
+    if (!cockpitItems.some((item) => item.id === selectedInventoryItemId)) {
+      setSelectedInventoryItemId(cockpitItems[0].id)
+    }
+  }, [cockpitItems, selectedInventoryItemId])
 
   const importExecutionSummary = (() => {
     if (!configResult || phase !== 'error') return null
@@ -408,51 +457,8 @@ export function ImportWizard() {
     }
   })()
 
-  for (const event of autoConfigureJob.events) {
-    const eventFile = event.file ? event.file.split('/').pop() : undefined
-    const eventEntity = event.entity
-    const targetFileName =
-      eventFile
-      || uploadedFiles.find((file) => {
-        const baseName = file.name.replace(/\.[^.]+$/, '')
-        return eventEntity === baseName
-      })?.name
-
-    if (!targetFileName || !fileAnalysisStatuses[targetFileName]) {
-      continue
-    }
-
-    if (event.kind === 'detail') {
-      fileAnalysisStatuses[targetFileName] = {
-        state: 'analyzing',
-        message: event.message,
-      }
-      continue
-    }
-
-    if (event.kind === 'finding') {
-      const lowered = event.message.toLowerCase()
-      const state: FileAnalysisStatus['state'] =
-        lowered.includes('review') ? 'review' : 'detected'
-      fileAnalysisStatuses[targetFileName] = {
-        state,
-        message: event.message,
-      }
-      continue
-    }
-
-    if (event.kind === 'complete') {
-      for (const key of Object.keys(fileAnalysisStatuses)) {
-        fileAnalysisStatuses[key] = {
-          state: 'done',
-          message: t('upload.status.ready'),
-        }
-      }
-    }
-  }
-
   return (
-    <div className="flex h-full flex-col overflow-auto p-4">
+    <div className="flex h-full flex-col overflow-hidden p-4">
       <div className="space-y-4">
       {/* Header */}
       <div>
@@ -464,28 +470,7 @@ export function ImportWizard() {
 
       {/* Import Card */}
       <Card className={phase === 'configuring' ? 'overflow-hidden border-border/60' : undefined}>
-        {showCardHeader && (
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              {phase === 'editing' ? <Settings2 className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
-              {phase === 'editing'
-                ? t('wizard.editConfig')
-                : phase === 'reviewing'
-                  ? t('wizard.configDetected')
-                  : phase === 'importing'
-                    ? t('wizard.importInProgress')
-                    : phase === 'complete'
-                      ? t('wizard.importComplete')
-                      : t('wizard.addData')}
-            </CardTitle>
-            {phase === 'idle' && (
-              <CardDescription>
-                {t('wizard.dropFilesToStart')}
-              </CardDescription>
-            )}
-          </CardHeader>
-        )}
-        <CardContent className={phase === 'configuring' ? 'px-6 py-8 sm:px-10' : undefined}>
+        <CardContent className="pt-4">
           {/* Error Alert */}
           {error && phase === 'error' && (
             <div className={`space-y-4 ${phaseTransitionClassName}`}>
@@ -599,25 +584,13 @@ export function ImportWizard() {
           {/* Configuring Phase */}
           {phase === 'configuring' && (
             <div className={`space-y-4 ${phaseTransitionClassName}`}>
-              <div className="text-center">
-                <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                  <Sparkles className="h-6 w-6 animate-pulse text-primary" />
-                </div>
-                <h3 className="text-lg font-semibold">{t('autoConfig.loading.title')}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {autoConfigureJob.stage || t('autoConfig.loading.description')}
-                </p>
-              </div>
-
-              <FileUploadZone
-                onFilesReady={handleFilesReady}
-                onError={(err) => setError(err)}
-                disabled={true}
-                compact={true}
-                analysisMode={true}
-                hideActions={true}
-                fileStatuses={fileAnalysisStatuses}
-                initialFiles={uploadedFiles}
+              <ImportCockpit
+                phase={cockpitPhase}
+                items={cockpitItems}
+                selectedItemId={selectedInventoryItemId}
+                onSelectItem={(item) => setSelectedInventoryItemId(item.id)}
+                stage={autoConfigureJob.stage || t('autoConfig.loading.description')}
+                introGuidance={<PreImportGuidance variant="compact" />}
               />
             </div>
           )}
@@ -634,54 +607,85 @@ export function ImportWizard() {
                 </Alert>
               )}
 
-              <Tabs value={reviewTab} onValueChange={(value) => setReviewTab(value as 'config' | 'yaml')} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="config">{t('wizard.configurationTab')}</TabsTrigger>
-                  <TabsTrigger value="yaml">{t('wizard.yamlTab')}</TabsTrigger>
-                </TabsList>
+              <ImportCockpit
+                phase={cockpitPhase}
+                items={cockpitItems}
+                selectedItemId={selectedInventoryItemId}
+                onSelectItem={(item) => setSelectedInventoryItemId(item.id)}
+                stage={phase === 'importing' ? importJob.state.message : undefined}
+                progress={phase === 'importing' ? importJob.state.progress : undefined}
+                introGuidance={<PreImportGuidance variant="compact" />}
+                detailPanel={
+                  <Collapsible
+                    open={showAdvancedReview}
+                    onOpenChange={setShowAdvancedReview}
+                    className="rounded-lg border bg-muted/10"
+                  >
+                    <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-left">
+                      <div>
+                        <div className="text-sm font-medium">{t('cockpit.review.advancedTitle')}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {t('cockpit.review.advancedDescription')}
+                        </div>
+                      </div>
+                      <ChevronDown
+                        className={`h-4 w-4 text-muted-foreground transition-transform ${showAdvancedReview ? 'rotate-180' : ''}`}
+                      />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="border-t p-3">
+                      <Tabs value={reviewTab} onValueChange={(value) => setReviewTab(value as 'config' | 'yaml')} className="w-full">
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="config">{t('wizard.configurationTab')}</TabsTrigger>
+                          <TabsTrigger value="yaml">{t('wizard.yamlTab')}</TabsTrigger>
+                        </TabsList>
 
-                <PanelTransition transitionKey={reviewTab} className="mt-4">
-                  {reviewTab === 'config' ? (
-                    <AutoConfigDisplay
-                      result={configResult}
-                      editable={phase !== 'importing'}
-                      onReclassify={handleReclassify}
-                      detectedColumns={configResult.detected_columns || {}}
-                      importState={
-                        phase === 'importing'
-                          ? {
-                              active: true,
-                              phase: importJob.state.phase,
-                              message: importJob.state.message,
-                              progress: importJob.state.progress,
-                              processedEntities: importJob.state.processedEntities,
-                              totalEntities: importJob.state.totalEntities,
-                              currentEntity: importJob.state.currentEntity,
-                              currentEntityType: importJob.state.currentEntityType,
-                              events: importJob.state.events,
-                            }
-                          : undefined
-                      }
-                    />
-                  ) : (
-                    <YamlPreview result={configResult} maxHeight="300px" />
-                  )}
-                </PanelTransition>
-              </Tabs>
-
-              {phase !== 'importing' && (
-                <div className="flex items-center justify-between border-t pt-4">
-                  <Button variant="outline" onClick={resetToIdle}>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    {t('common:actions.cancel')}
-                  </Button>
-                  <Button onClick={startImport} size="lg">
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    {phase === 'editing' ? t('wizard.saveAndReimport') : t('wizard.startImport')}
-                    <ChevronRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              )}
+                        <PanelTransition transitionKey={reviewTab} className="mt-4">
+                          {reviewTab === 'config' ? (
+                            <AutoConfigDisplay
+                              result={configResult}
+                              editable={phase !== 'importing'}
+                              onReclassify={handleReclassify}
+                              detectedColumns={configResult.detected_columns || {}}
+                              importState={
+                                phase === 'importing'
+                                  ? {
+                                      active: true,
+                                      phase: importJob.state.phase,
+                                      message: importJob.state.message,
+                                      progress: importJob.state.progress,
+                                      processedEntities: importJob.state.processedEntities,
+                                      totalEntities: importJob.state.totalEntities,
+                                      currentEntity: importJob.state.currentEntity,
+                                      currentEntityType: importJob.state.currentEntityType,
+                                      events: importJob.state.events,
+                                    }
+                                  : undefined
+                              }
+                            />
+                          ) : (
+                            <YamlPreview result={configResult} maxHeight="300px" />
+                          )}
+                        </PanelTransition>
+                      </Tabs>
+                    </CollapsibleContent>
+                  </Collapsible>
+                }
+                footer={
+                  phase !== 'importing' ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <Button variant="outline" onClick={resetToIdle}>
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        {t('common:actions.cancel')}
+                      </Button>
+                      <Button onClick={startImport} size="lg">
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        {phase === 'editing' ? t('wizard.saveAndReimport') : t('wizard.startImport')}
+                        <ChevronRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : undefined
+                }
+              />
             </div>
           )}
 
@@ -696,16 +700,64 @@ export function ImportWizard() {
           {/* Idle Phase */}
           {phase === 'idle' && (
             <div className={`space-y-4 ${phaseTransitionClassName}`}>
-              <ExistingFilesSection
-                onFilesSelected={handleExistingFilesSelected}
-                disabled={isProcessing}
-              />
+              <ImportCockpit
+                phase={cockpitPhase}
+                items={cockpitItems}
+                selectedItemId={selectedInventoryItemId}
+                onSelectItem={(item) => setSelectedInventoryItemId(item.id)}
+                stage={isUploadingFiles ? t('upload.uploading') : undefined}
+                introGuidance={<PreImportGuidance variant="compact" />}
+                footer={
+                  pendingFiles.length > 0 ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => fileUploadZoneRef.current?.clearFiles()}
+                          disabled={isUploadingFiles}
+                        >
+                          {t('common:actions.cancel')}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => fileUploadZoneRef.current?.openFilePicker()}
+                          disabled={isUploadingFiles || isProcessing}
+                        >
+                          <Upload className="mr-2 h-4 w-4" />
+                          {t('upload.addMore')}
+                        </Button>
+                      </div>
+                      <Button
+                        onClick={() => fileUploadZoneRef.current?.uploadFiles()}
+                        disabled={isUploadingFiles || isProcessing}
+                        size="lg"
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        {t('upload.uploadSelected', { count: pendingFiles.length })}
+                      </Button>
+                    </div>
+                  ) : undefined
+                }
+                sourceControls={
+                  <div className="space-y-3">
+                    <ExistingFilesSection
+                      onFilesSelected={handleExistingFilesSelected}
+                      disabled={isProcessing}
+                    />
 
-              <FileUploadZone
-                onFilesReady={handleFilesReady}
-                onError={(err) => setError(err)}
-                disabled={isProcessing}
-                compact={true}
+                    <FileUploadZone
+                      ref={fileUploadZoneRef}
+                      onFilesReady={handleFilesReady}
+                      onError={(err) => setError(err)}
+                      onSelectionChange={handleSelectionChange}
+                      onUploadingChange={setIsUploadingFiles}
+                      disabled={isProcessing}
+                      compact={true}
+                      hideActions={true}
+                      showSelectedFileList={false}
+                    />
+                  </div>
+                }
               />
             </div>
           )}

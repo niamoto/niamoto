@@ -101,6 +101,7 @@ if not included_model_sources:
 # PyInstaller does not always collect these dist-info directories automatically.
 for package_name in [
     'shapely',
+    'rasterio',
 ]:
     datas += copy_metadata(package_name)
 
@@ -108,6 +109,17 @@ for package_name in [
 datas += collect_data_files('pyproj')
 # Include pyogrio bundled GDAL/PROJ data required by geospatial imports.
 datas += collect_data_files('pyogrio')
+# Include rasterio package data and auxiliary files required by its runtime
+# helpers such as rasterio.sample in frozen desktop sidecars.
+datas += collect_data_files(
+    'rasterio',
+    excludes=[
+        '**/tests',
+        '**/tests/**/*',
+        '**/__pycache__',
+        '**/*.pyc',
+    ],
+)
 
 # CRITICAL: Include React build (src/niamoto/gui/ui/dist)
 ui_dist = NIAMOTO_SRC / 'gui' / 'ui' / 'dist'
@@ -209,12 +221,17 @@ hiddenimports = [
 
 # Binaries - additional binary dependencies
 binaries = collect_dynamic_libs('pyogrio')
+binaries += collect_dynamic_libs('rasterio')
 
 # Collect pyogrio extension modules explicitly. Without them, frozen Linux builds
 # can fail at runtime with missing native module errors such as pyogrio_geometry.
 hiddenimports += collect_submodules(
     'pyogrio',
     filter=lambda name: not name.startswith('pyogrio.tests'),
+)
+hiddenimports += collect_submodules(
+    'rasterio',
+    filter=lambda name: not name.startswith('rasterio.tests'),
 )
 
 # Analysis

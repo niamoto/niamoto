@@ -1,5 +1,6 @@
-import niamotoLogo from '@/assets/niamoto_logo.png'
 import { cn } from '@/lib/utils'
+import { useTheme } from '@/stores/themeStore'
+import { getNiamotoLogoSrc } from '@/shared/branding/niamotoLogo'
 
 interface AppLoaderProps {
   className?: string
@@ -12,12 +13,19 @@ export function AppLoader({
   logoClassName,
   loaderClassName,
 }: AppLoaderProps) {
+  const { resolvedMode } = useTheme()
+  const logoSrc = getNiamotoLogoSrc(resolvedMode)
+
   return (
     <div className={cn('niamoto-app-loader-shell', className)}>
       <img
-        src={niamotoLogo}
+        src={logoSrc}
         alt=""
-        className={cn('niamoto-app-loader-logo', logoClassName)}
+        className={cn(
+          'niamoto-brand-logo niamoto-app-loader-logo',
+          resolvedMode === 'dark' && 'niamoto-brand-logo--dark',
+          logoClassName
+        )}
         draggable={false}
       />
       <div

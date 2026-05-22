@@ -33,15 +33,18 @@ const styleDescriptions: Record<Theme['style'], string> = {
 
 interface ThemeCardProps {
   theme: Theme
+  previewMode: 'light' | 'dark'
   isSelected: boolean
   onSelect: () => void
 }
 
-function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
+function ThemeCard({ theme, previewMode, isSelected, onSelect }: ThemeCardProps) {
   // Preload fonts for preview
   useEffect(() => {
     loadThemeFonts(theme)
   }, [theme])
+
+  const previewTokens = previewMode === 'dark' ? theme.dark : theme.light
 
   return (
     <button
@@ -58,7 +61,7 @@ function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
       {/* Preview area - Shows theme personality */}
       <div
         className="relative h-24 w-full overflow-hidden p-3"
-        style={{ backgroundColor: theme.preview.background }}
+        style={{ backgroundColor: previewTokens.card }}
       >
         {/* Typography preview */}
         <div className="relative z-10 flex flex-col gap-1">
@@ -66,7 +69,7 @@ function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
             className="text-base font-semibold leading-tight"
             style={{
               fontFamily: theme.preview.fontDisplay,
-              color: theme.preview.primary,
+              color: previewTokens.primary,
             }}
           >
             {theme.name}
@@ -74,7 +77,7 @@ function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
           <span
             className="text-xs"
             style={{
-              color: theme.preview.secondary,
+              color: previewTokens.mutedForeground,
               fontFamily: theme.preview.fontDisplay,
             }}
           >
@@ -88,7 +91,7 @@ function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
           <div
             className="h-3.5 w-3.5"
             style={{
-              backgroundColor: theme.preview.primary,
+              backgroundColor: previewTokens.primary,
               borderRadius: theme.preview.borderRadius,
             }}
           />
@@ -96,7 +99,7 @@ function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
           <div
             className="h-3.5 w-3.5"
             style={{
-              backgroundColor: theme.preview.secondary,
+              backgroundColor: previewTokens.secondary,
               borderRadius: theme.preview.borderRadius,
             }}
           />
@@ -104,7 +107,7 @@ function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
           <div
             className="h-3.5 w-3.5"
             style={{
-              backgroundColor: theme.preview.accent,
+              backgroundColor: previewTokens.accent,
               borderRadius: theme.preview.borderRadius,
             }}
           />
@@ -115,8 +118,8 @@ function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
           <div
             className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center shadow-md"
             style={{
-              backgroundColor: theme.preview.primary,
-              color: theme.preview.background,
+              backgroundColor: previewTokens.primary,
+              color: previewTokens.primaryForeground,
               borderRadius: theme.preview.borderRadius === '0' ? '4px' : '9999px',
             }}
           >
@@ -128,12 +131,12 @@ function ThemeCard({ theme, isSelected, onSelect }: ThemeCardProps) {
       {/* Theme description */}
       <div
         className="flex flex-col gap-0.5 p-2.5 text-left"
-        style={{ backgroundColor: theme.preview.background }}
+        style={{ backgroundColor: previewTokens.background }}
       >
         <span
           className="text-xs line-clamp-2"
           style={{
-            color: theme.preview.secondary,
+            color: previewTokens.mutedForeground,
           }}
         >
           {theme.description}
@@ -242,7 +245,7 @@ export function ThemeSwitcher({
   showModeSelector = true,
   columns = 2,
 }: ThemeSwitcherProps) {
-  const { themes, themeId, mode, setTheme, setMode } = useTheme()
+  const { themes, themeId, mode, resolvedMode, setTheme, setMode } = useTheme()
 
   const gridCols = {
     2: 'grid-cols-2',
@@ -265,6 +268,7 @@ export function ThemeSwitcher({
           <ThemeCard
             key={theme.id}
             theme={theme}
+            previewMode={resolvedMode}
             isSelected={themeId === theme.id}
             onSelect={() => setTheme(theme.id)}
           />

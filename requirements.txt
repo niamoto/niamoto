@@ -143,7 +143,7 @@ pyyaml==6.0.3
     #   uvicorn
 rasterio==1.5.0
     # via niamoto (pyproject.toml)
-requests==2.34.0
+requests==2.34.1
     # via niamoto (pyproject.toml)
 rich==15.0.0
     # via niamoto (pyproject.toml)

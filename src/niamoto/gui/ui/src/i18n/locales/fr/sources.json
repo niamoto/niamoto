@@ -80,7 +80,7 @@
   },
   "upload": {
     "dropFiles": "Glissez-déposez vos fichiers",
-    "supportedFormats": "CSV, GeoPackage, GeoJSON, TIFF",
+    "supportedFormats": "CSV, GeoPackage, GeoJSON, shapefiles zippés, TIFF",
     "addMore": "Ajouter des fichiers",
     "uploading": "Téléversement...",
     "uploadSelected_one": "Télécharger {{count}} fichier",
@@ -105,6 +105,325 @@
       "detected": "Détection mise à jour",
       "review": "À vérifier",
       "ready": "Analyse terminée"
+    },
+    "preflight": {
+      "status": {
+        "ready": "Prêt pour la détection",
+        "review": "À vérifier avant l’envoi",
+        "info": "Format détecté"
+      },
+      "badges": {
+        "headers": "En-têtes trouvés",
+        "identifiers": "Identifiants trouvés",
+        "hierarchy": "Niveaux imbriqués",
+        "taxonomyFromOccurrences": "Taxonomie dans les occurrences",
+        "classObject": "Valeurs par classe",
+        "spatial": "Couche spatiale",
+        "raster": "Couche raster",
+        "zip": "Archive ZIP"
+      },
+      "tips": {
+        "missingHeaders": "Ajoutez une seule ligne d’en-têtes claire pour que Niamoto lise les colonnes.",
+        "missingIdentifiers": "Ajoutez un identifiant explicite comme id, plot_id ou taxon_id si ce fichier doit être lié à un autre.",
+        "classObjectIdentifier": "Les CSV de valeurs par classe ont aussi besoin de entity_id, plot_id, shape_id, taxon_id ou id.",
+        "classObjectNumeric": "La colonne class_value doit contenir uniquement des valeurs numériques.",
+        "zipShapefile": "Les ZIP shapefile sont acceptés, mais GeoPackage ou GeoJSON permet une détection automatique plus fiable.",
+        "unsupported": "Cette extension peut être téléversée, mais elle ne fait pas partie du chemin de détection automatique fiable.",
+        "unreadableCsv": "Ce CSV n’a pas pu être prévisualisé. Vérifiez l’encodage et la première ligne d’en-têtes."
+      }
+    }
+  },
+  "cockpit": {
+    "workflow": {
+      "title": "Flux d’import",
+      "files": "Ajouter les fichiers",
+      "selection": "Sélection",
+      "upload": "Téléversement",
+      "verification": "Vérification",
+      "analysis": "Analyse automatique",
+      "import": "Importer",
+      "itemCount_one": "{{count}} fichier",
+      "itemCount_other": "{{count}} fichiers"
+    },
+    "inventory": {
+      "title": "Fichiers du projet",
+      "descriptionEmpty": "Ajoutez des fichiers : l’inventaire restera visible pendant toute l’analyse.",
+      "descriptionWithFiles_one": "{{count}} fichier suivi de la sélection à l’import.",
+      "descriptionWithFiles_other": "{{count}} fichiers suivis de la sélection à l’import.",
+      "fileCount_one": "{{count}} fichier",
+      "fileCount_other": "{{count}} fichiers",
+      "attentionCount_one": "{{count}} à vérifier",
+      "attentionCount_other": "{{count}} à vérifier",
+      "progress": "{{progress}} % du lot analysé ou importé",
+      "readyToUpload_one": "{{count}} fichier sélectionné, prêt à téléverser",
+      "readyToUpload_other": "{{count}} fichiers sélectionnés, prêts à téléverser",
+      "uploadingFiles_one": "{{count}} fichier en cours de téléversement",
+      "uploadingFiles_other": "{{count}} fichiers en cours de téléversement",
+      "analysisProgress": "{{progress}} % du lot analysé",
+      "analysisComplete_one": "Analyse terminée pour {{count}} fichier",
+      "analysisComplete_other": "Analyse terminée pour {{count}} fichiers",
+      "importProgress": "{{progress}} % du lot importé ou arrêté"
+    },
+    "summary": {
+      "total_one": "{{count}} fichier",
+      "total_other": "{{count}} fichiers",
+      "attention_one": "{{count}} à vérifier",
+      "attention_other": "{{count}} à vérifier",
+      "imported_one": "{{count}} importé",
+      "imported_other": "{{count}} importés"
+    },
+    "roles": {
+      "occurrences": "Occurrences",
+      "sites": "Sites/Parcelles",
+      "class_values": "Valeurs par classe",
+      "spatial_layer": "Couches spatiales",
+      "raster_layer": "Rasters",
+      "dataset": "Tables de données",
+      "reference": "Tables de référence",
+      "auxiliary": "Tables associées",
+      "supporting_table": "Tables support",
+      "unknown": "À classifier"
+    },
+    "status": {
+      "selected": "Sélectionné",
+      "uploading": "Téléversement",
+      "queued": "En attente",
+      "checking": "Vérification",
+      "analysed": "Analysé",
+      "ready": "Prêt",
+      "needs_attention": "À vérifier",
+      "not_configured": "Non utilisé automatiquement",
+      "importing": "Import",
+      "imported": "Importé",
+      "failed": "Erreur"
+    },
+    "messages": {
+      "not_configured": "Non retenu par l’analyse automatique"
+    },
+    "context": {
+      "emptyTitle": "Assistant d’import",
+      "helpTitle": "Aide à l’import",
+      "details": "Détails",
+      "checks": "Indices détectés",
+      "phase": {
+        "idle": "Ajoutez des fichiers pour construire l’inventaire.",
+        "uploading": "Les fichiers sont en cours de téléversement.",
+        "configuring": "Niamoto analyse les fichiers et détecte leur rôle.",
+        "reviewing": "Validez la proposition avant de lancer l’import.",
+        "editing": "Ajustez la configuration existante avant de réimporter.",
+        "importing": "L’import est en cours.",
+        "complete": "L’import est terminé.",
+        "error": "Une erreur bloque l’import."
+      }
+    },
+    "detailLabels": {
+      "format": "Format",
+      "size": "Taille",
+      "checks": "Contrôles",
+      "tips": "Conseils",
+      "event": "Événement",
+      "analysis": "Analyse",
+      "detected_as": "Détecté comme",
+      "source": "Source",
+      "id field": "Identifiant",
+      "rows": "Lignes",
+      "decision": "Décision",
+      "review": "À vérifier",
+      "kind": "Type",
+      "hierarchy": "Hiérarchie",
+      "attached to": "Rattaché à",
+      "relation": "Relation",
+      "description": "Description"
+    },
+    "review": {
+      "advancedTitle": "Ajustements avancés",
+      "advancedDescription": "Ouvrez la configuration détaillée ou le YAML seulement si vous devez corriger la détection."
+    }
+  },
+  "preImport": {
+    "title": "Avant d’importer",
+    "badge": "Vérification rapide",
+    "description": "Choisissez le point de départ qui ressemble le plus à vos données. Vous pourrez toujours ajuster la configuration après l’analyse automatique.",
+    "assistant": {
+      "nav": {
+        "overview": {
+          "title": "Avant d’importer",
+          "description": "Le minimum pour démarrer"
+        },
+        "files": {
+          "title": "Fichiers et modèles",
+          "description": "Occurrences et sites"
+        },
+        "checks": {
+          "title": "Vérifications clés",
+          "description": "Ce que Niamoto regarde"
+        },
+        "advanced": {
+          "title": "Détails avancés",
+          "description": "Hiérarchies et class_object"
+        }
+      },
+      "overview": {
+        "title": "Un CSV d’occurrences suffit pour commencer.",
+        "description": "Importez vos relevés d’abord. Vous pourrez ajouter des sites, parcelles, couches spatiales ou valeurs plus spécifiques ensuite.",
+        "steps": {
+          "read": {
+            "title": "1. Lire vos colonnes",
+            "description": "Niamoto inspecte les en-têtes, identifiants et géométries."
+          },
+          "derive": {
+            "title": "2. Déduire la taxonomie",
+            "description": "Si family, genus, species ou id_taxonref sont présents, la taxonomie peut être extraite."
+          },
+          "review": {
+            "title": "3. Vérifier avant import",
+            "description": "Vous gardez la main sur le rôle des fichiers et les liens détectés."
+          }
+        }
+      },
+      "files": {
+        "title": "Choisissez le modèle qui ressemble à vos données",
+        "description": "Les modèles servent seulement de point de départ : remplacez les lignes d’exemple par vos propres données.",
+        "occurrences": {
+          "title": "Occurrences",
+          "description": "Le fichier principal : observations, taxons et éventuellement coordonnées.",
+          "download": "Modèle occurrences"
+        },
+        "sites": {
+          "title": "Sites / Parcelles",
+          "description": "Un fichier complémentaire pour décrire les sites ou parcelles liés aux occurrences.",
+          "download": "Modèle sites / parcelles"
+        }
+      },
+      "checks": {
+        "title": "Quelques vérifications évitent les erreurs les plus fréquentes",
+        "description": "Ces points améliorent la détection automatique sans vous obliger à configurer l’import à la main.",
+        "items": {
+          "headers": {
+            "title": "En-têtes",
+            "description": "Une seule ligne d’en-têtes claire, avec des noms de colonnes stables.",
+            "status": "OK"
+          },
+          "identifiers": {
+            "title": "Identifiants",
+            "description": "Un identifiant unique pour les occurrences, sites ou taxons à relier.",
+            "status": "OK"
+          },
+          "matchingValues": {
+            "title": "Valeurs correspondantes",
+            "description": "Les mêmes valeurs doivent être réutilisées entre fichiers liés.",
+            "status": "À vérifier"
+          },
+          "spatial": {
+            "title": "Formats spatiaux",
+            "description": "GeoPackage ou GeoJSON est plus fiable que shapefile pour la détection.",
+            "status": "À vérifier"
+          }
+        }
+      },
+      "advanced": {
+        "title": "Ouvrez ces détails seulement si vous reconnaissez votre cas",
+        "description": "Ces formats sont utiles, mais plus contraints que le chemin standard par occurrences.",
+        "hierarchy": {
+          "title": "Hiérarchies",
+          "description": "Pour des niveaux imbriqués comme famille > genre > espèce ou pays > région > parcelle."
+        },
+        "classObject": {
+          "title": "Valeurs déjà calculées par classe",
+          "description": "Pour rattacher une entité à un objet mesuré, une classe et une valeur numérique.",
+          "download": "Modèle valeurs par classe"
+        }
+      },
+      "resources": {
+        "title": "Ressources",
+        "description": "Téléchargez un modèle ou vérifiez les formats acceptés sans quitter cette aide."
+      }
+    },
+    "start": {
+      "title": "Vous pouvez commencer simplement",
+      "description": "Un seul fichier d’occurrences suffit souvent pour démarrer. Si ce fichier contient aussi family, genus, species ou id_taxonref, Niamoto peut en déduire la taxonomie."
+    },
+    "paths": {
+      "occurrences": {
+        "title": "J’ai un fichier d’occurrences",
+        "badge": "Point de départ",
+        "description": "Observations, taxons et éventuellement coordonnées. C’est le fichier principal dans le cas standard.",
+        "download": "Modèle occurrences"
+      },
+      "siteReference": {
+        "title": "J’ai aussi des sites / parcelles",
+        "badge": "Optionnel",
+        "description": "Liste de sites, parcelles ou placettes à relier aux occurrences pour faire des regroupements spatiaux.",
+        "download": "Modèle sites / parcelles"
+      },
+      "advanced": {
+        "title": "J’ai un cas plus spécifique",
+        "badge": "Avancé",
+        "description": "Hiérarchies séparées, valeurs déjà calculées par classe ou fichiers plus contraints.",
+        "hint": "Ouvrez les panneaux ci-dessous seulement si vous reconnaissez ce cas.",
+        "openHierarchy": "Voir les hiérarchies",
+        "openClassObject": "Voir les valeurs par classe"
+      }
+    },
+    "acceptedFormatsTitle": "Formats acceptés",
+    "formats": {
+      "csv": {
+        "title": "Tables CSV",
+        "description": "Tables délimitées pour les jeux de données, références, métadonnées et valeurs de support."
+      },
+      "vector": {
+        "title": "Couches vectorielles",
+        "description": "Entités spatiales avec géométrie, souvent des placettes, zones ou limites."
+      },
+      "raster": {
+        "title": "Couches raster",
+        "description": "Couches GeoTIFF utilisées comme entrées environnementales ou spatiales maillées."
+      }
+    },
+    "shapefileNote": "Pour les shapefiles, privilégiez GeoPackage quand c’est possible. Les ZIP shapefile sont acceptés au téléversement, mais la détection automatique est plus fiable avec GeoPackage ou GeoJSON.",
+    "detectionTips": {
+      "title": "Pour une détection automatique plus fiable",
+      "items": {
+        "headers": "Gardez une seule ligne d’en-têtes claire dans les CSV.",
+        "identifiers": "Utilisez des colonnes d’identifiants explicites comme id, plot_id ou taxon_id.",
+        "matchingValues": "Réutilisez les mêmes valeurs d’identifiants entre fichiers liés.",
+        "spatial": "Privilégiez GeoPackage ou GeoJSON pour les données spatiales."
+      }
+    },
+    "hierarchy": {
+      "title": "Vos données ont des niveaux imbriqués ?",
+      "summary": "Utilisez ceci pour les taxonomies ou niveaux géographiques comme family > genus > species ou country > region > locality > plot.",
+      "meaningTitle": "Ce que Niamoto peut détecter",
+      "meaningDescription": "Une hiérarchie est un ensemble de colonnes où chaque ligne va d’un niveau large vers un niveau plus précis.",
+      "standardTaxonomyTitle": "Cas standard : taxonomie dérivée des occurrences",
+      "standardTaxonomyDescription": "Vous n’avez généralement pas besoin d’un fichier taxonomie séparé. Mettez les colonnes taxonomiques directement dans le CSV d’occurrences, par exemple id_taxonref, taxaname, family, genus, species et infra.",
+      "separateColumns": "Une colonne par niveau",
+      "separateColumnsDescription": "Mettez au moins deux niveaux dans le même CSV, chacun dans sa propre colonne.",
+      "clearNames": "Noms de niveaux explicites",
+      "clearNamesDescription": "Utilisez des noms comme family, genus, species, country, region, locality ou plot.",
+      "order": "Du large vers le précis",
+      "orderDescription": "Gardez des valeurs cohérentes, avec moins de valeurs uniques dans les niveaux larges que dans les niveaux profonds.",
+      "identifier": "Les identifiants stables aident les liens",
+      "identifierDescription": "Quand c’est possible, ajoutez un identifiant stable comme taxon_id, plot_id, id_taxon ou id."
+    },
+    "templates": {
+      "title": "Besoin d’un fichier de départ ?",
+      "description": "Téléchargez un petit modèle CSV, puis remplacez les lignes d’exemple par vos propres données.",
+      "occurrences": "Occurrences",
+      "siteReference": "Sites / Parcelles"
+    },
+    "classObject": {
+      "title": "Vous avez des valeurs déjà calculées par classe ?",
+      "summary": "Utilisez ceci seulement quand une entité a des valeurs numériques réparties dans des classes nommées. Niamoto stocke cela dans un CSV class_object.",
+      "meaningTitle": "Ce que représente ce CSV",
+      "meaningDescription": "Chaque ligne rattache une entité à un objet mesuré, une classe optionnelle et une valeur numérique.",
+      "example": "Exemple : plot_001 + forest_cover + forest + 8.4 signifie que plot_001 a 8,4 unités de couverture forestière dans la classe forest.",
+      "requiredColumns": "Colonnes obligatoires",
+      "identifier": "Identifiant d’entité",
+      "identifierDescription": "Ajoutez une colonne d’identifiant nommée entity_id, plot_id, shape_id, taxon_id ou id pour rattacher chaque ligne à une entité.",
+      "numericValues": "Valeurs numériques",
+      "numericValuesDescription": "La colonne class_value doit contenir des valeurs numériques. Laissez class_name vide uniquement quand la valeur n’est pas répartie par classe.",
+      "downloadTemplate": "Télécharger le modèle CSV"
     }
   },
   "existingFiles": {
@@ -1467,6 +1786,14 @@
       "mlOverride": "ML a influencé la décision",
       "conflict": "Heuristique et ML divergent",
       "mixed": "Signaux mixtes"
+    },
+    "actionableTips": {
+      "title": "Ce qu’il faut vérifier",
+      "lowConfidence": "Ouvrez les détails et confirmez si ce fichier doit être un dataset, une référence ou une source de support.",
+      "classificationConflict": "Les signaux divergent ; vérifiez le rôle détecté avant d’importer.",
+      "missingIdentifier": "Choisissez ou ajoutez une colonne d’identifiant stable pour pouvoir lier cette table ensuite.",
+      "hierarchyIdentifier": "Si cette hiérarchie doit être liée à des observations ou des stats, ajoutez un taxon_id, plot_id ou id stable.",
+      "noRelationship": "Si ce dataset doit être lié à une référence, vérifiez que les deux fichiers partagent les mêmes valeurs d’identifiants."
     },
     "detection": {
       "fileFormatRecognized": "Format {{format}} reconnu pour \"{{name}}\"",
