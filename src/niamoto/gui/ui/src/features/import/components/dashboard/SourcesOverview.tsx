@@ -332,10 +332,10 @@ export function SourcesOverview({
             const status = getReferenceStatus(reference, issueCount)
             const statusVariant =
               status === 'structural_alert'
-                ? 'destructive'
+                ? 'destructive' as const
                 : status === 'enrichment_configured'
-                  ? 'secondary'
-                  : 'outline'
+                  ? 'secondary' as const
+                  : 'outline' as const
             const statusLabel = t(`dashboard.status.${status}`, {
               defaultValue:
                 {
