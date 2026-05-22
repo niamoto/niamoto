@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { analyzeFilesBeforeUpload } from './filePreflight'
+import { analyzeFilesBeforeUpload, getFilePreflightKey } from './filePreflight'
 
 describe('analyzeFilesBeforeUpload', () => {
   it('recognizes taxonomy embedded in an occurrences CSV', async () => {
@@ -19,7 +19,7 @@ describe('analyzeFilesBeforeUpload', () => {
 
     const summaries = await analyzeFilesBeforeUpload([file])
 
-    expect(summaries['occurrences.csv']).toMatchObject({
+    expect(summaries[getFilePreflightKey(file)]).toMatchObject({
       status: 'ready',
       badges: expect.arrayContaining([
         'headers',
@@ -28,6 +28,22 @@ describe('analyzeFilesBeforeUpload', () => {
         'taxonomyFromOccurrences',
       ]),
       tips: [],
+    })
+  })
+
+  it('keeps distinct summaries for different files sharing the same name', async () => {
+    const validFile = new File(['id,family,genus\n1,A,B'], 'occurrences.csv', { type: 'text/csv' })
+    const incompleteFile = new File(['value\n42'], 'occurrences.csv', { type: 'text/csv' })
+
+    const summaries = await analyzeFilesBeforeUpload([validFile, incompleteFile])
+
+    expect(getFilePreflightKey(validFile)).not.toBe(getFilePreflightKey(incompleteFile))
+    expect(summaries[getFilePreflightKey(validFile)]).toMatchObject({
+      status: 'ready',
+    })
+    expect(summaries[getFilePreflightKey(incompleteFile)]).toMatchObject({
+      status: 'review',
+      tips: expect.arrayContaining(['missingIdentifiers']),
     })
   })
 })

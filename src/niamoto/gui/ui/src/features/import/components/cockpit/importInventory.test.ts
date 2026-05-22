@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { buildImportInventory, summarizeInventory } from './importInventory'
 import type { AutoConfigureResponse } from '@/features/import/api/smart-config'
+import { getFilePreflightKey } from '@/features/import/components/upload/filePreflight'
 
 describe('buildImportInventory', () => {
   it('turns selected mixed files into compact inventory items', () => {
@@ -14,7 +15,7 @@ describe('buildImportInventory', () => {
     const inventory = buildImportInventory({
       selectedFiles: [occurrences, communes, rainfall],
       filePreflight: {
-        'occurrences.csv': {
+        [getFilePreflightKey(occurrences)]: {
           fileName: 'occurrences.csv',
           status: 'ready',
           badges: ['headers', 'identifiers', 'taxonomyFromOccurrences'],
@@ -89,7 +90,7 @@ describe('buildImportInventory', () => {
       selectedFiles: [occurrences],
       selectedFilesUploading: true,
       filePreflight: {
-        'occurrences.csv': {
+        [getFilePreflightKey(occurrences)]: {
           fileName: 'occurrences.csv',
           status: 'ready',
           badges: ['headers'],
@@ -344,6 +345,111 @@ describe('buildImportInventory', () => {
       expect.arrayContaining([
         expect.objectContaining({ name: 'occurrences', status: 'imported', quality: 'good' }),
         expect.objectContaining({ name: 'plots', status: 'failed', quality: 'error' }),
+      ])
+    )
+  })
+
+  it('keeps same-basename files matched to their exact detected source', () => {
+    const result: AutoConfigureResponse = {
+      success: true,
+      entities: {
+        datasets: {
+          sampling_table: {
+            connector: {
+              path: 'imports/plots.csv',
+              format: 'csv',
+            },
+          },
+        },
+        references: {
+          plot_shapes: {
+            kind: 'spatial',
+            connector: {
+              path: 'imports/plots.gpkg',
+              format: 'gpkg',
+            },
+          },
+        },
+      },
+      confidence: 0.9,
+      warnings: [],
+    }
+
+    const inventory = buildImportInventory({
+      uploadedFiles: [
+        { filename: 'plots.gpkg', path: 'imports/plots.gpkg', type: 'gpkg' },
+        { filename: 'plots.csv', path: 'imports/plots.csv', type: 'csv' },
+      ],
+      autoConfigResult: result,
+    })
+
+    expect(inventory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'plots.gpkg',
+          sourceName: 'plot_shapes',
+          role: 'sites',
+        }),
+        expect.objectContaining({
+          name: 'plots.csv',
+          sourceName: 'sampling_table',
+          role: 'dataset',
+        }),
+      ])
+    )
+  })
+
+  it('applies import events to every uploaded file that belongs to the same multi-source entity', () => {
+    const result: AutoConfigureResponse = {
+      success: true,
+      entities: {
+        datasets: {},
+        references: {
+          shapes: {
+            kind: 'spatial',
+            connector: {
+              type: 'file_multi_feature',
+              sources: [
+                { path: 'imports/countries.gpkg' },
+                { path: 'imports/communes.gpkg' },
+              ],
+            },
+          },
+        },
+      },
+      confidence: 0.9,
+      warnings: [],
+    }
+
+    const inventory = buildImportInventory({
+      uploadedFiles: [
+        { filename: 'countries.gpkg', path: 'imports/countries.gpkg', type: 'gpkg' },
+        { filename: 'communes.gpkg', path: 'imports/communes.gpkg', type: 'gpkg' },
+      ],
+      autoConfigResult: result,
+      importing: true,
+      importEvents: [
+        {
+          timestamp: '2026-05-21T00:00:00Z',
+          kind: 'finding',
+          message: 'Imported shapes',
+          entity_name: 'shapes',
+        },
+      ],
+    })
+
+    expect(inventory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'countries.gpkg',
+          sourceName: 'shapes',
+          status: 'imported',
+        }),
+        expect.objectContaining({
+          name: 'communes.gpkg',
+          sourceName: 'shapes',
+          status: 'imported',
+        }),
       ])
     )
   })

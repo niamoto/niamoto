@@ -152,6 +152,39 @@ describe('FileUploadZone', () => {
     await harness.unmount()
   })
 
+  it('removes the correct file when two selected files share the same name', async () => {
+    const harness = createHarness()
+    const onFilesReady = vi.fn()
+    const onSelectionChange = vi.fn()
+    const firstFile = new File(['id\n1'], 'occurrences.csv', { type: 'text/csv' })
+    const secondFile = new File(['id\n1\n2\n3'], 'occurrences.csv', { type: 'text/csv' })
+
+    await harness.render(
+      <FileUploadZone
+        onFilesReady={onFilesReady}
+        onSelectionChange={onSelectionChange}
+      />
+    )
+
+    const input = harness.container.querySelector<HTMLInputElement>('input[type="file"]')
+    expect(input).toBeTruthy()
+    await selectFiles(input!, [firstFile, secondFile])
+
+    const removeButtons = Array.from(harness.container.querySelectorAll('button')).filter(
+      (button) => button.textContent === ''
+    )
+    expect(removeButtons).toHaveLength(2)
+
+    await act(async () => {
+      removeButtons[1].click()
+      await Promise.resolve()
+    })
+
+    expect(onSelectionChange).toHaveBeenLastCalledWith([firstFile], expect.any(Object))
+
+    await harness.unmount()
+  })
+
   it('reports upload state changes to the parent workflow', async () => {
     const harness = createHarness()
     const onFilesReady = vi.fn()

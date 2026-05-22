@@ -7,6 +7,18 @@ export interface FilePreflightSummary {
   tips: string[]
 }
 
+const filePreflightKeys = new WeakMap<File, string>()
+let nextFilePreflightKey = 0
+
+export function getFilePreflightKey(file: File) {
+  const existingKey = filePreflightKeys.get(file)
+  if (existingKey) return existingKey
+
+  const key = `${file.name}:${file.size}:${file.lastModified}:${nextFilePreflightKey++}`
+  filePreflightKeys.set(file, key)
+  return key
+}
+
 const HIERARCHY_COLUMNS = new Set([
   'kingdom',
   'phylum',
@@ -156,5 +168,7 @@ export async function analyzeFilesBeforeUpload(files: File[]) {
     })
   )
 
-  return Object.fromEntries(summaries.map((summary) => [summary.fileName, summary]))
+  return Object.fromEntries(
+    summaries.map((summary, index) => [getFilePreflightKey(files[index]), summary])
+  )
 }
