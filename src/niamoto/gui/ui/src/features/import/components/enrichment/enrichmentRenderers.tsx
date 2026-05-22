@@ -66,7 +66,7 @@ const ImageWithLoader = ({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="truncate text-blue-600 hover:underline"
+            className="truncate text-primary hover:underline"
           >
             {t('enrichmentTab.viewImage')}
           </a>
@@ -177,7 +177,7 @@ const renderValue = (value: unknown): React.ReactNode => {
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline"
+          className="inline-flex items-center gap-1 text-primary hover:text-primary/80 hover:underline"
         >
           <span className="max-w-[200px] truncate">{url}</span>
           <ExternalLink className="h-3 w-3 shrink-0" />

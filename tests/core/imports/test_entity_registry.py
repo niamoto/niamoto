@@ -115,6 +115,30 @@ def test_invalid_json_config(registry: EntityRegistry):
     assert "Invalid JSON in config field" in str(exc_info.value)
 
 
+@pytest.mark.parametrize("payload", ["[]", "null", '"bad"'])
+def test_non_object_json_config_raises_database_query_error(
+    registry: EntityRegistry, payload: str
+):
+    sql = f"""
+        INSERT INTO {registry.ENTITIES_TABLE} (name, kind, table_name, config)
+        VALUES (:name, :kind, :table_name, :config)
+    """
+    registry.db.execute_sql(
+        sql,
+        {
+            "name": f"bad_entity_{payload}",
+            "kind": "reference",
+            "table_name": "entity_bad",
+            "config": payload,
+        },
+    )
+
+    with pytest.raises(DatabaseQueryError) as exc_info:
+        registry.get(f"bad_entity_{payload}")
+
+    assert "Invalid config payload type" in str(exc_info.value)
+
+
 def test_invalid_entity_kind(registry: EntityRegistry):
     """Test that invalid entity kind raises DatabaseQueryError."""
     # Insert invalid kind directly into database

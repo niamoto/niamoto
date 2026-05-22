@@ -1,5 +1,6 @@
 """Site configuration API endpoints for managing export.yml site settings."""
 
+import asyncio
 import logging
 import os
 import re
@@ -37,6 +38,7 @@ CSV_IMPORT_UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
 MAX_SITE_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
 SITE_UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
 MAX_MARKDOWN_PREVIEW_SIZE_BYTES = 2 * 1024 * 1024
+MAX_DATA_CONTENT_SIZE_BYTES = 5 * 1024 * 1024
 ACTIVE_FILE_EXTENSIONS = {".svg", ".html", ".htm", ".js", ".css", ".xml"}
 SITE_CONTENT_TEXT_EXTENSIONS = {
     ".md",
@@ -128,7 +130,13 @@ def _normalize_link_url(url: str | None, output_aliases: dict[str, str]) -> str 
     if not url:
         return url
 
-    normalized = _normalize_output_alias(url)
+    from urllib.parse import urlsplit, urlunsplit
+
+    parsed = urlsplit(url)
+    if parsed.scheme or parsed.netloc or not parsed.path:
+        return url
+
+    normalized = _normalize_output_alias(parsed.path)
     if not normalized:
         return url
 
@@ -136,7 +144,8 @@ def _normalize_link_url(url: str | None, output_aliases: dict[str, str]) -> str 
     if not replacement:
         return url
 
-    return f"/{replacement}" if url.startswith("/") else replacement
+    normalized_path = f"/{replacement}" if parsed.path.startswith("/") else replacement
+    return urlunsplit(("", "", normalized_path, parsed.query, parsed.fragment))
 
 
 def _normalize_navigation_items(
@@ -206,6 +215,46 @@ def _validate_static_pages(static_pages: list[dict[str, Any]]) -> None:
             status_code=422,
             detail=f"Duplicate output_file values are not allowed: {duplicate_list}",
         )
+
+
+def _coerce_optional_dict(value: Any, field_name: str) -> dict[str, Any]:
+    """Normalize nullable mapping config nodes loaded from YAML."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise HTTPException(
+            status_code=422,
+            detail=f"{field_name} must be an object when defined",
+        )
+    return value
+
+
+def _coerce_optional_list(value: Any, field_name: str) -> list[Any]:
+    """Normalize nullable list config nodes loaded from YAML."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise HTTPException(
+            status_code=422,
+            detail=f"{field_name} must be a list when defined",
+        )
+    return value
+
+
+def _read_json_data_content_file(file_path: Path) -> list[dict[str, Any]]:
+    """Read a JSON data-content file and validate the supported structure."""
+    import json
+
+    content = file_path.read_text(encoding="utf-8")
+    data = json.loads(content)
+    if not isinstance(data, list):
+        raise HTTPException(status_code=400, detail="JSON file must contain an array")
+    if not all(isinstance(item, dict) for item in data):
+        raise HTTPException(
+            status_code=400,
+            detail="JSON file must contain an array of objects",
+        )
+    return data
 
 
 def _get_legacy_home_output_file() -> str | None:
@@ -747,11 +796,17 @@ async def get_site_config():
             copy_assets_from=[],
         )
 
-    params = web_pages.get("params", {})
-    site_config = params.get("site", {})
-    raw_navigation = params.get("navigation", [])
-    raw_footer_navigation = params.get("footer_navigation", [])
-    raw_static_pages = web_pages.get("static_pages", [])
+    params = _coerce_optional_dict(web_pages.get("params"), "web_pages.params")
+    site_config = _coerce_optional_dict(params.get("site"), "web_pages.params.site")
+    raw_navigation = _coerce_optional_list(
+        params.get("navigation"), "web_pages.params.navigation"
+    )
+    raw_footer_navigation = _coerce_optional_list(
+        params.get("footer_navigation"), "web_pages.params.footer_navigation"
+    )
+    raw_static_pages = _coerce_optional_list(
+        web_pages.get("static_pages"), "web_pages.static_pages"
+    )
     static_pages, output_aliases = _normalize_static_pages(raw_static_pages)
     _validate_static_pages(static_pages)
     navigation = _normalize_navigation_items(raw_navigation, output_aliases)
@@ -777,7 +832,10 @@ async def get_site_config():
         static_pages=pages,
         template_dir=params.get("template_dir", "templates/"),
         output_dir=params.get("output_dir", "exports/web"),
-        copy_assets_from=params.get("copy_assets_from", []),
+        copy_assets_from=_coerce_optional_list(
+            params.get("copy_assets_from"),
+            "web_pages.params.copy_assets_from",
+        ),
     )
 
 
@@ -925,7 +983,12 @@ async def get_groups():
 async def preview_exported_site(requested_path: str = ""):
     """Serve exported preview files for the current instance."""
     preview_path = _resolve_exported_preview_path(requested_path)
-    return FileResponse(preview_path)
+    headers = {"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"}
+    if preview_path.suffix.lower() in {".html", ".htm", ".svg", ".xml"}:
+        headers["Content-Security-Policy"] = (
+            "sandbox allow-scripts allow-popups allow-downloads"
+        )
+    return FileResponse(preview_path, headers=headers)
 
 
 @router.get("/templates", response_model=TemplatesResponse)
@@ -1047,16 +1110,32 @@ async def list_project_files(folder: str = "files"):
     files = []
 
     if target_dir.exists() and target_dir.is_dir():
-        for f in target_dir.rglob("*"):
-            if f.is_file():
-                rel_path = f.relative_to(work_dir_resolved)
-                stat = f.stat()
+        for current_root, dirnames, filenames in os.walk(target_dir, followlinks=False):
+            current_root_path = Path(current_root)
+            dirnames[:] = [
+                dirname
+                for dirname in dirnames
+                if not (current_root_path / dirname).is_symlink()
+            ]
+
+            for filename in filenames:
+                file_path = current_root_path / filename
+                try:
+                    if file_path.is_symlink():
+                        continue
+                    if not file_path.is_file():
+                        continue
+                    rel_path = file_path.relative_to(work_dir_resolved)
+                    stat = file_path.stat()
+                except OSError:
+                    continue
+
                 files.append(
                     {
-                        "name": f.name,
+                        "name": file_path.name,
                         "path": str(rel_path),
                         "size": stat.st_size,
-                        "extension": f.suffix.lower(),
+                        "extension": file_path.suffix.lower(),
                         "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
                     }
                 )
@@ -1214,7 +1293,50 @@ def _sanitize_markdown_html(html_content: str) -> str:
         lowered = value.lower()
         if any(token in lowered for token in ("url", "expression", "javascript")):
             return False
-        return all(char.isalnum() or char in " #:;.,%()-" for char in value)
+        if not all(char.isalnum() or char in " #:;.,%()-" for char in value):
+            return False
+
+        allowed_properties = {
+            "color",
+            "background-color",
+            "text-align",
+            "font-weight",
+            "font-style",
+            "text-decoration",
+            "width",
+            "max-width",
+            "height",
+            "max-height",
+            "border",
+            "border-color",
+            "border-width",
+            "border-style",
+            "border-radius",
+            "margin",
+            "margin-left",
+            "margin-right",
+            "margin-top",
+            "margin-bottom",
+            "padding",
+            "padding-left",
+            "padding-right",
+            "padding-top",
+            "padding-bottom",
+            "float",
+        }
+        for declaration in value.split(";"):
+            declaration = declaration.strip()
+            if not declaration:
+                continue
+            property_name, separator, property_value = declaration.partition(":")
+            if separator != ":":
+                return False
+            normalized_property = property_name.strip().lower()
+            if normalized_property not in allowed_properties:
+                return False
+            if not property_value.strip():
+                return False
+        return True
 
     class Sanitizer(HTMLParser):
         def __init__(self):
@@ -1465,7 +1587,21 @@ async def preview_template(request: TemplatePreviewRequest, http_request: Reques
             _ensure_site_content_path(work_dir, content_path)
             if content_path.is_file():
                 try:
-                    content = content_path.read_text(encoding="utf-8")
+                    if (
+                        content_path.suffix.lower() in [".md", ".markdown"]
+                        and content_path.stat().st_size
+                        > MAX_MARKDOWN_PREVIEW_SIZE_BYTES
+                    ):
+                        raise HTTPException(
+                            status_code=413,
+                            detail=(
+                                "Markdown preview content exceeds the maximum allowed size"
+                            ),
+                        )
+
+                    content = await asyncio.to_thread(
+                        content_path.read_text, encoding="utf-8"
+                    )
                     # Process markdown if needed
                     if content_path.suffix.lower() in [".md", ".markdown"]:
                         content = _preprocess_markdown_images(content)
@@ -1516,7 +1652,21 @@ async def preview_template(request: TemplatePreviewRequest, http_request: Reques
                 if json_path.is_file():
                     import json as json_mod
 
-                    data = json_mod.loads(json_path.read_text(encoding="utf-8"))
+                    if json_path.stat().st_size > MAX_DATA_CONTENT_SIZE_BYTES:
+                        raise HTTPException(
+                            status_code=413,
+                            detail="JSON source exceeds the maximum allowed size",
+                        )
+                    try:
+                        raw_json = await asyncio.to_thread(
+                            json_path.read_text, encoding="utf-8"
+                        )
+                        data = json_mod.loads(raw_json)
+                    except json_mod.JSONDecodeError as exc:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Invalid JSON in {source_value}: {exc}",
+                        ) from exc
                     page_context[target_key] = data
 
         # Build the full context for the template
@@ -1971,7 +2121,8 @@ async def preview_group_index(
             },
             work_dir=work_dir,
         )
-        if items_data is None:
+        using_mock_items = items_data is None
+        if using_mock_items:
             items_data = _generate_mock_items(
                 display_fields,
                 count=12,
@@ -2059,12 +2210,13 @@ document.addEventListener('click', function(e) {
 }, true);
 </script>
 """
+        badge_html = preview_badge if using_mock_items else ""
         if "</body>" in rendered_html:
             rendered_html = rendered_html.replace(
-                "</body>", f"{preview_badge}{link_intercept_script}</body>"
+                "</body>", f"{badge_html}{link_intercept_script}</body>"
             )
         else:
-            rendered_html += preview_badge + link_intercept_script
+            rendered_html += badge_html + link_intercept_script
 
         return TemplatePreviewResponse(html=rendered_html, template=template_name)
 
@@ -2329,8 +2481,6 @@ async def get_data_content(path: str):
     Args:
         path: File path relative to project root (e.g., "data/bibliography-references.json")
     """
-    import json
-
     work_dir = get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not set")
@@ -2349,20 +2499,16 @@ async def get_data_content(path: str):
     if not file_path.is_file():
         raise HTTPException(status_code=400, detail="Path is not a file")
 
+    if file_path.stat().st_size > MAX_DATA_CONTENT_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="JSON data content exceeds the maximum allowed size",
+        )
+
     try:
-        content = file_path.read_text(encoding="utf-8")
-        data = json.loads(content)
-        if not isinstance(data, list):
-            raise HTTPException(
-                status_code=400, detail="JSON file must contain an array"
-            )
-        if not all(isinstance(item, dict) for item in data):
-            raise HTTPException(
-                status_code=400,
-                detail="JSON file must contain an array of objects",
-            )
+        data = await asyncio.to_thread(_read_json_data_content_file, file_path)
         return DataFileResponse(data=data, path=path, count=len(data))
-    except json.JSONDecodeError as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {str(e)}")
     except HTTPException:
         raise
@@ -2394,8 +2540,17 @@ async def update_data_content(request: Request, update: DataFileUpdate):
     if file_path.suffix.lower() != ".json":
         raise HTTPException(status_code=400, detail="Only JSON files are supported")
 
+    content = json.dumps(update.data, ensure_ascii=False, indent=2)
+    if len(content.encode("utf-8")) > MAX_DATA_CONTENT_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="JSON data content exceeds the maximum allowed size",
+        )
+
     # Create backup before writing
     if file_path.exists():
+        if not file_path.is_file():
+            raise HTTPException(status_code=400, detail="Path is not a file")
         _create_backup(file_path)
 
     try:
@@ -2403,7 +2558,6 @@ async def update_data_content(request: Request, update: DataFileUpdate):
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Write JSON with nice formatting
-        content = json.dumps(update.data, ensure_ascii=False, indent=2)
         temp_path: Path | None = None
         try:
             with tempfile.NamedTemporaryFile(
@@ -2468,6 +2622,8 @@ async def update_file_content(request: Request, update: FileContentUpdate):
 
     # Create backup before writing
     if file_path.exists():
+        if not file_path.is_file():
+            raise HTTPException(status_code=400, detail="Path is not a file")
         _create_backup(file_path)
 
     try:
@@ -2731,18 +2887,75 @@ def _parse_bibtex_entry(
 
     ref_type = type_mapping.get(entry_type, "other")
 
-    # Extract fields using regex
-    # Matches: field = {value} or field = "value" or field = value
-    field_pattern = r"(\w+)\s*=\s*(?:\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}|\"([^\"]*)\"|([A-Za-z_][\w:.-]*|\d+))"
     fields = {}
     macros = {key.lower(): value for key, value in (string_macros or {}).items()}
-    for match in re.finditer(field_pattern, entry_text, re.IGNORECASE):
-        field_name = match.group(1).lower()
-        field_value = match.group(2) or match.group(3) or match.group(4) or ""
-        # Clean up the value (remove extra braces, normalize whitespace)
-        field_value = _normalize_bibtex_value(field_value)
-        field_value = macros.get(field_value.lower(), field_value)
-        fields[field_name] = field_value
+    pos = entry_match.end()
+    length = len(entry_text)
+
+    while pos < length:
+        while pos < length and entry_text[pos] in " \t\r\n,":
+            pos += 1
+        if pos >= length or entry_text[pos] == "}":
+            break
+
+        name_match = re.match(r"(\w+)", entry_text[pos:])
+        if not name_match:
+            break
+        field_name = name_match.group(1).lower()
+        pos += name_match.end()
+
+        while pos < length and entry_text[pos].isspace():
+            pos += 1
+        if pos >= length or entry_text[pos] != "=":
+            break
+        pos += 1
+
+        while pos < length and entry_text[pos].isspace():
+            pos += 1
+        if pos >= length:
+            break
+
+        if entry_text[pos] == "{":
+            depth = 0
+            pos += 1
+            start = pos
+            value_chars: list[str] = []
+            while pos < length:
+                char = entry_text[pos]
+                if char == "{":
+                    depth += 1
+                elif char == "}":
+                    if depth == 0:
+                        break
+                    depth -= 1
+                value_chars.append(char)
+                pos += 1
+            field_value = "".join(value_chars)
+            if pos < length and entry_text[pos] == "}":
+                pos += 1
+        elif entry_text[pos] == '"':
+            pos += 1
+            value_chars = []
+            while pos < length:
+                char = entry_text[pos]
+                if char == '"' and (pos == 0 or entry_text[pos - 1] != "\\"):
+                    break
+                value_chars.append(char)
+                pos += 1
+            field_value = "".join(value_chars)
+            if pos < length and entry_text[pos] == '"':
+                pos += 1
+        else:
+            start = pos
+            while pos < length and entry_text[pos] not in ",}\r\n":
+                pos += 1
+            field_value = entry_text[start:pos]
+
+        normalized_value = _normalize_bibtex_value(field_value)
+        fields[field_name] = macros.get(
+            normalized_value.lower(),
+            normalized_value,
+        )
 
     # Build reference object
     reference = {
@@ -3069,6 +3282,11 @@ async def import_csv(
         if has_header:
             # Use first row as column names
             headers = [h.strip().lower().replace(" ", "_") for h in rows[0]]
+            if any(header == "" for header in headers):
+                raise HTTPException(
+                    status_code=400,
+                    detail="CSV headers must not be blank after normalization",
+                )
             duplicate_headers = sorted(
                 {header for header in headers if headers.count(header) > 1}
             )

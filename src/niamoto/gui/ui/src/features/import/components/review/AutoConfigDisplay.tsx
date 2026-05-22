@@ -582,6 +582,30 @@ export function AutoConfigDisplay({
     if (!summary && !evidence) return null
 
     const topPrediction = evidence?.top_predictions?.[0]
+    const columns = detectedColumns[name] || []
+    const lowerColumns = columns.map((column) => column.toLowerCase())
+    const hasIdentifier = lowerColumns.some((column) =>
+      column === 'id' || column.endsWith('_id') || column.startsWith('id_') || column.endsWith('_code')
+    )
+    const actionableTips = [
+      summary && summary.heuristic_confidence < 0.6
+        ? t('autoConfig.actionableTips.lowConfidence')
+        : null,
+      summary?.alignment === 'conflict'
+        ? t('autoConfig.actionableTips.classificationConflict')
+        : null,
+      summary && !hasIdentifier && summary.final_entity_type !== 'dataset'
+        ? t('autoConfig.actionableTips.missingIdentifier')
+        : null,
+      evidence?.hierarchy?.detected && !hasIdentifier
+        ? t('autoConfig.actionableTips.hierarchyIdentifier')
+        : null,
+      summary?.final_entity_type === 'dataset' &&
+        referenceCount > 0 &&
+        (!summary.referenced_by || summary.referenced_by.length === 0)
+        ? t('autoConfig.actionableTips.noRelationship')
+        : null,
+    ].filter(Boolean) as string[]
 
     return (
         <div className="mt-2 rounded border border-border/70 bg-background/70 p-2 text-[11px]">
@@ -620,6 +644,19 @@ export function AutoConfigDisplay({
               <li key={reason}>• {reason}</li>
             ))}
           </ul>
+        )}
+
+        {actionableTips.length > 0 && (
+          <div className="mt-2 rounded bg-muted/50 p-2">
+            <div className="font-medium text-foreground">
+              {t('autoConfig.actionableTips.title')}
+            </div>
+            <ul className="mt-1 space-y-0.5 text-muted-foreground">
+              {actionableTips.map((tip) => (
+                <li key={tip}>• {tip}</li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {topPrediction && (

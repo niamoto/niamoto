@@ -126,4 +126,114 @@ describe('FileUploadZone', () => {
 
     await harness.unmount()
   })
+
+  it('can report selected files without rendering the built-in selected-file list', async () => {
+    const harness = createHarness()
+    const onFilesReady = vi.fn()
+    const onSelectionChange = vi.fn()
+    const occurrencesFile = new File(['id,id_taxonref\n1,2'], 'occurrences.csv', { type: 'text/csv' })
+
+    await harness.render(
+      <FileUploadZone
+        onFilesReady={onFilesReady}
+        onSelectionChange={onSelectionChange}
+        showSelectedFileList={false}
+      />
+    )
+
+    const input = harness.container.querySelector<HTMLInputElement>('input[type="file"]')
+    expect(input).toBeTruthy()
+    await selectFiles(input!, [occurrencesFile])
+
+    expect(onSelectionChange).toHaveBeenCalledWith([occurrencesFile], expect.any(Object))
+    expect(harness.container.textContent).not.toContain('occurrences.csv')
+    expect(harness.container.textContent).toContain('upload.uploadSelected')
+
+    await harness.unmount()
+  })
+
+  it('removes the correct file when two selected files share the same name', async () => {
+    const harness = createHarness()
+    const onFilesReady = vi.fn()
+    const onSelectionChange = vi.fn()
+    const firstFile = new File(['id\n1'], 'occurrences.csv', { type: 'text/csv' })
+    const secondFile = new File(['id\n1\n2\n3'], 'occurrences.csv', { type: 'text/csv' })
+
+    await harness.render(
+      <FileUploadZone
+        onFilesReady={onFilesReady}
+        onSelectionChange={onSelectionChange}
+      />
+    )
+
+    const input = harness.container.querySelector<HTMLInputElement>('input[type="file"]')
+    expect(input).toBeTruthy()
+    await selectFiles(input!, [firstFile, secondFile])
+
+    const removeButtons = Array.from(harness.container.querySelectorAll('button')).filter(
+      (button) => button.textContent === ''
+    )
+    expect(removeButtons).toHaveLength(2)
+
+    await act(async () => {
+      removeButtons[1].click()
+      await Promise.resolve()
+    })
+
+    expect(onSelectionChange).toHaveBeenLastCalledWith([firstFile], expect.any(Object))
+
+    await harness.unmount()
+  })
+
+  it('reports upload state changes to the parent workflow', async () => {
+    const harness = createHarness()
+    const onFilesReady = vi.fn()
+    const onUploadingChange = vi.fn()
+    const occurrencesFile = new File(['id,id_taxonref\n1,2'], 'occurrences.csv', { type: 'text/csv' })
+
+    uploadFilesMock.mockResolvedValue({
+      success: true,
+      uploaded_files: [
+        {
+          filename: 'occurrences.csv',
+          path: 'imports/occurrences.csv',
+          size: 18,
+          size_mb: 0.01,
+          type: 'csv',
+          category: 'csv',
+        },
+      ],
+      uploaded_count: 1,
+      existing_files: [],
+      existing_count: 0,
+      errors: [],
+    })
+
+    await harness.render(
+      <FileUploadZone
+        onFilesReady={onFilesReady}
+        onUploadingChange={onUploadingChange}
+      />
+    )
+
+    const input = harness.container.querySelector<HTMLInputElement>('input[type="file"]')
+    expect(input).toBeTruthy()
+    await selectFiles(input!, [occurrencesFile])
+
+    const uploadButton = Array.from(harness.container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('upload.uploadSelected')
+    )
+    expect(uploadButton).toBeTruthy()
+
+    await act(async () => {
+      uploadButton?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onUploadingChange).toHaveBeenCalledWith(true)
+    expect(onUploadingChange).toHaveBeenCalledWith(false)
+
+    await harness.unmount()
+  })
 })

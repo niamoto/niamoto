@@ -11,6 +11,17 @@
   color: var(--niamoto-loader-color, var(--primary, var(--niamoto-loader-color-fallback)));
 }
 
+.niamoto-brand-logo {
+  display: block;
+  filter: drop-shadow(0 10px 18px rgb(0 0 0 / 0.18));
+}
+
+.niamoto-brand-logo--dark {
+  filter:
+    drop-shadow(0 12px 24px rgb(0 0 0 / 0.4))
+    drop-shadow(0 0 18px rgb(184 212 255 / 0.08));
+}
+
 .niamoto-app-loader-logo {
   width: var(--niamoto-loader-logo-size);
   height: var(--niamoto-loader-logo-size);

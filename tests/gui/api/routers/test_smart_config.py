@@ -594,6 +594,8 @@ class TestAnalyzeFile:
 
         # Should have detected hierarchy (our occurrences have family/genus/species)
         assert "hierarchy" in data
+        assert data["filepath"] == "imports/sample_occurrences.csv"
+        assert "sample_occurrences.csv" in data["filepath"]
 
     def test_analyze_file_not_found(self, test_client: TestClient):
         """Test analyzing a non-existent file returns 404."""
@@ -801,6 +803,51 @@ class TestDetectRelationships:
 
         assert "relationships" in data
         # Should check against both targets
+
+    def test_detect_relationships_dispatches_service_to_worker_thread(
+        self, monkeypatch, working_directory: Path
+    ):
+        """The async route should not run CSV scanning on the event loop."""
+
+        captured = {}
+
+        class FakeAutoConfigService:
+            def __init__(self, work_dir: Path):
+                captured["work_dir"] = work_dir
+
+            def detect_relationships(self, source_file, target_files):
+                captured["service_source_file"] = source_file
+                captured["service_target_files"] = target_files
+                return {"relationships": []}
+
+        async def fake_to_thread(func, *args, **kwargs):
+            captured["thread_func"] = func
+            captured["thread_args"] = args
+            captured["thread_kwargs"] = kwargs
+            return func(*args, **kwargs)
+
+        monkeypatch.setattr(smart_config, "AutoConfigService", FakeAutoConfigService)
+        monkeypatch.setattr(smart_config.asyncio, "to_thread", fake_to_thread)
+
+        response = asyncio.run(
+            smart_config.detect_relationships(
+                smart_config.DetectRelationshipsRequest(
+                    source_file="imports/sample_occurrences.csv",
+                    target_files=["imports/sample_taxonomy.csv"],
+                )
+            )
+        )
+
+        assert response == {"relationships": []}
+        assert captured["work_dir"] == working_directory
+        assert captured["thread_func"].__name__ == "detect_relationships"
+        assert captured["service_source_file"] == "imports/sample_occurrences.csv"
+        assert captured["service_target_files"] == ["imports/sample_taxonomy.csv"]
+        assert captured["thread_args"] == ()
+        assert captured["thread_kwargs"] == {
+            "source_file": "imports/sample_occurrences.csv",
+            "target_files": ["imports/sample_taxonomy.csv"],
+        }
 
     def test_detect_no_relationships(
         self, test_client: TestClient, sample_csv_files: Dict[str, Path]

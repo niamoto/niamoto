@@ -6,13 +6,15 @@ import {
   Check,
   Loader2,
 } from 'lucide-react';
-import niamotoLogo from '@/assets/niamoto_logo.png';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DesktopTitlebar } from '@/components/layout/DesktopTitlebar';
 import { getProjectNameValidationError } from '@/features/welcome/lib/projectNameValidation';
+import { cn } from '@/lib/utils';
+import { useTheme } from '@/stores/themeStore';
+import { getNiamotoLogoSrc } from '@/shared/branding/niamotoLogo';
 
 interface ProjectCreationWizardProps {
   onComplete: (name: string, location: string) => Promise<string>;
@@ -33,6 +35,8 @@ export default function ProjectCreationWizard({
   onBrowseFolder,
 }: ProjectCreationWizardProps) {
   const { t } = useTranslation();
+  const { resolvedMode } = useTheme();
+  const logoSrc = getNiamotoLogoSrc(resolvedMode);
   const [state, setState] = useState<WizardState>({
     projectName: '',
     projectLocation: '',
@@ -103,12 +107,15 @@ export default function ProjectCreationWizard({
         {/* Header */}
         <div className="mb-8 text-center">
           <div className="mb-6 flex items-center justify-center">
-          <img
-            src={niamotoLogo}
-            alt="Niamoto"
-            className="h-32 w-auto object-contain"
-          />
-        </div>
+            <img
+              src={logoSrc}
+              alt="Niamoto"
+              className={cn(
+                'niamoto-brand-logo h-32 w-auto object-contain',
+                resolvedMode === 'dark' && 'niamoto-brand-logo--dark'
+              )}
+            />
+          </div>
           <h1 className="text-2xl font-bold">
             {t('wizard.title', 'Create New Project')}
           </h1>

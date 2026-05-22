@@ -599,6 +599,7 @@ pub fn run() {
             commands::open_desktop_devtools,
             commands::create_project,
             commands::browse_folder,
+            commands::save_text_file,
             commands::open_external_url,
             reload_desktop_project,
             get_desktop_api_auth_token,

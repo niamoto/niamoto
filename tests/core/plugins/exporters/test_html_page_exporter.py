@@ -259,6 +259,24 @@ class TestHtmlPageExporter(NiamotoTestCase):
 
         self.assertEqual(resolved, owned_dir.resolve())
 
+    def test_adopts_legacy_default_html_output_dir_without_marker(self):
+        """Legacy exports/web directories should be adopted once before clearing."""
+        web_dir = Path(self.test_dir) / "exports" / "web"
+        assets_dir = web_dir / "assets"
+        fr_dir = web_dir / "fr"
+        assets_dir.mkdir(parents=True)
+        fr_dir.mkdir(parents=True)
+        (fr_dir / "index.html").write_text("<html></html>", encoding="utf-8")
+
+        with patch(
+            "niamoto.core.plugins.exporters.html_page_exporter.Config.get_niamoto_home",
+            return_value=self.test_dir,
+        ):
+            resolved = _ensure_safe_html_output_dir_for_clear(web_dir)
+
+        self.assertEqual(resolved, web_dir.resolve())
+        self.assertTrue((web_dir / ".niamoto-html-export").exists())
+
     def test_navigation_data_orders_by_lft_for_nested_sets(self):
         """
         Navigation data should be ordered by nested-set boundaries to preserve hierarchy.
