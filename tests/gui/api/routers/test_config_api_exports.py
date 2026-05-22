@@ -855,6 +855,20 @@ def test_update_api_export_target_settings_persists_params(monkeypatch):
             },
             "index_output_pattern contains unsupported placeholder {unknown}",
         ),
+        (
+            {
+                "output_dir": "exports/json_api",
+                "detail_output_pattern": "{group/{id}.json",
+            },
+            "detail_output_pattern is not a valid format pattern",
+        ),
+        (
+            {
+                "output_dir": "exports/json_api",
+                "index_output_pattern": "{group/index.json",
+            },
+            "index_output_pattern is not a valid format pattern",
+        ),
     ],
 )
 def test_update_api_export_target_settings_rejects_unsafe_paths(
@@ -910,6 +924,32 @@ def test_create_api_export_target_rejects_unsafe_output_dir(monkeypatch):
     assert response.status_code == 400
     assert response.json()["detail"] == (
         "output_dir must not contain parent directory segments"
+    )
+    saved.assert_not_called()
+
+
+def test_create_api_export_target_rejects_malformed_output_patterns(monkeypatch):
+    saved = Mock()
+
+    monkeypatch.setattr(config_router, "_load_export_config", lambda: {"exports": []})
+    monkeypatch.setattr(config_router, "_validate_export_config_or_raise", Mock())
+    monkeypatch.setattr(config_router, "_save_export_config", saved)
+
+    response = TestClient(create_app()).post(
+        "/api/config/export/api-targets",
+        json={
+            "name": "json_api",
+            "template": "simple",
+            "params": {
+                "output_dir": "exports/json_api",
+                "detail_output_pattern": "{group/{id}.json",
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "detail_output_pattern is not a valid format pattern"
     )
     saved.assert_not_called()
 

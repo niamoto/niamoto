@@ -245,13 +245,8 @@ async def check_site_health(url: str = Query(..., description="URL to check")):
             # that may lead to a broken page
             if final_code == 200 and len(resp.content) < 5000:
                 body = resp.text
-                match = re.search(
-                    r'<meta[^>]+http-equiv=["\']?refresh["\']?[^>]+url=([^"\'\s>]+)',
-                    body,
-                    re.IGNORECASE,
-                )
-                if match:
-                    redirect_target = match.group(1).rstrip("\"'>")
+                redirect_target = _extract_meta_refresh_target(body)
+                if redirect_target:
                     redirect_target = validate_public_http_url(
                         urljoin(str(resp.url), redirect_target),
                         detail="Health check redirect URL is not allowed.",
@@ -307,6 +302,40 @@ async def _get_with_validated_redirects(
         )
 
     raise HTTPException(status_code=400, detail="Too many redirects.")
+
+
+def _extract_meta_refresh_target(body: str) -> str | None:
+    """Extract a meta-refresh URL while handling attribute order and quoting."""
+    from html.parser import HTMLParser
+
+    class MetaRefreshParser(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__(convert_charrefs=True)
+            self.target: str | None = None
+
+        def handle_starttag(
+            self, tag: str, attrs: list[tuple[str, str | None]]
+        ) -> None:
+            if self.target is not None or tag.lower() != "meta":
+                return
+
+            attr_map = {name.lower(): value for name, value in attrs if name}
+            if attr_map.get("http-equiv", "").strip().lower() != "refresh":
+                return
+
+            content = (attr_map.get("content") or "").strip()
+            match = re.search(
+                r"url\s*=\s*(?:['\"]?)([^'\";]+)(?:['\"]?)",
+                content,
+                re.IGNORECASE,
+            )
+            if match:
+                self.target = match.group(1).strip()
+
+    parser = MetaRefreshParser()
+    parser.feed(body)
+    parser.close()
+    return parser.target
 
 
 # --- Unpublish ---

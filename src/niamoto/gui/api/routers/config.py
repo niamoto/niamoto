@@ -328,18 +328,25 @@ def _validate_output_pattern_placeholders(
     if not isinstance(pattern, str):
         return
 
-    for _, field_name_value, _, _ in Formatter().parse(pattern):
-        if field_name_value is None:
-            continue
-        placeholder = field_name_value.split(".", 1)[0].split("[", 1)[0]
-        if placeholder not in allowed_placeholders:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"{field_name} contains unsupported placeholder "
-                    f"{{{field_name_value}}}"
-                ),
-            )
+    try:
+        parsed_fields = Formatter().parse(pattern)
+        for _, field_name_value, _, _ in parsed_fields:
+            if field_name_value is None:
+                continue
+            placeholder = field_name_value.split(".", 1)[0].split("[", 1)[0]
+            if placeholder not in allowed_placeholders:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"{field_name} contains unsupported placeholder "
+                        f"{{{field_name_value}}}"
+                    ),
+                )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{field_name} is not a valid format pattern",
+        ) from exc
 
 
 def _validate_api_export_target_params(params: Dict[str, Any]) -> None:
@@ -662,6 +669,107 @@ class HierarchyFields(BaseModel):
     name_field: Optional[str] = None  # Detected display name field
 
 
+LATITUDE_FIELD_NAMES = frozenset(
+    {
+        "latitude",
+        "lat",
+        "decimallatitude",
+        "verbatimlatitude",
+        "centerlatitude",
+        "centroidlatitude",
+    }
+)
+LONGITUDE_FIELD_NAMES = frozenset(
+    {
+        "longitude",
+        "lon",
+        "lng",
+        "decimallongitude",
+        "verbatimlongitude",
+        "centerlongitude",
+        "centroidlongitude",
+    }
+)
+GEOMETRY_FIELD_NAMES = frozenset(
+    {
+        "geometry",
+        "geom",
+        "geo_pt",
+        "geo_pt_geom",
+        "location",
+        "wkt",
+    }
+)
+
+
+def _normalize_reference_field_name(name: Any) -> str:
+    """Normalize field names for loose schema/capability detection."""
+
+    return re.sub(r"[^a-z0-9]+", "", str(name).lower())
+
+
+def _reference_declares_geometry(schema_fields: Sequence[Dict[str, Any]]) -> bool:
+    """Return whether the reference schema explicitly declares geometry."""
+
+    return any(
+        isinstance(field, dict) and str(field.get("type") or "").lower() == "geometry"
+        for field in schema_fields
+    )
+
+
+def _reference_field_names(
+    schema_fields: Sequence[Dict[str, Any]],
+    table_columns: Optional[Sequence[str]] = None,
+) -> set[str]:
+    """Collect normalized field names from schema and detected table columns."""
+
+    field_names = {
+        _normalize_reference_field_name(field.get("name"))
+        for field in schema_fields
+        if isinstance(field, dict) and field.get("name")
+    }
+    if table_columns:
+        field_names.update(
+            _normalize_reference_field_name(column)
+            for column in table_columns
+            if column
+        )
+    return field_names
+
+
+def _reference_has_coordinate_pair(field_names: set[str]) -> bool:
+    """Return whether the available fields expose a latitude/longitude pair."""
+
+    return bool(field_names & LATITUDE_FIELD_NAMES) and bool(
+        field_names & LONGITUDE_FIELD_NAMES
+    )
+
+
+def _reference_supports_enrichment(
+    *,
+    kind: str,
+    enrichment_config: Any,
+    schema_fields: Sequence[Dict[str, Any]],
+    table_columns: Optional[Sequence[str]] = None,
+) -> bool:
+    """Return whether the reference can realistically offer enrichment."""
+
+    if kind == "hierarchical" or bool(enrichment_config):
+        return True
+
+    if kind == "spatial":
+        return True
+
+    if _reference_declares_geometry(schema_fields):
+        return True
+
+    field_names = _reference_field_names(schema_fields, table_columns)
+    if field_names & GEOMETRY_FIELD_NAMES:
+        return True
+
+    return _reference_has_coordinate_pair(field_names)
+
+
 class ReferenceInfo(BaseModel):
     """Information about a reference entity from import.yml."""
 
@@ -762,7 +870,6 @@ async def get_references():
                 isinstance(item, dict) and item.get("enabled")
                 for item in enrichment_config
             )
-            can_enrich = kind == "hierarchical" or bool(enrichment_config)
 
             # Get actual table name from registry, fallback to convention
             actual_table_name = table_name_map.get(ref_name, f"reference_{ref_name}")
@@ -780,6 +887,7 @@ async def get_references():
             # Detect hierarchy fields from actual table columns
             hierarchy_fields = None
             is_hierarchical = False
+            table_columns: List[str] = []
 
             if db_path and db_path.exists():
                 try:
@@ -796,7 +904,8 @@ async def get_references():
                                 f"SELECT * FROM {quoted_table} LIMIT 0",
                                 db.engine,
                             )
-                            columns = set(columns_df.columns.tolist())
+                            table_columns = columns_df.columns.tolist()
+                            columns = set(table_columns)
 
                             # Detect hierarchy structure
                             has_nested_set = "lft" in columns and "rght" in columns
@@ -856,6 +965,13 @@ async def get_references():
                         db.close_db_session()
                 except Exception:
                     pass  # Continue without hierarchy detection if DB access fails
+
+            can_enrich = _reference_supports_enrichment(
+                kind=kind,
+                enrichment_config=enrichment_config,
+                schema_fields=schema_fields,
+                table_columns=table_columns,
+            )
 
             references.append(
                 ReferenceInfo(

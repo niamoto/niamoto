@@ -345,6 +345,10 @@ export function SourcesOverview({
                   imported: 'Imported',
                 }[status],
             })
+            const statusBadge =
+              status === 'enrichment_available'
+                ? undefined
+                : { label: statusLabel, variant: statusVariant }
 
             // Primary action is always a chevron to open the collection
             const primaryAction = {
@@ -400,7 +404,7 @@ export function SourcesOverview({
                     count: metrics?.column_count ?? reference.schema_fields.length,
                   }),
                 })}
-                statusBadge={{ label: statusLabel, variant: statusVariant }}
+                statusBadge={statusBadge}
                 onIntent={() => void prefetchImportEntityDetail(queryClient, reference)}
                 onNameClick={() => onExploreReference(reference.name)}
                 actions={[

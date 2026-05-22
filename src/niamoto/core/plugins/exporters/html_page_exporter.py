@@ -63,6 +63,30 @@ def _is_relative_to(path: Path, parent: Path) -> bool:
     return True
 
 
+def _looks_like_legacy_default_html_export_dir(
+    output_dir: Path, niamoto_home: Path
+) -> bool:
+    """Return whether an unmarked directory looks like the old default HTML export."""
+
+    default_web_dir = niamoto_home / "exports" / "web"
+    if output_dir != default_web_dir:
+        return False
+
+    root_index = output_dir / "index.html"
+    language_indexes = [
+        output_dir / language / "index.html" for language in ("fr", "en")
+    ]
+    has_index = root_index.exists() or any(path.exists() for path in language_indexes)
+    if not has_index:
+        return False
+
+    # Old HTML exports usually contain static assets and/or language folders.
+    has_html_structure = any(
+        (output_dir / entry).exists() for entry in ("assets", "fr", "en")
+    )
+    return has_html_structure
+
+
 def _ensure_safe_html_output_dir_for_clear(output_dir: Path) -> Path:
     """Resolve and validate a directory before recursive HTML export clearing."""
     resolved_output = output_dir.resolve(strict=False)
@@ -78,6 +102,14 @@ def _ensure_safe_html_output_dir_for_clear(output_dir: Path) -> Path:
         raise ProcessError(f"Refusing to clear unsafe output directory {output_dir}")
 
     if marker.exists():
+        return resolved_output
+
+    if _looks_like_legacy_default_html_export_dir(resolved_output, niamoto_home):
+        marker.touch(exist_ok=True)
+        logger.info(
+            "Adopted legacy HTML export directory without ownership marker: %s",
+            resolved_output,
+        )
         return resolved_output
 
     raise ProcessError(
