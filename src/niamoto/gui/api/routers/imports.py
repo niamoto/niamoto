@@ -2,10 +2,10 @@
 
 import logging
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Form, Query, Request
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import uuid
 from datetime import datetime, timezone
 
@@ -1273,7 +1273,7 @@ class ImpactItemResponse(BaseModel):
     column: str
     level: str
     detail: str
-    referenced_in: List[str] = []
+    referenced_in: List[str] = Field(default_factory=list)
     old_type: Optional[str] = None
     new_type: Optional[str] = None
 
@@ -1284,16 +1284,35 @@ class ColumnMatchResponse(BaseModel):
     new_type: str
 
 
+class WidgetImpactResponse(BaseModel):
+    widget_id: str
+    collection: str
+    status: Literal[
+        "still_valid",
+        "degraded",
+        "broken",
+        "newly_available",
+        "unknown",
+    ]
+    detail: str
+    affected_columns: List[str] = Field(default_factory=list)
+    transformer_plugin: Optional[str] = None
+    widget_plugin: Optional[str] = None
+
+
 class ImpactCheckResponse(BaseModel):
     entity_name: Optional[str] = None
-    matched_columns: List[ColumnMatchResponse] = []
-    impacts: List[ImpactItemResponse] = []
+    matched_columns: List[ColumnMatchResponse] = Field(default_factory=list)
+    impacts: List[ImpactItemResponse] = Field(default_factory=list)
     error: Optional[str] = None
     skipped_reason: Optional[str] = None
     info_message: Optional[str] = None
     has_blockers: bool = False
     has_warnings: bool = False
     has_opportunities: bool = False
+    widget_impacts: List[WidgetImpactResponse] = Field(default_factory=list)
+    widget_impact_summary: Dict[str, int] = Field(default_factory=dict)
+    widget_repair_context: Dict[str, Any] = Field(default_factory=dict)
 
 
 @router.post("/impact-check", response_model=ImpactCheckResponse)
@@ -1348,4 +1367,18 @@ async def impact_check(request: ImpactCheckRequest):
         has_blockers=report.has_blockers,
         has_warnings=report.has_warnings,
         has_opportunities=report.has_opportunities,
+        widget_impacts=[
+            {
+                "widget_id": impact.widget_id,
+                "collection": impact.collection,
+                "status": impact.status,
+                "detail": impact.detail,
+                "affected_columns": impact.affected_columns,
+                "transformer_plugin": impact.transformer_plugin,
+                "widget_plugin": impact.widget_plugin,
+            }
+            for impact in getattr(report, "widget_impacts", [])
+        ],
+        widget_impact_summary=getattr(report, "widget_impact_summary", {}),
+        widget_repair_context=getattr(report, "widget_repair_context", {}),
     )

@@ -46,7 +46,7 @@ def save_transform_config(
     work_dir: Path,
     config: List[Dict[str, Any]],
     create_backup: bool = False,
-) -> None:
+) -> Optional[Path]:
     """Save transform.yml configuration in canonical list format.
 
     Args:
@@ -60,8 +60,9 @@ def save_transform_config(
     transform_path = config_dir / "transform.yml"
 
     # Optional backup creation
+    backup_path = None
     if create_backup and transform_path.exists():
-        _create_backup_file(transform_path)
+        backup_path = _create_backup_file(transform_path)
 
     canonical_config = validate_transform_config(config)
 
@@ -74,6 +75,7 @@ def save_transform_config(
             allow_unicode=True,
             width=120,
         )
+    return backup_path
 
 
 def load_import_config(work_dir: Path) -> Dict[str, Any]:
@@ -143,7 +145,7 @@ def save_export_config(
     work_dir: Path,
     config: Dict[str, Any],
     create_backup: bool = False,
-) -> None:
+) -> Optional[Path]:
     """Save export.yml configuration.
 
     Args:
@@ -157,8 +159,9 @@ def save_export_config(
     export_path = config_dir / "export.yml"
 
     # Optional backup creation
+    backup_path = None
     if create_backup and export_path.exists():
-        _create_backup_file(export_path)
+        backup_path = _create_backup_file(export_path)
 
     with open(export_path, "w", encoding="utf-8") as f:
         yaml.dump(
@@ -169,6 +172,7 @@ def save_export_config(
             allow_unicode=True,
             width=120,
         )
+    return backup_path
 
 
 def find_transform_group(
@@ -236,7 +240,7 @@ def find_or_create_transform_group(
     return new_group
 
 
-def _create_backup_file(file_path: Path) -> None:
+def _create_backup_file(file_path: Path) -> Path:
     """Create a numbered backup of a file.
 
     Args:
@@ -255,7 +259,7 @@ def _create_backup_file(file_path: Path) -> None:
                 shutil.copyfileobj(source, backup)
             shutil.copystat(file_path, backup_path)
             logger.debug(f"Created backup: {backup_path}")
-            return
+            return backup_path
         except FileExistsError:
             continue
 

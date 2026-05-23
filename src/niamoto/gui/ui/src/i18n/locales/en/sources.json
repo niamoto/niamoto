@@ -78,6 +78,39 @@
     "feedbackErrorTypeLabel": "Error type",
     "feedbackErrorTechnicalDetailsLabel": "Technical details"
   },
+  "impact": {
+    "title": "Reimport impact",
+    "checking": "Checking existing transforms and widgets against the incoming files...",
+    "description_one": "{{count}} file checked against the current configuration.",
+    "description_other": "{{count}} files checked against the current configuration.",
+    "pipelineTitle": "Import and transform",
+    "widgetsTitle": "Configured widgets",
+    "failedChecksTitle": "Failed checks",
+    "reviewWidgets": "Review in Blocks",
+    "widgets": {
+      "broken_one": "{{count}} broken widget",
+      "broken_other": "{{count}} broken widgets",
+      "degraded_one": "{{count}} degraded widget",
+      "degraded_other": "{{count}} degraded widgets",
+      "newlyAvailable_one": "{{count}} new field",
+      "newlyAvailable_other": "{{count}} new fields",
+      "stillValid_one": "{{count}} still valid",
+      "stillValid_other": "{{count}} still valid"
+    },
+    "level": {
+      "blocks_import": "Blocks import",
+      "breaks_transform": "Breaks transform",
+      "warning": "Warning",
+      "opportunity": "Opportunity"
+    },
+    "widgetStatus": {
+      "still_valid": "Still valid",
+      "degraded": "Degraded",
+      "broken": "Broken",
+      "newly_available": "New field",
+      "unknown": "Unknown"
+    }
+  },
   "upload": {
     "dropFiles": "Drag and drop your files",
     "supportedFormats": "CSV, GeoPackage, GeoJSON, zipped shapefiles, TIFF",

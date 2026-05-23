@@ -33,11 +33,18 @@ def gui_duckdb_project(tmp_path: Path) -> Path:
                     "datasets": {
                         "occurrences": {
                             "connector": {"type": "csv"},
+                            "schema": {"id_field": "id"},
                         }
                     },
                     "references": {
                         "taxons": {
                             "kind": "hierarchical",
+                            "schema": {"id_field": "id"},
+                            "relation": {
+                                "dataset": "occurrences",
+                                "foreign_key": "taxon_id",
+                                "reference_key": "id",
+                            },
                         }
                     },
                 }

@@ -352,6 +352,7 @@
   },
   "actions": {
     "addWidget": "Ajouter un widget",
+    "reviewProposals": "Propositions auto",
     "addFromSuggestions": "Depuis les suggestions",
     "addCombinedWidget": "Widget combiné",
     "duplicateWidget": "Dupliquer le widget",

@@ -78,6 +78,39 @@
     "feedbackErrorTypeLabel": "Type d'erreur",
     "feedbackErrorTechnicalDetailsLabel": "Détails techniques"
   },
+  "impact": {
+    "title": "Impact du réimport",
+    "checking": "Vérification des transformations et widgets existants avec les fichiers entrants...",
+    "description_one": "{{count}} fichier vérifié avec la configuration actuelle.",
+    "description_other": "{{count}} fichiers vérifiés avec la configuration actuelle.",
+    "pipelineTitle": "Import et transformation",
+    "widgetsTitle": "Widgets configurés",
+    "failedChecksTitle": "Vérifications échouées",
+    "reviewWidgets": "Vérifier dans Blocs",
+    "widgets": {
+      "broken_one": "{{count}} widget cassé",
+      "broken_other": "{{count}} widgets cassés",
+      "degraded_one": "{{count}} widget dégradé",
+      "degraded_other": "{{count}} widgets dégradés",
+      "newlyAvailable_one": "{{count}} nouveau champ",
+      "newlyAvailable_other": "{{count}} nouveaux champs",
+      "stillValid_one": "{{count}} toujours valide",
+      "stillValid_other": "{{count}} toujours valides"
+    },
+    "level": {
+      "blocks_import": "Bloque l'import",
+      "breaks_transform": "Casse une transformation",
+      "warning": "Attention",
+      "opportunity": "Opportunité"
+    },
+    "widgetStatus": {
+      "still_valid": "Toujours valide",
+      "degraded": "Dégradé",
+      "broken": "Cassé",
+      "newly_available": "Nouveau champ",
+      "unknown": "Inconnu"
+    }
+  },
   "upload": {
     "dropFiles": "Glissez-déposez vos fichiers",
     "supportedFormats": "CSV, GeoPackage, GeoJSON, shapefiles zippés, TIFF",

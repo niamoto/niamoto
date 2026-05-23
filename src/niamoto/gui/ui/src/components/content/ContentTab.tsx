@@ -8,6 +8,7 @@
 
 import { useState, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { PanelLeft, Plus } from 'lucide-react'
 import type { PanelImperativeHandle, PanelSize } from 'react-resizable-panels'
 import {
@@ -33,6 +34,7 @@ import type { LocalizedString } from '@/components/ui/localized-input'
 import { WidgetListPanel } from './WidgetListPanel'
 import { ContentRightPanel } from './ContentRightPanel'
 import { AddWidgetModal } from '@/components/widgets/AddWidgetModal'
+import { WidgetProposalWorkspace } from '@/features/collections/components/blocks/WidgetProposalWorkspace'
 import type { ReferenceInfo } from '@/hooks/useReferences'
 import {
   readStoredCollectionsPreviewPreference,
@@ -55,6 +57,13 @@ interface ContentTabProps {
 
 export function ContentTab({ reference }: ContentTabProps) {
   const { t } = useTranslation(['widgets', 'common'])
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const requestedPanel = searchParams.get('panel')
+  const routeRequestsProposalWorkspace = requestedPanel === 'widget-proposals'
+  const routeProposalRequestKey = routeRequestsProposalWorkspace
+    ? `${reference.name}:${location.key}:${searchParams.toString()}`
+    : null
   // Selection state is scoped to the current reference to avoid resetting it in an effect.
   const [selectedWidgetState, setSelectedWidgetState] = useState<{
     referenceName: string
@@ -71,6 +80,22 @@ export function ContentTab({ reference }: ContentTabProps) {
   // Modal state
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [addModalTab, setAddModalTab] = useState<'suggestions' | 'combined' | 'custom'>('suggestions')
+  const [proposalWorkspaceState, setProposalWorkspaceState] = useState<{
+    referenceName: string
+    open: boolean
+    dismissedRouteRequestKey: string | null
+  }>(() => ({
+    referenceName: reference.name,
+    open: false,
+    dismissedRouteRequestKey: null,
+  }))
+  const manualProposalWorkspaceOpen =
+    proposalWorkspaceState.referenceName === reference.name && proposalWorkspaceState.open
+  const routeProposalWorkspaceOpen =
+    routeProposalRequestKey !== null &&
+    proposalWorkspaceState.dismissedRouteRequestKey !== routeProposalRequestKey
+  const proposalWorkspaceOpen =
+    manualProposalWorkspaceOpen || routeProposalWorkspaceOpen
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
@@ -215,6 +240,23 @@ export function ContentTab({ reference }: ContentTabProps) {
     setAddModalOpen(true)
   }, [])
 
+  const handleOpenProposalWorkspace = useCallback(() => {
+    setProposalWorkspaceState({
+      referenceName: reference.name,
+      open: true,
+      dismissedRouteRequestKey: null,
+    })
+    handleBackToLayout()
+  }, [handleBackToLayout, reference.name])
+
+  const handleCloseProposalWorkspace = useCallback(() => {
+    setProposalWorkspaceState({
+      referenceName: reference.name,
+      open: false,
+      dismissedRouteRequestKey: routeProposalRequestKey,
+    })
+  }, [reference.name, routeProposalRequestKey])
+
   // Handle widget added from modal
   const handleWidgetAdded = useCallback(() => {
     refetchWidgets()
@@ -284,6 +326,9 @@ export function ContentTab({ reference }: ContentTabProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={handleOpenProposalWorkspace}>
+                    {t('widgets:actions.reviewProposals')}
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleOpenAddModal('suggestions')}>
                     {t('widgets:actions.addFromSuggestions')}
                   </DropdownMenuItem>
@@ -351,6 +396,9 @@ export function ContentTab({ reference }: ContentTabProps) {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={handleOpenProposalWorkspace}>
+                      {t('widgets:actions.reviewProposals')}
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleOpenAddModal('suggestions')}>
                       {t('widgets:actions.addFromSuggestions')}
                     </DropdownMenuItem>
@@ -368,20 +416,28 @@ export function ContentTab({ reference }: ContentTabProps) {
               </div>
             )}
             <div className="flex-1 min-h-0">
-              <ContentRightPanel
-                selectedWidget={selectedWidget}
-                allWidgets={configuredWidgets}
-                groupBy={reference.name}
-                availableFields={availableFields}
-                previewPreference={previewPreference}
-                onPreviewPreferenceChange={handlePreviewPreferenceChange}
-                detailPreviewAutoRefresh={detailPreviewAutoRefresh}
-                onSelectWidget={handleSelectWidget}
-                onBack={handleBackToLayout}
-                onUpdateWidget={handleUpdateWidget}
-                onDeleteWidget={handleDeleteWidget}
-                onLayoutSaved={refetchWidgets}
-          />
+              {proposalWorkspaceOpen ? (
+                <WidgetProposalWorkspace
+                  collectionName={reference.name}
+                  onClose={handleCloseProposalWorkspace}
+                  onApplied={refetchWidgets}
+                />
+              ) : (
+                <ContentRightPanel
+                  selectedWidget={selectedWidget}
+                  allWidgets={configuredWidgets}
+                  groupBy={reference.name}
+                  availableFields={availableFields}
+                  previewPreference={previewPreference}
+                  onPreviewPreferenceChange={handlePreviewPreferenceChange}
+                  detailPreviewAutoRefresh={detailPreviewAutoRefresh}
+                  onSelectWidget={handleSelectWidget}
+                  onBack={handleBackToLayout}
+                  onUpdateWidget={handleUpdateWidget}
+                  onDeleteWidget={handleDeleteWidget}
+                  onLayoutSaved={refetchWidgets}
+                />
+              )}
             </div>
           </div>
           </div>

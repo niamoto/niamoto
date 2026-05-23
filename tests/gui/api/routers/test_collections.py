@@ -379,3 +379,136 @@ def test_get_collection_data_options_unknown_collection_returns_404(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Collection 'missing' not found"
+
+
+def test_get_collection_widget_proposals_returns_grouped_blocks_candidates(
+    gui_duckdb_client, gui_duckdb_context
+):
+    response = gui_duckdb_client.get("/api/collections/taxons/widget-proposals")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    proposals = [
+        *payload["recommended"],
+        *payload["warnings"],
+        *payload["review_only"],
+    ]
+    assert payload["collection"] == "taxons"
+    assert proposals
+    assert any(
+        proposal["primary_fit"]["widget"] == "bar_plot"
+        for proposal in proposals
+        if proposal.get("primary_fit")
+    )
+
+
+def test_preview_collection_widget_proposals_does_not_write_configs(
+    gui_duckdb_client, gui_duckdb_context
+):
+    proposal_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-proposals"
+    ).json()
+    proposal = [
+        *proposal_payload["recommended"],
+        *proposal_payload["warnings"],
+        *proposal_payload["review_only"],
+    ][0]
+    transform_path = gui_duckdb_context / "config" / "transform.yml"
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    before_transform = (
+        transform_path.read_text(encoding="utf-8") if transform_path.exists() else None
+    )
+    before_export = (
+        export_path.read_text(encoding="utf-8") if export_path.exists() else None
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/collections/taxons/widget-proposals/preview",
+        json={"selections": [{"proposal_id": proposal["id"]}]},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["writes_files"] is False
+    assert payload["preview_token"]
+    assert payload["changes"][0]["action"] in {"add", "invalid"}
+    after_transform = (
+        transform_path.read_text(encoding="utf-8") if transform_path.exists() else None
+    )
+    after_export = (
+        export_path.read_text(encoding="utf-8") if export_path.exists() else None
+    )
+    assert after_transform == before_transform
+    assert after_export == before_export
+
+
+def test_preview_collection_widget_proposals_invalid_without_source_relation(
+    gui_duckdb_client, gui_duckdb_context
+):
+    import_path = gui_duckdb_context / "config" / "import.yml"
+    import_config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    taxons_config = import_config["entities"]["references"]["taxons"]
+    taxons_config.pop("relation", None)
+    taxons_config["connector"] = {"source": "occurrences"}
+    import_path.write_text(
+        yaml.safe_dump(import_config, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    proposal_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-proposals"
+    ).json()
+    proposal = [
+        *proposal_payload["recommended"],
+        *proposal_payload["warnings"],
+        *proposal_payload["review_only"],
+    ][0]
+
+    response = gui_duckdb_client.post(
+        "/api/collections/taxons/widget-proposals/preview",
+        json={"selections": [{"proposal_id": proposal["id"]}]},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["changes"][0]["action"] == "invalid"
+    assert (
+        "No transform source relation could be derived"
+        in payload["invalid"][0]["reason"]
+    )
+
+
+def test_apply_collection_widget_proposals_writes_transform_and_export_configs(
+    gui_duckdb_client, gui_duckdb_context
+):
+    proposal_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-proposals"
+    ).json()
+    proposal = proposal_payload["recommended"][0]
+
+    response = gui_duckdb_client.post(
+        "/api/collections/taxons/widget-proposals/apply",
+        json={"selections": [{"proposal_id": proposal["id"]}]},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["applied"][0]["widget_id"] == proposal["id"]
+    assert payload["written_files"] == ["config/transform.yml", "config/export.yml"]
+
+    transform_config = yaml.safe_load(
+        (gui_duckdb_context / "config" / "transform.yml").read_text(encoding="utf-8")
+    )
+    export_config = yaml.safe_load(
+        (gui_duckdb_context / "config" / "export.yml").read_text(encoding="utf-8")
+    )
+    taxon_group = next(
+        group for group in transform_config if group["group_by"] == "taxons"
+    )
+    source = taxon_group["sources"][0]
+    assert source["relation"]["key"] == "taxon_id"
+    assert source["relation"]["ref_key"] == "id"
+    assert proposal["id"] in taxon_group["widgets_data"]
+    export_group = export_config["exports"][0]["groups"][0]
+    assert export_group["widgets"][0]["data_source"] == proposal["id"]

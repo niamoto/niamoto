@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from typing import Any, NoReturn
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from niamoto.core.collections import CollectionCatalogService
@@ -15,10 +15,21 @@ from niamoto.core.collections.models import (
     CollectionRole,
     CollectionSourceType,
 )
+from niamoto.core.collections.widget_proposal_models import WidgetProposalGroups
 from niamoto.gui.api.context import get_database_path, get_working_directory
+from niamoto.gui.api.desktop_auth import require_desktop_mutation_auth
+from niamoto.gui.api.models.widget_proposals import (
+    WidgetProposalApplyRequest,
+    WidgetProposalApplyResponse,
+    WidgetProposalPreviewRequest,
+    WidgetProposalPreviewResponse,
+)
 from niamoto.gui.api.services.collection_data_options import (
     CollectionDataOptionsResponse,
     CollectionDataOptionsService,
+)
+from niamoto.gui.api.services.collection_widget_proposals import (
+    CollectionWidgetProposalService,
 )
 from niamoto.gui.api.services.templates.config_service import (
     load_export_config,
@@ -82,6 +93,17 @@ def _data_options_service() -> CollectionDataOptionsService:
     )
 
 
+def _widget_proposal_service() -> CollectionWidgetProposalService:
+    work_dir = get_working_directory()
+    return CollectionWidgetProposalService(
+        work_dir=work_dir,
+        db_path=get_database_path(),
+        import_config=load_import_config(work_dir),
+        transform_config=load_transform_config(work_dir),
+        export_config=load_export_config(work_dir),
+    )
+
+
 def _save_service_config(service: CollectionCatalogService) -> None:
     save_import_config(
         get_working_directory(), service.import_config, create_backup=True
@@ -116,6 +138,65 @@ async def get_collection_data_options(
     except KeyError as exc:
         message = str(exc.args[0]) if exc.args else str(exc)
         raise HTTPException(status_code=404, detail=message) from exc
+
+
+@router.get(
+    "/{collection_name}/widget-proposals",
+    response_model=WidgetProposalGroups,
+)
+async def get_collection_widget_proposals(
+    collection_name: str,
+) -> WidgetProposalGroups:
+    """Return transformation-first widget proposals for a collection."""
+    try:
+        return _widget_proposal_service().get_proposals(collection_name)
+    except KeyError as exc:
+        message = str(exc.args[0]) if exc.args else str(exc)
+        raise HTTPException(status_code=404, detail=message) from exc
+
+
+@router.post(
+    "/{collection_name}/widget-proposals/preview",
+    response_model=WidgetProposalPreviewResponse,
+)
+async def preview_collection_widget_proposals(
+    collection_name: str,
+    request: WidgetProposalPreviewRequest,
+) -> WidgetProposalPreviewResponse:
+    """Preview selected widget proposal config changes without writing files."""
+    try:
+        return _widget_proposal_service().preview_apply(
+            collection_name,
+            request.selections,
+        )
+    except KeyError as exc:
+        message = str(exc.args[0]) if exc.args else str(exc)
+        raise HTTPException(status_code=404, detail=message) from exc
+
+
+@router.post(
+    "/{collection_name}/widget-proposals/apply",
+    response_model=WidgetProposalApplyResponse,
+)
+async def apply_collection_widget_proposals(
+    collection_name: str,
+    request: WidgetProposalApplyRequest,
+    http_request: Request,
+) -> WidgetProposalApplyResponse:
+    """Apply selected widget proposals to transform.yml and export.yml."""
+    require_desktop_mutation_auth(http_request)
+    try:
+        with COLLECTION_CONFIG_LOCK:
+            return _widget_proposal_service().apply(
+                collection_name,
+                request.selections,
+                preview_token=request.preview_token,
+            )
+    except KeyError as exc:
+        message = str(exc.args[0]) if exc.args else str(exc)
+        raise HTTPException(status_code=404, detail=message) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.patch("/{collection_name}", response_model=CollectionMutationResponse)

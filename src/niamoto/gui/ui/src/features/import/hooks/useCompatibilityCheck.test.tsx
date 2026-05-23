@@ -58,7 +58,7 @@ describe('useCompatibilityCheck', () => {
     vi.clearAllMocks()
   })
 
-  it('returns matched impacts and unmatched files without blocking on per-file failures', async () => {
+  it('returns matched impacts and exposes per-file failures', async () => {
     impactCheck.mockImplementation(async (filePath: string) => {
       if (filePath.includes('plots.csv')) {
         return {
@@ -75,6 +75,9 @@ describe('useCompatibilityCheck', () => {
           has_blockers: false,
           has_warnings: true,
           has_opportunities: false,
+          widget_impacts: [],
+          widget_impact_summary: {},
+          widget_repair_context: {},
         }
       }
 
@@ -98,12 +101,16 @@ describe('useCompatibilityCheck', () => {
           entity_name: 'plots',
         }),
       ],
-      unmatched: ['unknown.csv'],
+      unmatched: [],
+      failed: [{ file: 'unknown.csv', error: 'backend unavailable' }],
     })
     expect(harness.current.isChecking).toBe(false)
     expect(harness.current.matched).toHaveLength(1)
-    expect(harness.current.unmatched).toEqual(['unknown.csv'])
-    expect(harness.current.error).toBeNull()
+    expect(harness.current.unmatched).toEqual([])
+    expect(harness.current.failed).toEqual([
+      { file: 'unknown.csv', error: 'backend unavailable' },
+    ])
+    expect(harness.current.error).toBe('1 compatibility check failed')
 
     await harness.unmount()
   })
@@ -116,6 +123,9 @@ describe('useCompatibilityCheck', () => {
       has_blockers: false,
       has_warnings: false,
       has_opportunities: false,
+      widget_impacts: [],
+      widget_impact_summary: {},
+      widget_repair_context: {},
     })
 
     const harness = createHookHarness(() => useCompatibilityCheck())
@@ -128,9 +138,46 @@ describe('useCompatibilityCheck', () => {
       ])
     })
 
-    expect(result).toEqual({ matched: [], unmatched: [] })
+    expect(result).toEqual({ matched: [], unmatched: [], failed: [] })
     expect(harness.current.matched).toEqual([])
     expect(harness.current.unmatched).toEqual([])
+
+    await harness.unmount()
+  })
+
+  it('keeps matched results when widget compatibility has impacts', async () => {
+    impactCheck.mockResolvedValue({
+      entity_name: 'plots',
+      matched_columns: [],
+      impacts: [],
+      has_blockers: false,
+      has_warnings: false,
+      has_opportunities: false,
+      widget_impacts: [
+        {
+          widget_id: 'plots_by_habitat',
+          collection: 'plots',
+          status: 'degraded',
+          detail: 'Incoming cardinality is high enough to require ranking.',
+          affected_columns: ['habitat'],
+          transformer_plugin: 'categorical_distribution',
+          widget_plugin: 'bar_plot',
+        },
+      ],
+      widget_impact_summary: { degraded: 1 },
+      widget_repair_context: { entity: 'plots' },
+    })
+
+    const harness = createHookHarness(() => useCompatibilityCheck())
+    await harness.render()
+
+    let result: Awaited<ReturnType<typeof harness.current.check>> | undefined
+    await act(async () => {
+      result = await harness.current.check([{ name: 'plots.csv', path: 'imports/plots.csv' }])
+    })
+
+    expect(result?.matched).toHaveLength(1)
+    expect(harness.current.matched[0]?.widget_impacts).toHaveLength(1)
 
     await harness.unmount()
   })
@@ -143,6 +190,9 @@ describe('useCompatibilityCheck', () => {
       has_blockers: false,
       has_warnings: false,
       has_opportunities: false,
+      widget_impacts: [],
+      widget_impact_summary: {},
+      widget_repair_context: {},
     })
 
     const harness = createHookHarness(() => useCompatibilityCheck())
@@ -159,6 +209,7 @@ describe('useCompatibilityCheck', () => {
       isChecking: false,
       matched: [],
       unmatched: [],
+      failed: [],
       error: null,
     })
 

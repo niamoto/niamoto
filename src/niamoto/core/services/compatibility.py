@@ -12,12 +12,19 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
 from niamoto.core.imports.config_models import ConnectorType
 from niamoto.core.imports.engine import GenericImporter
+from niamoto.core.collections.widget_recipe_compatibility import (
+    IncomingColumnProfile,
+    IncomingDataProfile,
+    WidgetCompatibilityReport,
+    WidgetRecipeImpact,
+    WidgetRecipeCompatibilityService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +72,9 @@ class ImpactReport:
     error: Optional[str] = None
     skipped_reason: Optional[str] = None
     info_message: Optional[str] = None
+    widget_impacts: list[WidgetRecipeImpact] = field(default_factory=list)
+    widget_impact_summary: dict[str, int] = field(default_factory=dict)
+    widget_repair_context: dict[str, Any] = field(default_factory=dict)
 
     @property
     def has_blockers(self) -> bool:
@@ -473,6 +483,7 @@ class ConfigRefCollector:
             self._collect_simple_widget_refs(
                 source_name=source_name,
                 plugin_name=plugin_name,
+                widget_cfg=widget_cfg,
                 params=params,
                 prefix=prefix,
                 refs=refs,
@@ -480,6 +491,7 @@ class ConfigRefCollector:
             self._collect_time_series_widget_refs(
                 source_name=source_name,
                 plugin_name=plugin_name,
+                widget_cfg=widget_cfg,
                 params=params,
                 prefix=prefix,
                 refs=refs,
@@ -495,6 +507,7 @@ class ConfigRefCollector:
             self._collect_geospatial_widget_refs(
                 source_name=source_name,
                 plugin_name=plugin_name,
+                widget_cfg=widget_cfg,
                 params=params,
                 prefix=prefix,
                 refs=refs,
@@ -502,6 +515,7 @@ class ConfigRefCollector:
             self._collect_class_object_widget_refs(
                 source_name=source_name,
                 plugin_name=plugin_name,
+                widget_cfg=widget_cfg,
                 params=params,
                 prefix=prefix,
                 refs=refs,
@@ -544,6 +558,7 @@ class ConfigRefCollector:
         *,
         source_name: str,
         plugin_name: str,
+        widget_cfg: dict,
         params: dict,
         prefix: str,
         refs: ColumnRefMap,
@@ -551,15 +566,19 @@ class ConfigRefCollector:
         fields = self.SIMPLE_SOURCE_FIELD_PLUGINS.get(plugin_name)
         if not fields:
             return
-        if params.get("source") != source_name:
+        widget_source = widget_cfg.get("source") or params.get("source")
+        if widget_source != source_name:
             return
         for field_name in fields:
-            column = params.get(field_name)
+            column = widget_cfg.get(field_name) or params.get(field_name)
             if column:
+                field_path = (
+                    field_name if widget_cfg.get(field_name) else f"params.{field_name}"
+                )
                 self._add(
                     refs,
                     column,
-                    f"{prefix} > params.{field_name}",
+                    f"{prefix} > {field_path}",
                     ImpactLevel.BREAKS_TRANSFORM,
                 )
 
@@ -568,22 +587,27 @@ class ConfigRefCollector:
         *,
         source_name: str,
         plugin_name: str,
+        widget_cfg: dict,
         params: dict,
         prefix: str,
         refs: ColumnRefMap,
     ) -> None:
         if plugin_name != "time_series_analysis":
             return
-        if params.get("source") != source_name:
+        widget_source = widget_cfg.get("source") or params.get("source")
+        if widget_source != source_name:
             return
 
         for field_name in ("field", "time_field"):
-            column = params.get(field_name)
+            column = widget_cfg.get(field_name) or params.get(field_name)
             if column:
+                field_path = (
+                    field_name if widget_cfg.get(field_name) else f"params.{field_name}"
+                )
                 self._add(
                     refs,
                     column,
-                    f"{prefix} > params.{field_name}",
+                    f"{prefix} > {field_path}",
                     ImpactLevel.BREAKS_TRANSFORM,
                 )
 
@@ -657,22 +681,27 @@ class ConfigRefCollector:
         *,
         source_name: str,
         plugin_name: str,
+        widget_cfg: dict,
         params: dict,
         prefix: str,
         refs: ColumnRefMap,
     ) -> None:
         if plugin_name != "geospatial_extractor":
             return
-        if params.get("source") != source_name:
+        widget_source = widget_cfg.get("source") or params.get("source")
+        if widget_source != source_name:
             return
 
         for field_name in ("field",):
-            column = params.get(field_name)
+            column = widget_cfg.get(field_name) or params.get(field_name)
             if column:
+                field_path = (
+                    field_name if widget_cfg.get(field_name) else f"params.{field_name}"
+                )
                 self._add(
                     refs,
                     column,
-                    f"{prefix} > params.{field_name}",
+                    f"{prefix} > {field_path}",
                     ImpactLevel.BREAKS_TRANSFORM,
                 )
 
@@ -707,6 +736,7 @@ class ConfigRefCollector:
         *,
         source_name: str,
         plugin_name: str,
+        widget_cfg: dict,
         params: dict,
         prefix: str,
         refs: ColumnRefMap,
@@ -715,11 +745,12 @@ class ConfigRefCollector:
         if not structural_columns:
             return
 
+        default_source = widget_cfg.get("source") or params.get("source")
         if plugin_name == "class_object_field_aggregator":
             for index, field_cfg in enumerate(params.get("fields") or []):
                 if not isinstance(field_cfg, dict):
                     continue
-                field_source = field_cfg.get("source") or params.get("source")
+                field_source = field_cfg.get("source") or default_source
                 if field_source != source_name:
                     continue
                 self._add_required_columns(
@@ -729,8 +760,7 @@ class ConfigRefCollector:
                 )
             return
 
-        widget_source = params.get("source")
-        if widget_source != source_name:
+        if default_source != source_name:
             return
 
         self._add_required_columns(
@@ -842,6 +872,37 @@ class CSVSchemaReader:
                 }
             )
         return fields, None
+
+    @staticmethod
+    def read_profile(file_path: Path) -> Tuple[IncomingDataProfile, Optional[str]]:
+        """Return lightweight column profiles for widget readability prediction."""
+        try:
+            df = GenericImporter._read_csv(file_path, nrows=1000)
+        except Exception as exc:  # noqa: BLE001
+            return IncomingDataProfile(columns={}), str(exc)
+
+        columns: dict[str, IncomingColumnProfile] = {}
+        for col in df.columns:
+            series = df[col]
+            non_null = series.dropna()
+            inferred_type = (
+                "unknown"
+                if non_null.empty
+                else GenericImporter._dtype_to_string(series.dtype)
+            )
+            coverage = 0.0 if len(series) == 0 else float(len(non_null) / len(series))
+            cardinality = int(non_null.nunique()) if not non_null.empty else 0
+            label_max_length = None
+            if not non_null.empty:
+                label_max_length = int(non_null.astype(str).map(len).max())
+            columns[str(col)] = IncomingColumnProfile(
+                name=str(col),
+                type=inferred_type,
+                cardinality=cardinality,
+                coverage=coverage,
+                label_max_length=label_max_length,
+            )
+        return IncomingDataProfile(columns=columns), None
 
 
 # ---------------------------------------------------------------------------
@@ -980,6 +1041,7 @@ class CompatibilityService:
             )
 
         new_schema = {f["name"]: f["type"] for f in new_fields}
+        incoming_profile, _profile_error = self._reader.read_profile(resolved)
 
         # 4. Load old schema from registry (context, not truth)
         old_schema = self._load_old_schema(
@@ -996,6 +1058,12 @@ class CompatibilityService:
         config_refs = self._collector.collect(
             entity_name, import_config, transform_config
         )
+        widget_report = self._check_widget_compatibility(
+            entity_name,
+            incoming_profile,
+            transform_config,
+            old_column_names=set(old_schema),
+        )
 
         # 6-9. Compare and produce report
         return self._compare(
@@ -1006,6 +1074,7 @@ class CompatibilityService:
             config_refs,
             target_kind=target_kind,
             info_message=info_message,
+            widget_report=widget_report,
         )
 
     def check_all(self, entity_filter: Optional[str] = None) -> list[ImpactReport]:
@@ -1089,6 +1158,14 @@ class CompatibilityService:
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or []
         return data if isinstance(data, list) else []
+
+    def _load_export_config(self) -> dict:
+        path = self.working_directory / "config" / "export.yml"
+        if not path.exists():
+            return {"exports": []}
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        return data if isinstance(data, dict) else {"exports": []}
 
     def _load_old_schema(
         self,
@@ -1202,6 +1279,7 @@ class CompatibilityService:
         *,
         target_kind: TargetKind,
         info_message: Optional[str] = None,
+        widget_report: Optional[WidgetCompatibilityReport] = None,
     ) -> ImpactReport:
         matched: list[ColumnMatch] = []
         impacts: list[ImpactItem] = []
@@ -1272,6 +1350,29 @@ class CompatibilityService:
             matched_columns=matched,
             impacts=impacts,
             info_message=info_message,
+            widget_impacts=list(widget_report.impacts) if widget_report else [],
+            widget_impact_summary=widget_report.summary if widget_report else {},
+            widget_repair_context=(
+                widget_report.repair_context if widget_report else {}
+            ),
+        )
+
+    def _check_widget_compatibility(
+        self,
+        entity_name: str,
+        incoming_profile: IncomingDataProfile,
+        transform_config: list[dict],
+        *,
+        old_column_names: set[str] | None = None,
+    ) -> WidgetCompatibilityReport:
+        service = WidgetRecipeCompatibilityService(
+            transform_config=transform_config,
+            export_config=self._load_export_config(),
+        )
+        return service.classify(
+            entity_name,
+            incoming_profile,
+            old_column_names=old_column_names,
         )
 
     def _is_non_informative_type_change(self, old_type: str, new_type: str) -> bool:

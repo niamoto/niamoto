@@ -352,6 +352,7 @@
   },
   "actions": {
     "addWidget": "Add widget",
+    "reviewProposals": "Auto proposals",
     "addFromSuggestions": "From suggestions",
     "addCombinedWidget": "Combined widget",
     "duplicateWidget": "Duplicate widget",

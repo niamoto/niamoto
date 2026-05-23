@@ -19,6 +19,25 @@ export interface ColumnMatch {
   new_type: string
 }
 
+export type WidgetImpactStatus =
+  | 'still_valid'
+  | 'degraded'
+  | 'broken'
+  | 'newly_available'
+  | 'unknown'
+
+export interface WidgetImpact {
+  widget_id: string
+  collection: string
+  status: WidgetImpactStatus
+  detail: string
+  affected_columns: string[]
+  transformer_plugin?: string | null
+  widget_plugin?: string | null
+}
+
+export type WidgetImpactSummary = Record<WidgetImpactStatus, number>
+
 export interface ImpactCheckResult {
   entity_name: string | null
   matched_columns: ColumnMatch[]
@@ -29,6 +48,9 @@ export interface ImpactCheckResult {
   has_blockers: boolean
   has_warnings: boolean
   has_opportunities: boolean
+  widget_impacts: WidgetImpact[]
+  widget_impact_summary: Partial<WidgetImpactSummary>
+  widget_repair_context: Record<string, unknown>
 }
 
 /**
