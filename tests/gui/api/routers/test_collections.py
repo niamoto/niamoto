@@ -6,10 +6,43 @@ import asyncio
 from copy import deepcopy
 import threading
 
+import duckdb
 import yaml
 
 from niamoto.gui.api.routers import collections
 from tests.gui.api.routers.concurrency_helpers import TrackingRLock
+
+
+def _first_transform_backed_proposal(proposal_payload):
+    proposals = [
+        *proposal_payload["recommended"],
+        *proposal_payload["warnings"],
+        *proposal_payload["review_only"],
+    ]
+    return next(
+        proposal
+        for proposal in proposals
+        if proposal.get("recipe", {}).get("transformer")
+    )
+
+
+def _add_occurrence_geometry(work_dir):
+    db_path = work_dir / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute("ALTER TABLE dataset_occurrences ADD COLUMN geo_pt VARCHAR")
+        conn.execute(
+            """
+            UPDATE dataset_occurrences
+            SET geo_pt = CASE id
+                WHEN 1 THEN 'POINT(166.45 -22.27)'
+                WHEN 2 THEN 'POINT(166.45 -22.27)'
+                ELSE 'POINT(166.47 -22.29)'
+            END
+            """
+        )
+    finally:
+        conn.close()
 
 
 def test_list_collections_returns_reviewable_candidates(
@@ -402,6 +435,49 @@ def test_get_collection_widget_proposals_returns_grouped_blocks_candidates(
     )
 
 
+def test_get_collection_widget_proposals_includes_foundational_page_widgets(
+    gui_duckdb_client, gui_duckdb_context
+):
+    response = gui_duckdb_client.get("/api/collections/taxons/widget-proposals")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    proposals = [
+        *payload["recommended"],
+        *payload["warnings"],
+        *payload["review_only"],
+        *payload["already_configured"],
+    ]
+    widgets = {
+        proposal["primary_fit"]["widget"]
+        for proposal in proposals
+        if proposal.get("primary_fit")
+    }
+    assert "hierarchical_nav_widget" in widgets
+    assert "info_grid" in widgets
+
+
+def test_get_collection_widget_proposals_lists_page_structure_widgets_first(
+    gui_duckdb_client, gui_duckdb_context
+):
+    _add_occurrence_geometry(gui_duckdb_context)
+
+    response = gui_duckdb_client.get("/api/collections/taxons/widget-proposals")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    first_widgets = [
+        proposal["primary_fit"]["widget"]
+        for proposal in payload["recommended"][:3]
+        if proposal.get("primary_fit")
+    ]
+    assert first_widgets == [
+        "hierarchical_nav_widget",
+        "info_grid",
+        "interactive_map",
+    ]
+
+
 def test_preview_collection_widget_proposals_does_not_write_configs(
     gui_duckdb_client, gui_duckdb_context
 ):
@@ -458,11 +534,7 @@ def test_preview_collection_widget_proposals_invalid_without_source_relation(
     proposal_payload = gui_duckdb_client.get(
         "/api/collections/taxons/widget-proposals"
     ).json()
-    proposal = [
-        *proposal_payload["recommended"],
-        *proposal_payload["warnings"],
-        *proposal_payload["review_only"],
-    ][0]
+    proposal = _first_transform_backed_proposal(proposal_payload)
 
     response = gui_duckdb_client.post(
         "/api/collections/taxons/widget-proposals/preview",
@@ -484,7 +556,7 @@ def test_apply_collection_widget_proposals_writes_transform_and_export_configs(
     proposal_payload = gui_duckdb_client.get(
         "/api/collections/taxons/widget-proposals"
     ).json()
-    proposal = proposal_payload["recommended"][0]
+    proposal = _first_transform_backed_proposal(proposal_payload)
 
     response = gui_duckdb_client.post(
         "/api/collections/taxons/widget-proposals/apply",
@@ -512,3 +584,58 @@ def test_apply_collection_widget_proposals_writes_transform_and_export_configs(
     assert proposal["id"] in taxon_group["widgets_data"]
     export_group = export_config["exports"][0]["groups"][0]
     assert export_group["widgets"][0]["data_source"] == proposal["id"]
+
+
+def test_apply_foundational_widget_proposals_writes_navigation_and_general_info(
+    gui_duckdb_client, gui_duckdb_context
+):
+    proposal_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-proposals"
+    ).json()
+    proposals = [
+        *proposal_payload["recommended"],
+        *proposal_payload["warnings"],
+        *proposal_payload["review_only"],
+    ]
+    navigation = next(
+        proposal
+        for proposal in proposals
+        if proposal["primary_fit"]["widget"] == "hierarchical_nav_widget"
+    )
+    general_info = next(
+        proposal
+        for proposal in proposals
+        if proposal["primary_fit"]["widget"] == "info_grid"
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/collections/taxons/widget-proposals/apply",
+        json={
+            "selections": [
+                {"proposal_id": navigation["id"]},
+                {"proposal_id": general_info["id"]},
+            ]
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["success"] is True
+
+    transform_config = yaml.safe_load(
+        (gui_duckdb_context / "config" / "transform.yml").read_text(encoding="utf-8")
+    )
+    export_config = yaml.safe_load(
+        (gui_duckdb_context / "config" / "export.yml").read_text(encoding="utf-8")
+    )
+    taxon_group = next(
+        group for group in transform_config if group["group_by"] == "taxons"
+    )
+    assert general_info["id"] in taxon_group["widgets_data"]
+    assert navigation["id"] not in taxon_group["widgets_data"]
+
+    export_group = export_config["exports"][0]["groups"][0]
+    widgets_by_source = {
+        widget.get("data_source"): widget for widget in export_group["widgets"]
+    }
+    assert widgets_by_source[navigation["id"]]["plugin"] == "hierarchical_nav_widget"
+    assert widgets_by_source[general_info["id"]]["plugin"] == "info_grid"

@@ -12,6 +12,7 @@ import { useWidgetProposals } from '@/features/collections/hooks/useWidgetPropos
 import { WidgetProposalApplyDialog } from './WidgetProposalApplyDialog'
 import { WidgetProposalDetail } from './WidgetProposalDetail'
 import { WidgetProposalList } from './WidgetProposalList'
+import { WidgetProposalPagePreview } from './WidgetProposalPagePreview'
 
 interface WidgetProposalWorkspaceProps {
   collectionName: string
@@ -157,9 +158,9 @@ export function WidgetProposalWorkspace({
       <main className="flex min-h-0 flex-col">
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
           <div>
-            <h1 className="text-base font-semibold">Widget proposals</h1>
+            <h1 className="text-base font-semibold">Review proposed page</h1>
             <p className="text-sm text-muted-foreground">
-              {selectedApplicableCount} selected
+              {selectedApplicableCount} selected widget{selectedApplicableCount === 1 ? '' : 's'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -172,14 +173,23 @@ export function WidgetProposalWorkspace({
               disabled={selectedApplicableCount === 0 || query.previewState.isPending}
               onClick={openPreview}
             >
-              Preview
+              Review and add
             </Button>
             <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
         </header>
-        <WidgetProposalDetail proposal={selectedProposal as WidgetProposal | null} />
+        <div className="grid min-h-0 flex-1 grid-cols-1 min-[2200px]:grid-cols-[minmax(0,1fr)_360px]">
+          <WidgetProposalPagePreview
+            proposals={allProposals}
+            selectedId={selectedId}
+            selectedProposalIds={selectedProposalIds}
+            onSelectProposal={setSelectedIdOverride}
+            onToggleProposal={toggleProposal}
+          />
+          <WidgetProposalDetail proposal={selectedProposal as WidgetProposal | null} />
+        </div>
       </main>
       <WidgetProposalApplyDialog
         open={dialogOpen}

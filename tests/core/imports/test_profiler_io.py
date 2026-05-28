@@ -64,6 +64,35 @@ class TestProfileDataframe:
 
         assert profile.record_count == 5
 
+    def test_profile_dataframe_handles_binary_geometry_bytes(self, tmp_path):
+        """Binary geometry columns from DuckDB should not break semantic detection."""
+        csv_path = tmp_path / "occurrences.csv"
+        df = pd.DataFrame(
+            {
+                "id": [1, 2],
+                "taxon_name": ["Araucaria", "Agathis"],
+                "geo_pt_geom": [
+                    b"\x01\x01\x00\x00\x00\x8a\xb0\xe1\xe9\x95\xb8d@",
+                    b"\x01\x01\x00\x00\x00\x13\xe8VD\x1a\xdcd@",
+                ],
+            }
+        )
+
+        class FakeClassifier:
+            def classify_many(self, columns):
+                return [(None, 0.0) for _column in columns]
+
+        profiler = DataProfiler()
+        with patch("niamoto.core.imports.profiler._get_classifier") as get_classifier:
+            get_classifier.return_value = FakeClassifier()
+            profile = profiler.profile_dataframe(df, csv_path)
+
+        geometry_column = next(
+            column for column in profile.columns if column.name == "geo_pt_geom"
+        )
+        assert geometry_column.dtype == "object"
+        assert profile.record_count == 2
+
     def test_engine_uses_profile_dataframe(self, tmp_path):
         """engine._analyze_for_transformers uses profile_dataframe, not profile."""
         from niamoto.core.imports.engine import GenericImporter

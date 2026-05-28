@@ -5,7 +5,11 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Iterable, Sequence
 
-from niamoto.core.collections.chart_fit import ChartFitEvaluation, evaluate_chart_fit
+from niamoto.core.collections.chart_fit import (
+    ChartFitEvaluation,
+    MAX_READABLE_BAR_CATEGORIES,
+    evaluate_chart_fit,
+)
 from niamoto.core.collections.widget_proposal_models import (
     ChartFitResult,
     ProposalProvenance,
@@ -208,6 +212,20 @@ class WidgetProposalService:
             )
 
         if category == DataCategory.CATEGORICAL:
+            if _categorical_profile_needs_ranking(profile):
+                return (
+                    "top_ranking",
+                    f"Rank most common values for {profile.name}",
+                    TransformedShape(
+                        kind="category_ranking",
+                        category_count=profile.cardinality,
+                        label_max_length=_max_label_length(profile.suggested_labels),
+                        has_labels=bool(profile.suggested_labels),
+                        columns=[profile.name],
+                        label_field=profile.name,
+                    ),
+                    None,
+                )
             return (
                 "categorical_distribution",
                 f"Count records by {profile.name}",
@@ -1022,6 +1040,10 @@ def _cardinality_score(profile: EnrichedColumnProfile) -> float:
     }:
         return 0.88
     return 0.7
+
+
+def _categorical_profile_needs_ranking(profile: EnrichedColumnProfile) -> bool:
+    return profile.cardinality > MAX_READABLE_BAR_CATEGORIES
 
 
 def _class_object_cardinality_score(class_object: ClassObjectStats) -> float:

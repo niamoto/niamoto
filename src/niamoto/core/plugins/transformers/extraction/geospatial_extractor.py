@@ -2,6 +2,7 @@
 Plugin for extracting and formatting geospatial data.
 """
 
+import json
 from typing import Dict, Any, Optional, List, Literal, Union
 import os
 
@@ -224,6 +225,76 @@ class GeospatialExtractor(TransformerPlugin):
 
             traceback.print_exc()
             return None
+
+    @staticmethod
+    def _is_geojson_property_value(value: Any) -> bool:
+        """Return whether a value can safely be emitted as a GeoJSON property."""
+
+        if value is None:
+            return False
+        if isinstance(value, (bytes, bytearray, memoryview, BaseGeometry)):
+            return False
+        try:
+            if pd.isna(value):
+                return False
+        except (TypeError, ValueError):
+            pass
+        try:
+            json.dumps(value.item() if hasattr(value, "item") else value)
+        except (TypeError, UnicodeDecodeError, ValueError):
+            return False
+        return True
+
+    @classmethod
+    def _is_geojson_property_column(
+        cls,
+        series: pd.Series,
+        *,
+        column_name: str,
+        geometry_field: str,
+        active_geometry_column: str,
+    ) -> bool:
+        """Return whether a DataFrame column is safe as a GeoJSON property."""
+
+        column_lower = column_name.lower()
+        if column_name in {geometry_field, active_geometry_column}:
+            return False
+        if column_lower.endswith("_geom") or column_lower in {"geometry", "geom"}:
+            return False
+
+        sample = series.dropna().head(20)
+        if sample.empty:
+            return True
+        return all(cls._is_geojson_property_value(value) for value in sample)
+
+    @classmethod
+    def _geojson_property_columns(
+        cls,
+        gdf: gpd.GeoDataFrame,
+        *,
+        geometry_field: str,
+        requested_properties: List[str],
+    ) -> list[str]:
+        """Return requested or inferred columns that are safe for GeoJSON output."""
+
+        active_geometry_column = str(gdf.geometry.name)
+        candidate_columns = requested_properties or [
+            str(column)
+            for column in gdf.columns
+            if str(column) != active_geometry_column
+        ]
+        safe_columns: list[str] = []
+        for column in candidate_columns:
+            if column not in gdf.columns:
+                continue
+            if cls._is_geojson_property_column(
+                gdf[column],
+                column_name=str(column),
+                geometry_field=geometry_field,
+                active_geometry_column=active_geometry_column,
+            ):
+                safe_columns.append(column)
+        return safe_columns
 
     def _get_data_from_source(self, source: str, id_value: int = None) -> pd.DataFrame:
         """Get data from a source (table or import)."""
@@ -552,7 +623,9 @@ class GeospatialExtractor(TransformerPlugin):
                                             prop
                                             for prop in properties
                                             if prop in row.index
-                                            and not pd.isna(row[prop])
+                                            and self._is_geojson_property_value(
+                                                row[prop]
+                                            )
                                         ]
 
                                         # Create properties dictionary
@@ -614,14 +687,14 @@ class GeospatialExtractor(TransformerPlugin):
                     else:
                         # Use GeoPandas to_json for proper geometry handling
                         # First filter columns if properties are specified
-                        if properties:
-                            # Keep geometry column plus requested properties
-                            cols_to_keep = ["geometry"] + [
-                                col for col in properties if col in gdf.columns
-                            ]
-                            gdf_filtered = gdf[cols_to_keep]
-                        else:
-                            gdf_filtered = gdf
+                        property_columns = self._geojson_property_columns(
+                            gdf,
+                            geometry_field=field,
+                            requested_properties=properties,
+                        )
+                        active_geometry_column = str(gdf.geometry.name)
+                        cols_to_keep = [active_geometry_column] + property_columns
+                        gdf_filtered = gdf[cols_to_keep]
 
                         # Convert to GeoJSON using GeoPandas
                         import json

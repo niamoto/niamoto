@@ -12,11 +12,20 @@ from typing import Any, Sequence
 import pandas as pd
 
 from niamoto.common.database import Database
-from niamoto.common.table_resolver import quote_identifier, resolve_dataset_table
+from niamoto.common.table_resolver import (
+    quote_identifier,
+    resolve_dataset_table,
+    resolve_reference_table,
+)
 from niamoto.common.transform_config_models import validate_transform_config
 from niamoto.core.collections.catalog import CollectionCatalogService
 from niamoto.core.collections.models import CollectionCatalogEntry
 from niamoto.core.collections.widget_proposal_models import (
+    ChartFitResult,
+    ProposalProvenance,
+    ProposalScore,
+    TransformedShape,
+    TransformationCandidate,
     WidgetProposal,
     WidgetProposalGroups,
 )
@@ -85,14 +94,24 @@ class CollectionWidgetProposalService:
         collection = self.catalog_service.get_collection(collection_name)
         source_name = self._source_name_for_collection(collection)
         analysis = self._analysis_for_source(source_name)
-        return self.proposal_service.generate_for_collection(
+        existing_keys = self._existing_widget_keys(collection.name)
+        groups = self.proposal_service.generate_for_collection(
             collection=collection.name,
             source_name=source_name,
             profiles=analysis.profiles,
             class_objects=analysis.class_objects,
             multi_field_patterns=analysis.multi_field_patterns,
-            existing_proposal_keys=self._existing_widget_keys(collection.name),
+            existing_proposal_keys=existing_keys,
         )
+        for proposal in self._foundational_widget_proposals(
+            collection,
+            source_name,
+            existing_keys,
+        )[::-1]:
+            self._append_proposal(groups, proposal, prepend=True)
+        self._prioritize_page_structure(groups)
+        groups.partial = bool(groups.skipped or groups.missing_chart)
+        return groups
 
     def preview_apply(
         self,
@@ -281,7 +300,8 @@ class CollectionWidgetProposalService:
                 reason=f"Proposal is {proposal.applyability} and cannot be applied directly.",
             )
 
-        if source_relation_error:
+        transform_widget, export_widget = self._config_for_proposal(proposal)
+        if source_relation_error and transform_widget:
             return WidgetProposalConfigChange(
                 proposal_id=proposal.id,
                 widget_id=widget_id,
@@ -299,7 +319,6 @@ class CollectionWidgetProposalService:
                 reason="A widget with this proposal fingerprint already exists.",
             )
 
-        transform_widget, export_widget = self._config_for_proposal(proposal)
         action = "replace" if widget_id in existing_widgets else "add"
         return WidgetProposalConfigChange(
             proposal_id=proposal.id,
@@ -317,15 +336,17 @@ class CollectionWidgetProposalService:
         recipe = proposal.recipe
         transformer = recipe.get("transformer", {})
         widget = recipe.get("widget", {})
-        transform_widget = {
-            "plugin": transformer.get("plugin"),
-            "params": transformer.get("params") or {},
-            "export_override": {
-                "plugin": widget.get("plugin"),
-                "title": proposal.title,
-                "params": widget.get("params") or {},
-            },
-        }
+        transform_widget = None
+        if transformer.get("plugin"):
+            transform_widget = {
+                "plugin": transformer.get("plugin"),
+                "params": transformer.get("params") or {},
+                "export_override": {
+                    "plugin": widget.get("plugin"),
+                    "title": proposal.title,
+                    "params": widget.get("params") or {},
+                },
+            }
         export_widget = {
             "plugin": widget.get("plugin"),
             "title": proposal.title,
@@ -335,6 +356,462 @@ class CollectionWidgetProposalService:
         if widget.get("params"):
             export_widget["params"] = widget["params"]
         return transform_widget, export_widget
+
+    def _foundational_widget_proposals(
+        self,
+        collection: CollectionCatalogEntry,
+        source_name: str,
+        existing_keys: set[str],
+    ) -> list[WidgetProposal]:
+        """Return collection page essentials not derived from raw field scoring."""
+
+        if collection.source_type != "reference":
+            return []
+
+        context = self._reference_context(collection)
+        proposals = [self._navigation_proposal(collection, context, existing_keys)]
+        general_info = self._general_info_proposal(
+            collection,
+            source_name,
+            context,
+            existing_keys,
+        )
+        if general_info is not None:
+            proposals.append(general_info)
+        return proposals
+
+    def _reference_context(
+        self,
+        collection: CollectionCatalogEntry,
+    ) -> dict[str, Any]:
+        """Inspect a reference table enough to configure page-level widgets."""
+
+        reference_name = collection.source_name
+        columns: list[str] = []
+        table_name = None
+        sample_df = pd.DataFrame()
+
+        if self.db_path is not None and self.db_path.exists():
+            db = Database(str(self.db_path), read_only=True)
+            try:
+                table_name = resolve_reference_table(db, reference_name)
+                if table_name and db.has_table(table_name):
+                    columns = db.get_table_columns(table_name)
+                    if columns:
+                        safe_columns = [
+                            column
+                            for column in columns
+                            if not column.lower().endswith("_geom")
+                        ]
+                        if safe_columns:
+                            select_sql = ", ".join(
+                                quote_identifier(db, column) for column in safe_columns
+                            )
+                            sample_df = pd.read_sql(
+                                f"SELECT {select_sql} FROM {quote_identifier(db, table_name)} LIMIT 100",
+                                db.engine,
+                            )
+            finally:
+                db.close()
+
+        schema = {}
+        references = self.import_config.get("entities", {}).get("references", {})
+        reference_config = references.get(reference_name, {})
+        if isinstance(reference_config, dict):
+            maybe_schema = reference_config.get("schema", {})
+            if isinstance(maybe_schema, dict):
+                schema = maybe_schema
+
+        id_field = str(schema.get("id_field") or "id")
+        name_field = str(schema.get("name_field") or "")
+        if columns:
+            id_field = self._pick_identifier_column(columns, preferred=id_field)
+            name_field = self._pick_name_column(columns, id_field, name_field)
+        elif not name_field:
+            name_field = "name"
+
+        columns_set = set(columns)
+        return {
+            "table_name": table_name,
+            "columns": columns,
+            "sample_df": sample_df,
+            "id_field": id_field,
+            "name_field": name_field,
+            "has_nested_set": {"lft", "rght"} <= columns_set,
+            "has_parent": "parent_id" in columns_set,
+            "has_level": "level" in columns_set,
+        }
+
+    def _navigation_proposal(
+        self,
+        collection: CollectionCatalogEntry,
+        context: dict[str, Any],
+        existing_keys: set[str],
+    ) -> WidgetProposal:
+        proposal_id = f"{collection.name}_hierarchical_nav_widget"
+        status = "already_configured" if proposal_id in existing_keys else "recommended"
+        nav_params = {
+            "referential_data": collection.source_name,
+            "id_field": context["id_field"],
+            "name_field": context["name_field"],
+            "base_url": f"{{{{ depth }}}}{collection.name}/",
+            "show_search": True,
+        }
+        if context.get("has_nested_set"):
+            nav_params["lft_field"] = "lft"
+            nav_params["rght_field"] = "rght"
+        if context.get("has_parent"):
+            nav_params["parent_id_field"] = "parent_id"
+        if context.get("has_level"):
+            nav_params["level_field"] = "level"
+
+        shape = TransformedShape(
+            kind="table",
+            columns=list(context.get("columns") or []),
+            metadata={"foundational": True, "page_widget": "navigation"},
+        )
+        candidate = TransformationCandidate(
+            id=proposal_id,
+            collection=collection.name,
+            origin="template_suggestion",
+            source_name=collection.source_name,
+            field_names=[context["id_field"], context["name_field"]],
+            intent="Add collection navigation",
+            shape=shape,
+            freshness="current",
+            reconstructability="full",
+            provenance=ProposalProvenance(
+                source="template_suggestion",
+                source_name=collection.source_name,
+                field_names=[context["id_field"], context["name_field"]],
+                evidence=["reference collection navigation"],
+            ),
+        )
+        return WidgetProposal(
+            id=proposal_id,
+            collection=collection.name,
+            title=f"Navigation {collection.name.replace('_', ' ').title()}",
+            status=status,
+            candidate=candidate,
+            shape=shape,
+            primary_fit=ChartFitResult(
+                widget="hierarchical_nav_widget",
+                status="primary",
+                score=0.95,
+                reason="Reference collections need detail-page navigation.",
+                params=nav_params,
+                rank=1,
+            ),
+            score=ProposalScore(
+                dimensions={
+                    "utility": 0.95,
+                    "evidence": 0.9,
+                    "coverage": 1.0,
+                    "cardinality": 0.85,
+                    "chart_fit": 0.95,
+                    "provenance": 0.9,
+                    "reconstructability": 1.0,
+                },
+                weights={},
+            ),
+            applyability="not_applicable"
+            if status == "already_configured"
+            else "applicable",
+            fingerprint=proposal_id,
+            recipe={
+                "widget": {"plugin": "hierarchical_nav_widget", "params": nav_params}
+            },
+            details={"foundational": True},
+        )
+
+    def _general_info_proposal(
+        self,
+        collection: CollectionCatalogEntry,
+        source_name: str,
+        context: dict[str, Any],
+        existing_keys: set[str],
+    ) -> WidgetProposal | None:
+        field_configs = self._general_info_fields(collection, source_name, context)
+        if len(field_configs) < 2:
+            return None
+
+        proposal_id = f"general_info_{collection.name}_field_aggregator_info_grid"
+        status = "already_configured" if proposal_id in existing_keys else "recommended"
+        item_params = [
+            {
+                "label": _humanize_label(str(field["target"])),
+                "source": str(field["target"]),
+                **(
+                    {"format": "number"}
+                    if field.get("transformation") == "count"
+                    else {}
+                ),
+            }
+            for field in field_configs
+        ]
+        widget_params = {
+            "items": item_params,
+            "grid_columns": min(max(len(item_params), 1), 3),
+        }
+        transformer_params = {"fields": field_configs}
+        shape = TransformedShape(
+            kind="metric_group",
+            metric_count=len(field_configs),
+            columns=[str(field["target"]) for field in field_configs],
+            metadata={"foundational": True, "page_widget": "general_info"},
+        )
+        candidate = TransformationCandidate(
+            id=proposal_id,
+            collection=collection.name,
+            origin="template_suggestion",
+            source_name=collection.source_name,
+            field_names=[str(field["field"]) for field in field_configs],
+            transformer_plugin="field_aggregator",
+            transformer_config=transformer_params,
+            intent="Add general information panel",
+            shape=shape,
+            freshness="current",
+            reconstructability="full",
+            provenance=ProposalProvenance(
+                source="template_suggestion",
+                source_name=collection.source_name,
+                field_names=[str(field["field"]) for field in field_configs],
+                evidence=["reference summary fields"],
+            ),
+        )
+        return WidgetProposal(
+            id=proposal_id,
+            collection=collection.name,
+            title="Informations générales",
+            status=status,
+            candidate=candidate,
+            shape=shape,
+            primary_fit=ChartFitResult(
+                widget="info_grid",
+                status="primary",
+                score=0.9,
+                reason="Readable for compact identity and count fields.",
+                params=widget_params,
+                rank=1,
+            ),
+            score=ProposalScore(
+                dimensions={
+                    "utility": 0.92,
+                    "evidence": 0.86,
+                    "coverage": 0.9,
+                    "cardinality": 0.9,
+                    "chart_fit": 0.9,
+                    "provenance": 0.86,
+                    "reconstructability": 1.0,
+                },
+                weights={},
+            ),
+            applyability="not_applicable"
+            if status == "already_configured"
+            else "applicable",
+            fingerprint=proposal_id,
+            recipe={
+                "transformer": {
+                    "plugin": "field_aggregator",
+                    "params": transformer_params,
+                },
+                "widget": {"plugin": "info_grid", "params": widget_params},
+            },
+            details={"foundational": True},
+        )
+
+    def _general_info_fields(
+        self,
+        collection: CollectionCatalogEntry,
+        source_name: str,
+        context: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        sample_df = context.get("sample_df")
+        if not isinstance(sample_df, pd.DataFrame) or sample_df.empty:
+            return []
+
+        fields: list[dict[str, Any]] = []
+        preferred = [
+            context.get("name_field"),
+            "full_name",
+            "name",
+            "label",
+            "rank",
+            "rank_name",
+            "type",
+            "category",
+        ]
+        for column in preferred:
+            if column and column in sample_df.columns:
+                self._append_general_info_field(fields, collection.source_name, column)
+            if len(fields) >= 5:
+                break
+
+        if len(fields) < 5:
+            scored_columns = self._score_general_info_columns(sample_df, context)
+            for column, _score in scored_columns:
+                self._append_general_info_field(fields, collection.source_name, column)
+                if len(fields) >= 5:
+                    break
+
+        count_field = self._count_field_for_source(source_name)
+        if count_field:
+            fields.append(
+                {
+                    "source": source_name,
+                    "field": count_field,
+                    "target": f"{source_name}_count",
+                    "transformation": "count",
+                }
+            )
+
+        return fields[:6]
+
+    def _append_general_info_field(
+        self,
+        fields: list[dict[str, Any]],
+        source: str,
+        column: str,
+    ) -> None:
+        target = _slug_key(column)
+        if any(field.get("target") == target for field in fields):
+            return
+        fields.append({"source": source, "field": column, "target": target})
+
+    def _score_general_info_columns(
+        self,
+        sample_df: pd.DataFrame,
+        context: dict[str, Any],
+    ) -> list[tuple[str, float]]:
+        excluded = {
+            "id",
+            "lft",
+            "rght",
+            "level",
+            "parent",
+            "parent_id",
+            str(context.get("id_field") or ""),
+        }
+        scored: list[tuple[str, float]] = []
+        for column in sample_df.columns:
+            column_lower = str(column).lower()
+            if column_lower in excluded:
+                continue
+            if column_lower.startswith("id_") or column_lower.endswith(
+                ("_id", "_geom")
+            ):
+                continue
+
+            non_null = sample_df[column].dropna()
+            if non_null.empty:
+                continue
+            null_ratio = 1 - (len(non_null) / len(sample_df))
+            if null_ratio > 0.8:
+                continue
+
+            score = 1 - null_ratio
+            if any(
+                token in column_lower
+                for token in ("name", "label", "type", "rank", "status", "category")
+            ):
+                score += 0.5
+            if non_null.nunique() <= max(20, len(non_null) * 0.5):
+                score += 0.2
+            scored.append((str(column), score))
+
+        return sorted(scored, key=lambda item: (-item[1], item[0]))
+
+    def _count_field_for_source(self, source_name: str) -> str | None:
+        if self.db_path is None or not self.db_path.exists():
+            return None
+
+        db = Database(str(self.db_path), read_only=True)
+        try:
+            table_name = resolve_dataset_table(db, source_name)
+            if not table_name:
+                return None
+            columns = db.get_table_columns(table_name)
+        finally:
+            db.close()
+
+        if not columns:
+            return None
+        return self._id_field_for_entity(source_name) or columns[0]
+
+    def _append_proposal(
+        self,
+        groups: WidgetProposalGroups,
+        proposal: WidgetProposal,
+        *,
+        prepend: bool = False,
+    ) -> None:
+        def add(target: list[WidgetProposal]) -> None:
+            if prepend:
+                target.insert(0, proposal)
+            else:
+                target.append(proposal)
+
+        if proposal.status == "recommended":
+            add(groups.recommended)
+        elif proposal.status == "warning":
+            add(groups.warnings)
+        elif proposal.status == "missing_chart":
+            add(groups.missing_chart)
+        elif proposal.status == "skipped":
+            add(groups.skipped)
+        elif proposal.status == "already_configured":
+            add(groups.already_configured)
+        else:
+            add(groups.review_only)
+
+    def _prioritize_page_structure(self, groups: WidgetProposalGroups) -> None:
+        """Keep page structure widgets ahead of analytical charts."""
+
+        for group_name in (
+            "recommended",
+            "warnings",
+            "review_only",
+            "already_configured",
+        ):
+            proposals = getattr(groups, group_name)
+            proposals.sort(key=_page_structure_priority)
+
+    def _pick_identifier_column(
+        self,
+        columns: Sequence[str],
+        *,
+        preferred: str | None = None,
+    ) -> str:
+        if preferred and preferred in columns:
+            return preferred
+        for candidate in ("id", "taxons_id", "id_taxon", "id_plot", "gid"):
+            if candidate in columns:
+                return candidate
+        return str(columns[0]) if columns else "id"
+
+    def _pick_name_column(
+        self,
+        columns: Sequence[str],
+        id_field: str,
+        preferred: str | None = None,
+    ) -> str:
+        if preferred and preferred in columns:
+            return preferred
+        for candidate in (
+            "full_name",
+            "name",
+            "label",
+            "taxaname",
+            "plot",
+            "nom",
+            "title",
+        ):
+            if candidate in columns and candidate != id_field:
+                return candidate
+        for column in columns:
+            if column != id_field:
+                return str(column)
+        return id_field
 
     def _analysis_for_source(self, source_name: str) -> _SourceAnalysis:
         if self.db_path is None or not self.db_path.exists():
@@ -506,7 +983,10 @@ class CollectionWidgetProposalService:
         return collection.source_name
 
     def _existing_widget_keys(self, collection_name: str) -> set[str]:
-        return set(self._existing_transform_widgets(collection_name))
+        return {
+            *self._existing_transform_widgets(collection_name),
+            *self._existing_export_widget_keys(collection_name),
+        }
 
     def _existing_transform_widgets(self, collection_name: str) -> dict[str, Any]:
         for group in self.transform_config:
@@ -514,6 +994,32 @@ class CollectionWidgetProposalService:
                 widgets = group.get("widgets_data", {})
                 return widgets if isinstance(widgets, dict) else {}
         return {}
+
+    def _existing_export_widget_keys(self, collection_name: str) -> set[str]:
+        keys: set[str] = set()
+        exports = (
+            self.export_config.get("exports", [])
+            if isinstance(self.export_config, dict)
+            else []
+        )
+        for export in exports:
+            if not isinstance(export, dict):
+                continue
+            for group in export.get("groups", []) or []:
+                if (
+                    not isinstance(group, dict)
+                    or group.get("group_by") != collection_name
+                ):
+                    continue
+                for widget in group.get("widgets", []) or []:
+                    if not isinstance(widget, dict):
+                        continue
+                    data_source = widget.get("data_source")
+                    if data_source:
+                        keys.add(str(data_source))
+                    elif widget.get("plugin") == "hierarchical_nav_widget":
+                        keys.add(f"{collection_name}_hierarchical_nav_widget")
+        return keys
 
     def _existing_sources_for_collection(
         self,
@@ -834,3 +1340,20 @@ def _slug_key(value: str) -> str:
     )
     slug = re.sub(r"[^a-zA-Z0-9]+", "_", ascii_value.lower()).strip("_")
     return slug or "value"
+
+
+def _page_structure_priority(proposal: WidgetProposal) -> int:
+    page_widget = proposal.shape.metadata.get("page_widget")
+    if page_widget == "navigation":
+        return 0
+    if page_widget == "general_info":
+        return 1
+    if proposal.shape.kind == "map_layer":
+        return 2
+    if proposal.primary_fit and proposal.primary_fit.widget == "interactive_map":
+        return 2
+    return 10
+
+
+def _humanize_label(value: str) -> str:
+    return value.replace("_", " ").strip().title()

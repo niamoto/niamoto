@@ -46,9 +46,10 @@ export function WidgetProposalApplyDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Apply widget proposals</DialogTitle>
+          <DialogTitle>Review changes before adding widgets</DialogTitle>
           <DialogDescription>
-            Preview generated transform and export changes before writing config.
+            Niamoto will add the selected widgets to the transform and export configuration.
+            Nothing is written until you confirm.
           </DialogDescription>
         </DialogHeader>
 
@@ -56,7 +57,7 @@ export function WidgetProposalApplyDialog({
           {loading && (
             <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Building preview
+              Checking generated changes
             </div>
           )}
 
@@ -96,11 +97,11 @@ export function WidgetProposalApplyDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
+            Cancel
           </Button>
           <Button disabled={!canApply || applying} onClick={onApply}>
             {applying && <Loader2 className="h-4 w-4 animate-spin" />}
-            Apply
+            Add widgets
           </Button>
         </DialogFooter>
       </DialogContent>

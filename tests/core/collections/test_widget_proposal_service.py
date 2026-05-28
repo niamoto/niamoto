@@ -171,6 +171,31 @@ def test_high_cardinality_categorical_prefers_ranking_and_suppresses_donut():
     assert proposal.recipe["widget"]["params"]["orientation"] == "h"
 
 
+def test_large_categorical_profile_prefers_ranking_even_without_high_card_category():
+    service = WidgetProposalService()
+
+    result = service.generate_for_collection(
+        collection="taxons",
+        source_name="occurrences",
+        profiles=[
+            make_profile(
+                "species",
+                DataCategory.CATEGORICAL,
+                cardinality=1213,
+                labels=["Styphelia cymbulae", "Acacia spirorbis"],
+                purpose=FieldPurpose.CLASSIFICATION,
+            )
+        ],
+    )
+
+    proposal = result.all_proposals()[0]
+    assert proposal.shape.kind == "category_ranking"
+    assert proposal.candidate.transformer_plugin == "top_ranking"
+    assert proposal.recipe["widget"]["params"]["x_axis"] == "counts"
+    assert proposal.recipe["widget"]["params"]["y_axis"] == "tops"
+    assert proposal.recipe["widget"]["params"]["orientation"] == "h"
+
+
 def test_text_and_identifier_profiles_are_returned_as_skipped_candidates():
     service = WidgetProposalService()
 

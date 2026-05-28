@@ -41,13 +41,20 @@ export function WidgetProposalList({
                 const selectable = proposal.applyability === 'applicable'
                 const active = selectedId === proposal.id
                 return (
-                  <button
+                  <div
                     key={proposal.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     className={`grid w-full grid-cols-[auto_minmax(0,1fr)] gap-2 rounded-md border p-2 text-left transition-colors ${
                       active ? 'border-primary bg-background' : 'bg-background/70 hover:bg-background'
                     }`}
                     onClick={() => onSelectProposal(proposal.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        onSelectProposal(proposal.id)
+                      }
+                    }}
                   >
                     <span
                       className="pt-0.5"
@@ -71,7 +78,7 @@ export function WidgetProposalList({
                         {proposal.primary_fit?.widget ?? proposal.shape.kind}
                       </span>
                     </span>
-                  </button>
+                  </div>
                 )
               })}
             </div>

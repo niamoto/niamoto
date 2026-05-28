@@ -45,6 +45,12 @@ def _get_classifier() -> ColumnClassifier:
     return _classifier
 
 
+def _safe_semantic_rule_text(value: Any) -> str:
+    """Return text for value-based semantic rules without decoding binary data."""
+
+    return str(value)
+
+
 @dataclass
 class ColumnProfile:
     """Profile of a single column in a dataset."""
@@ -427,8 +433,11 @@ class DataProfiler:
         if col_lower.startswith("id") or col_lower.endswith("_id"):
             return "identifier.record", 0.7
 
-        # WKT geometry detection on values
-        sample = series.dropna().head(5).astype(str)
+        # WKT geometry detection on values. DuckDB native GEOMETRY columns can
+        # arrive as arbitrary bytes; Pandas string casting tries UTF-8 decoding.
+        sample = pd.Series(
+            [_safe_semantic_rule_text(value) for value in series.dropna().head(5)]
+        )
         if sample.str.contains("POINT|POLYGON|LINESTRING").any():
             return "geometry", 0.95
 

@@ -510,6 +510,37 @@ class TestGeospatialExtractorTransform:
             assert feature["geometry"]["coordinates"] == expected_coords[i]
             assert feature["properties"]["name"] == data["name"].iloc[i]
 
+    def test_transform_without_properties_ignores_binary_geometry_columns(
+        self, geospatial_extractor_plugin
+    ):
+        """DuckDB geometry bytes should not leak into GeoJSON properties."""
+        data = pd.DataFrame(
+            {
+                "id": [1, 2],
+                "name": ["A", "B"],
+                "geo_pt": ["POINT (1 2)", "POINT (3 4)"],
+                "geo_pt_geom": [
+                    b"\x01\x01\x00\x00\x00\x8a\xb0\xe1\xe9\x95\xb8d@",
+                    b"\x01\x01\x00\x00\x00\x13\xe8VD\x1a\xdcd@",
+                ],
+            }
+        )
+
+        config = {
+            "plugin": "geospatial_extractor",
+            "params": {
+                "source": "occurrences",
+                "field": "geo_pt",
+                "format": "geojson",
+            },
+        }
+
+        result = geospatial_extractor_plugin.transform(data, config)
+
+        assert result["type"] == "FeatureCollection"
+        assert len(result["features"]) == 2
+        assert "geo_pt_geom" not in result["features"][0]["properties"]
+
     def test_transform_with_grouped_coordinates(self, geospatial_extractor_plugin):
         """Test transform with grouped coordinates."""
         # Create test data with duplicate coordinates
