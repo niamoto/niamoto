@@ -250,4 +250,18 @@ describe('useProjectDesktopRouteMemory', () => {
     )
     await harness.unmount()
   })
+
+  it('stays quiet when native desktop storage is unavailable', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const harness = await renderRouteMemoryProbe({
+      initialEntry: '/site/pages',
+    })
+
+    expect(harness.location).toBe('/site/pages')
+    expect(warnSpy).not.toHaveBeenCalled()
+
+    await harness.unmount()
+    warnSpy.mockRestore()
+  })
 })

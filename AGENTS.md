@@ -1,163 +1,93 @@
-# Repository Guidelines
+# Niamoto Agent Instructions
 
-## Project Overview
+## Project Map
+- Ecological data platform: Import -> Transform -> Export, available as Python CLI, FastAPI GUI, React/Vite UI, and Tauri desktop app.
+- Core Python code: `src/niamoto`; tests: `tests`; scripts: `scripts`; docs: `docs`.
+- GUI backend: `src/niamoto/gui/api`; GUI frontend: `src/niamoto/gui/ui`; desktop shell: `src-tauri`.
+- ML detection and training support: `ml`; active local fixtures: `test-instance/niamoto-nc` and `test-instance/niamoto-subset`.
 
-Niamoto is a Python-first project with:
+## Commands
+| Task | Command |
+|------|---------|
+| Install | `uv sync --group dev` |
+| CLI help | `uv run niamoto --help` |
+| Pytest all | `uv run --group dev pytest` |
+| Pytest targeted | `uv run --group dev pytest path/to/test.py -k name` |
+| Ruff check | `uv run --group dev ruff check src tests` |
+| Ruff format | `uv run --group dev ruff format src tests` |
+| MyPy | `uv run --group dev mypy src/niamoto` |
+| Tox py312 | `uv run tox -e py312` |
 
-- core code in [src/niamoto](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto)
-- tests in [tests](/Users/julienbarbe/Dev/clients/niamoto/tests)
-- developer scripts in [scripts](/Users/julienbarbe/Dev/clients/niamoto/scripts)
-- documentation in [docs](/Users/julienbarbe/Dev/clients/niamoto/docs)
-- the GUI stack in [src/niamoto/gui](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui)
+## GUI Commands
+| Task | Command |
+|------|---------|
+| Web dev stack | `./scripts/dev/dev_web.sh test-instance/niamoto-nc` |
+| API only | `uv run python scripts/dev/dev_api.py --instance test-instance/niamoto-nc` |
+| Desktop dev | `./scripts/dev/dev_desktop.sh test-instance/niamoto-nc` |
+| UI install | `cd src/niamoto/gui/ui && pnpm install` |
+| UI dev | `cd src/niamoto/gui/ui && pnpm dev` |
+| UI build | `cd src/niamoto/gui/ui && pnpm build` |
+| UI test | `cd src/niamoto/gui/ui && pnpm test` |
+| UI lint | `cd src/niamoto/gui/ui && pnpm lint` |
+| Bundle stats | `cd src/niamoto/gui/ui && pnpm build:stats` |
+| Full GUI build | `bash scripts/build/build_gui.sh` |
+| Standalone Tailwind | `uv run python scripts/build/build_tailwind_standalone.py` |
 
-Use [tests/fixtures](/Users/julienbarbe/Dev/clients/niamoto/tests/fixtures), [test-instance](/Users/julienbarbe/Dev/clients/niamoto/test-instance), and [docs/examples](/Users/julienbarbe/Dev/clients/niamoto/docs/examples) for sample datasets, local project instances, and regression fixtures.
+## Ask First
+- Ask before changing semantics across `import.yml`, `transform.yml`, and `export.yml`.
+- Ask before choosing between a new plugin and modifying an existing plugin.
+- Ask before hardening one dataset-specific workaround into generic behavior.
+- Check code and config first when the answer is discoverable locally.
 
-Product model:
+## Genericity Rules
+- Niamoto must work for many ecology projects, not only New Caledonia.
+- Do not hardcode table names, field names, entity names, taxonomic values, or local project paths.
+- Use configured schemas, `EntityRegistry`, service APIs, and plugin config models instead.
+- Allowed hardcoded names: external standards such as Darwin Core, internal metadata tables such as `niamoto_metadata_*`, and framework conventions.
+- Plugins must define `config_model` validation and access data through services rather than ad hoc database calls.
+- When another process may lock DuckDB, prefer `Database(path, read_only=True)`.
 
-- import raw data
-- transform it into reusable group statistics
-- export/publish final outputs
+## Frontend Rules
+- New product workflows go in `src/niamoto/gui/ui/src/features/<domain>`.
+- Shared code goes in `src/niamoto/gui/ui/src/shared` only when it is genuinely cross-feature.
+- Do not add new feature hooks to root `src/hooks` or new feature API clients to root `src/lib/api`.
+- Import lazy route modules by leaf path, not feature barrels.
+- Desktop native capabilities must flow through `src/shared/desktop/bridge.ts`, not direct Tauri imports.
+- Keep `src/niamoto/gui/ui/public/fonts` unless the desktop offline-font strategy changes.
 
-Keep solutions understandable to domain users. If a field botanist would not understand the workflow quickly, it is probably too complex.
+## Validation
+- For backend/API changes, run the most targeted pytest module first, then broaden if needed.
+- For GUI behavior changes, run `pnpm test` or a targeted Vitest file plus `pnpm build`.
+- For routing, editor, Monaco, Tiptap, or large dependency changes, compare `pnpm build:stats`.
+- For import/profiler/ML changes, validate with a relevant `test-instance/*` fixture before trusting synthetic tests.
 
-## Codebase Map
+## Session-Derived Gotchas
+- GUI/API DuckDB reads must use shared wrappers such as `open_database(..., read_only=True)`; avoid raw `duckdb.connect(...)` in GUI routes and dispose engines after request-scoped work.
+- Do not run several commands against the same DuckDB instance in parallel unless the code path is explicitly designed for it.
+- In Tauri, protected API mutations must go through the shared API client or desktop bridge so `x-niamoto-desktop-token` is added; avoid raw `fetch` for POST/PUT/PATCH/DELETE.
+- Resolve project-relative paths from the active instance/config directory, not `os.getcwd()`; Tauri may run from `src-tauri`.
+- Widget proposals are transform-first: reason from raw data plus planned/existing transform outputs, then choose a readable widget for the output shape.
+- High-cardinality categoricals should prefer rankings/bar views over donut-style distributions; foundational widgets such as navigation/info/map should stay visible before secondary charts.
+- Config writes that touch `transform.yml` and `export.yml` need locks, staging, or rollback; avoid partial success across the two files.
+- Plugin discovery/reload must not pollute or lose the global registry: snapshot discovery state and keep the old plugin on reload failure.
+- Desktop release fixes belong in packaging/CI when the packaged sidecar fails; keep the sidecar startup smoke test as a release gate.
 
-Important areas:
+## References
+| Need | File |
+|------|------|
+| Contributing | `CONTRIBUTING.md` |
+| Public docs style | `docs/STYLE_GUIDE.md` |
+| Script commands | `scripts/README.md` |
+| GUI overview | `docs/07-architecture/gui-overview.md` |
+| GUI runtime | `docs/07-architecture/gui-runtime.md` |
+| GUI backend/frontend | `src/niamoto/gui/README.md` |
+| Frontend architecture | `src/niamoto/gui/ui/README.md` |
+| Plugin development | `docs/04-plugin-development/` |
+| ML detection | `docs/05-ml-detection/training-guide.md` |
+| Release process | `.github/RELEASE.md` |
 
-- [src/niamoto/cli](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/cli): CLI commands and entry points
-- [src/niamoto/core](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/core): import, transform, export, plugins
-- [src/niamoto/gui/api](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/api): FastAPI GUI backend
-- [src/niamoto/gui/ui](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui): React/Vite frontend
-- [src-tauri](/Users/julienbarbe/Dev/clients/niamoto/src-tauri): production Tauri desktop shell
-- [ml](/Users/julienbarbe/Dev/clients/niamoto/ml): ML auto-detection training and evaluation support
-- [docs/07-architecture](/Users/julienbarbe/Dev/clients/niamoto/docs/07-architecture): architecture notes, including GUI overview and runtime docs
-- [docs/06-reference](/Users/julienbarbe/Dev/clients/niamoto/docs/06-reference): public reference docs, including GUI/API reference material
-
-Frontend architecture now follows:
-
-- `src/app`
-- `src/features`
-- `src/shared`
-
-For frontend-specific structure and conventions, see:
-
-- [src/niamoto/gui/README.md](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/README.md)
-- [src/niamoto/gui/ui/README.md](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/README.md)
-
-## Setup and Daily Commands
-
-Python environment:
-
-```bash
-uv venv && source .venv/bin/activate
-uv sync --group dev
-```
-
-Useful project commands:
-
-```bash
-uv run niamoto --help
-uv run --group dev pytest
-uv run --group dev pytest -m "not integration"
-uv run tox -e py312
-uv run --group dev mypy src/niamoto
-uv run --group dev ruff check src/ tests/
-uv run --group dev ruff format src/ tests/
-```
-
-GUI development:
-
-```bash
-./scripts/dev/dev_web.sh test-instance/niamoto-nc
-uv run python scripts/dev/dev_api.py --instance test-instance/niamoto-nc
-cd src/niamoto/gui/ui && pnpm dev
-cd src/niamoto/gui/ui && pnpm build
-cd src/niamoto/gui/ui && pnpm test
-cd src/niamoto/gui/ui && pnpm lint
-```
-
-If you change GUI styling that depends on the standalone Tailwind bundle, run:
-
-```bash
-uv run python scripts/build/build_tailwind_standalone.py
-```
-
-## Coding Conventions
-
-- Use Ruff formatting and import sorting.
-- Keep Python code type-hinted; MyPy is expected to pass on `src/niamoto`.
-- Use lowercase underscore module names, CapWords classes, and imperative CLI handler names.
-- Prefer small, explicit refactors over broad file churn.
-- Keep documentation in English unless a file is explicitly meant to stay otherwise.
-- Follow [docs/STYLE_GUIDE.md](/Users/julienbarbe/Dev/clients/niamoto/docs/STYLE_GUIDE.md) for public documentation voice and terminology.
-
-## Modeling and Architecture Rules
-
-- Respect the product layers:
-  - `import.yml` for data loading
-  - `transform.yml` for statistics and aggregation logic
-  - `export.yml` for rendering and publication
-- Clarify with the user when a change crosses one of these boundaries.
-- Favor generic solutions over dataset-specific shortcuts.
-
-Do not hardcode:
-
-- dataset or table names
-- field names
-- entity names
-- domain-specific values tied to one project
-
-Allowed exceptions:
-
-- well-known external standards such as Darwin Core fields
-- internal metadata tables such as `niamoto_metadata_*`
-- framework conventions
-
-When unsure, ask: would this still work for a different ecology project with different entities, schemas, and taxonomies?
-
-- Access the database through services, not directly inside plugins
-- Plugins should expose `config_model` validation
-- Prefer existing plugin mechanisms over bespoke one-off code paths
-
-## Testing and Validation
-
-- Pytest is the main test harness.
-- Put tests beside the code they exercise under [tests](/Users/julienbarbe/Dev/clients/niamoto/tests).
-- Mark integration scenarios with `@pytest.mark.integration`.
-- Mark slow scenarios with `@pytest.mark.slow`.
-- For GUI work, run `pnpm build` at minimum.
-- For GUI work that touches behavior, also run the relevant `pnpm test` or `pnpm lint` target.
-- For backend/API changes, run the most targeted pytest module possible, then broaden if needed.
-- Prefer checking the relevant code and config first before asking the user clarifying questions.
-
-## Frontend Conventions
-
-- New product workflows should go in `src/features/<domain>`.
-- Put only truly cross-feature code in `src/shared`.
-- Avoid adding new feature logic to root `src/hooks` or root `src/lib/api` unless it is genuinely shared.
-- Keep feature docs aligned with:
-  - [src/niamoto/gui/ui/README.md](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/README.md)
-  - [docs/07-architecture/gui-overview.md](/Users/julienbarbe/Dev/clients/niamoto/docs/07-architecture/gui-overview.md)
-  - [docs/07-architecture/gui-runtime.md](/Users/julienbarbe/Dev/clients/niamoto/docs/07-architecture/gui-runtime.md)
-
-## Documentation Rules
-
-- Update docs when workflows, architecture, or commands materially change.
-- Prefer documenting the current implementation over aspirational designs.
-- Treat [docs/07-architecture/gui-overview.md](/Users/julienbarbe/Dev/clients/niamoto/docs/07-architecture/gui-overview.md) and [docs/07-architecture/gui-runtime.md](/Users/julienbarbe/Dev/clients/niamoto/docs/07-architecture/gui-runtime.md) as the GUI architecture/operations reference.
-- Keep [src/niamoto/gui/README.md](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/README.md) and [src/niamoto/gui/ui/README.md](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/README.md) consistent with code moves.
-
-## Git and Commit Rules
-
-- Use Conventional Commit prefixes such as `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`.
-- Before committing, run the most relevant checks for the area you changed.
-- Do not revert unrelated user changes.
-- Keep commits scoped to one coherent concern when possible.
-
-## Repo-Specific Notes
-
-- `dist/` under the frontend is build output and should not be treated as source.
-- `.DS_Store` and `.ruff_cache` should never be committed.
-- [src/niamoto/gui/ui/public/fonts](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/public/fonts) is intentionally kept because desktop mode uses local fonts.
-- [src/niamoto/gui/ui/components.json](/Users/julienbarbe/Dev/clients/niamoto/src/niamoto/gui/ui/components.json) is the shadcn/ui config file and should stay in sync with the UI structure if shadcn tooling is used.
-- The GUI docs live mainly in [docs/07-architecture](/Users/julienbarbe/Dev/clients/niamoto/docs/07-architecture) and [docs/06-reference](/Users/julienbarbe/Dev/clients/niamoto/docs/06-reference), and should describe the current implementation, not old plans.
+## Repo Notes
+- Keep docs and GUI README files in English.
+- Version bump files are `pyproject.toml`, `src/niamoto/__version__.py`, `docs/conf.py`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`.
+- Do not edit generated/build outputs unless regenerating intentionally: `dist/`, `htmlcov/`, `coverage.xml`, docs `_build`, frontend `coverage/`.
+- Commit messages use Conventional Commit prefixes in English.
