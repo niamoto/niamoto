@@ -138,6 +138,7 @@ async def submit_feedback(
     configured_api_key = (
         os.getenv("NIAMOTO_FEEDBACK_API_KEY")
         or os.getenv("VITE_FEEDBACK_API_KEY")
+        or api_key
         or ""
     ).strip()
     if not configured_api_key:
@@ -148,6 +149,7 @@ async def submit_feedback(
     configured_worker_url = (
         os.getenv("NIAMOTO_FEEDBACK_WORKER_URL")
         or os.getenv("VITE_FEEDBACK_WORKER_URL")
+        or worker_url
         or ""
     )
     worker_feedback_url = _normalize_worker_feedback_url(configured_worker_url)

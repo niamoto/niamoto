@@ -298,7 +298,7 @@
       },
       "overview": {
         "title": "Un CSV d’occurrences suffit pour commencer.",
-        "description": "Importez vos relevés d’abord. Vous pourrez ajouter des sites, parcelles, couches spatiales ou valeurs plus spécifiques ensuite.",
+        "description": "Importez vos données d'occurrences d’abord. Vous pourrez ajouter des sites, parcelles, couches spatiales ou valeurs plus spécifiques ensuite.",
         "steps": {
           "read": {
             "title": "1. Lire vos colonnes",
