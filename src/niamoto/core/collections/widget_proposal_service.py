@@ -308,6 +308,14 @@ class WidgetProposalService:
             base["include_percentages"] = True
         if transformer == "top_ranking":
             base["count"] = 10
+        if transformer == "geospatial_extractor":
+            base.update(
+                {
+                    "format": "geojson",
+                    "group_by_coordinates": True,
+                    "title": f"{_humanize(profile.name).title()} map",
+                }
+            )
         return base
 
     def _score_dimensions_for_profile(
@@ -775,6 +783,8 @@ class WidgetProposalService:
         if candidate.shape.kind == "metric_group":
             return "Class object metrics"
         if candidate.field_names:
+            if candidate.shape.kind == "map_layer":
+                return f"{_humanize(candidate.field_names[0]).title()} map"
             return _humanize(candidate.field_names[0])
         if primary_fit is not None:
             return _humanize(primary_fit.widget)

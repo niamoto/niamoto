@@ -426,6 +426,14 @@ def _params_for_fit(shape: TransformedShape, widget: str) -> dict:
     if widget == "scatter_plot" and shape.kind == "numeric_pair":
         return {"x_axis": shape.columns[0], "y_axis": shape.columns[1]}
 
+    if widget == "interactive_map" and shape.kind == "map_layer":
+        return {
+            "geojson_field": "features",
+            "map_type": "scatter_map",
+            "map_style": "carto-positron",
+            "auto_zoom": True,
+        }
+
     return {}
 
 

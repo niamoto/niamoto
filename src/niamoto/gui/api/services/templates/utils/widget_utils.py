@@ -209,22 +209,10 @@ def generate_widget_params(
 
     elif widget_plugin == "interactive_map":
         params = {
-            "map_style": "carto-voyager",
-            "zoom": 7,
-            "layers": [
-                {
-                    "id": "occurrences",
-                    "source": "coordinates",
-                    "type": "circle_markers",
-                    "style": {
-                        "color": "#5f8f82",
-                        "weight": 1,
-                        "fillColor": "#4f8068",
-                        "fillOpacity": 0.5,
-                        "radius": 8,
-                    },
-                }
-            ],
+            "geojson_field": "features",
+            "map_type": "scatter_map",
+            "map_style": "carto-positron",
+            "auto_zoom": True,
         }
     elif widget_plugin == "enrichment_panel":
         params = {

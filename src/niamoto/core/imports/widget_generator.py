@@ -171,6 +171,9 @@ class WidgetGenerator:
         },
         ("geospatial_extractor", "interactive_map"): {
             "geojson_field": "features",
+            "map_type": "scatter_map",
+            "map_style": "carto-positron",
+            "auto_zoom": True,
         },
         ("top_ranking", "bar_plot"): {
             "x_axis": "counts",

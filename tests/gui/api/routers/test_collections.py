@@ -857,6 +857,64 @@ def test_apply_collection_widget_proposals_writes_transform_and_export_configs(
     assert export_group["widgets"][0]["data_source"] == proposal["id"]
 
 
+def test_apply_collection_map_proposal_persists_plotly_map_params(
+    gui_duckdb_client, gui_duckdb_context
+):
+    _add_occurrence_geometry(gui_duckdb_context)
+    proposal_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-proposals"
+    ).json()
+    proposals = [
+        *proposal_payload["recommended"],
+        *proposal_payload["warnings"],
+        *proposal_payload["review_only"],
+    ]
+    proposal = next(
+        proposal
+        for proposal in proposals
+        if proposal.get("primary_fit", {}).get("widget") == "interactive_map"
+    )
+
+    assert proposal["title"] == "Geo Pt map"
+    assert proposal["recipe"]["transformer"]["params"]["format"] == "geojson"
+    assert proposal["recipe"]["transformer"]["params"]["group_by_coordinates"] is True
+    assert proposal["recipe"]["widget"]["params"]["geojson_field"] == "features"
+    assert proposal["recipe"]["widget"]["params"]["map_type"] == "scatter_map"
+
+    response = gui_duckdb_client.post(
+        "/api/collections/taxons/widget-proposals/apply",
+        json={"selections": [{"proposal_id": proposal["id"]}]},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["success"] is True
+
+    transform_config = yaml.safe_load(
+        (gui_duckdb_context / "config" / "transform.yml").read_text(encoding="utf-8")
+    )
+    export_config = yaml.safe_load(
+        (gui_duckdb_context / "config" / "export.yml").read_text(encoding="utf-8")
+    )
+    taxon_group = next(
+        group for group in transform_config if group["group_by"] == "taxons"
+    )
+    transform_widget = taxon_group["widgets_data"][proposal["id"]]
+    assert transform_widget["params"]["format"] == "geojson"
+    assert transform_widget["params"]["group_by_coordinates"] is True
+    export_group = export_config["exports"][0]["groups"][0]
+    map_widget = next(
+        widget
+        for widget in export_group["widgets"]
+        if widget["data_source"] == proposal["id"]
+    )
+    assert map_widget["plugin"] == "interactive_map"
+    assert map_widget["title"] == "Geo Pt map"
+    assert map_widget["params"]["geojson_field"] == "features"
+    assert map_widget["params"]["map_type"] == "scatter_map"
+    assert map_widget["params"]["map_style"] == "carto-positron"
+    assert map_widget["params"]["auto_zoom"] is True
+
+
 def test_apply_foundational_widget_proposals_writes_navigation_and_general_info(
     gui_duckdb_client, gui_duckdb_context
 ):
