@@ -145,6 +145,117 @@ def test_scaffold_configs_adds_missing_transform_and_export_groups(
     assert second_message == "Rien à ajouter"
 
 
+def test_scaffold_configs_reuses_export_groups_under_params(monkeypatch, tmp_path):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "datasets": {},
+                    "references": {"plots": {"kind": "generic"}},
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "transform.yml").write_text(
+        yaml.safe_dump(
+            [{"group_by": "plots", "sources": [], "widgets_data": {}}],
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "export.yml").write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "web_pages",
+                        "exporter": "html_page_exporter",
+                        "params": {
+                            "groups": [
+                                {
+                                    "group_by": "plots",
+                                    "widgets": [
+                                        {
+                                            "plugin": "interactive_map",
+                                            "data_source": "plot_map",
+                                        }
+                                    ],
+                                }
+                            ]
+                        },
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        config_scaffold, "find_stats_sources_for_reference", lambda *_args: []
+    )
+
+    changed, message = scaffold_configs(tmp_path)
+
+    export_config = yaml.safe_load((config_dir / "export.yml").read_text())
+    web_export = export_config["exports"][0]
+    assert changed is False
+    assert message == "Rien à ajouter"
+    assert "groups" not in web_export
+    assert web_export["params"]["groups"][0]["widgets"][0]["data_source"] == "plot_map"
+
+
+def test_scaffold_configs_rolls_back_transform_when_export_save_fails(
+    monkeypatch, tmp_path
+):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True)
+    import_path = config_dir / "import.yml"
+    transform_path = config_dir / "transform.yml"
+    export_path = config_dir / "export.yml"
+    import_path.write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "datasets": {"occurrences": {}},
+                    "references": {
+                        "plots": {
+                            "kind": "generic",
+                            "relation": {
+                                "dataset": "occurrences",
+                                "foreign_key": "plot_id",
+                            },
+                        }
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        config_scaffold, "find_stats_sources_for_reference", lambda *_args: []
+    )
+
+    def fail_save_export_config(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(config_scaffold, "save_export_config", fail_save_export_config)
+
+    try:
+        scaffold_configs(tmp_path)
+    except RuntimeError as exc:
+        assert str(exc) == "boom"
+    else:
+        raise AssertionError("scaffold_configs should propagate export save failure")
+
+    assert not transform_path.exists()
+    assert not export_path.exists()
+
+
 def test_scaffold_configs_shares_transform_write_lock_with_widget_updates(
     monkeypatch, tmp_path
 ):

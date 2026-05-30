@@ -124,10 +124,11 @@ def _raise_catalog_error(exc: ValueError) -> NoReturn:
 @router.get("", response_model=CollectionCatalog)
 async def list_collections() -> CollectionCatalog:
     """List reviewable collection candidates and manual source options."""
-    try:
-        return _catalog_service().list_collections()
-    except ValueError as exc:
-        _raise_catalog_error(exc)
+    with COLLECTION_CONFIG_LOCK:
+        try:
+            return _catalog_service().list_collections()
+        except ValueError as exc:
+            _raise_catalog_error(exc)
 
 
 @router.get(
@@ -154,11 +155,12 @@ async def get_collection_widget_proposals(
     collection_name: str,
 ) -> WidgetProposalGroups:
     """Return transformation-first widget proposals for a collection."""
-    try:
-        return _widget_proposal_service().get_proposals(collection_name)
-    except KeyError as exc:
-        message = str(exc.args[0]) if exc.args else str(exc)
-        raise HTTPException(status_code=404, detail=message) from exc
+    with COLLECTION_CONFIG_LOCK:
+        try:
+            return _widget_proposal_service().get_proposals(collection_name)
+        except KeyError as exc:
+            message = str(exc.args[0]) if exc.args else str(exc)
+            raise HTTPException(status_code=404, detail=message) from exc
 
 
 @router.post(
@@ -170,14 +172,15 @@ async def preview_collection_widget_proposals(
     request: WidgetProposalPreviewRequest,
 ) -> WidgetProposalPreviewResponse:
     """Preview selected widget proposal config changes without writing files."""
-    try:
-        return _widget_proposal_service().preview_apply(
-            collection_name,
-            request.selections,
-        )
-    except KeyError as exc:
-        message = str(exc.args[0]) if exc.args else str(exc)
-        raise HTTPException(status_code=404, detail=message) from exc
+    with COLLECTION_CONFIG_LOCK:
+        try:
+            return _widget_proposal_service().preview_apply(
+                collection_name,
+                request.selections,
+            )
+        except KeyError as exc:
+            message = str(exc.args[0]) if exc.args else str(exc)
+            raise HTTPException(status_code=404, detail=message) from exc
 
 
 @router.post(

@@ -5,7 +5,6 @@ import logging
 import os
 import re
 import tempfile
-import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request
@@ -21,10 +20,10 @@ from ..utils.database import open_database
 from niamoto.common.i18n import I18nResolver
 from niamoto.core.plugins.exporters.index_generator import IndexGeneratorPlugin
 from niamoto.core.plugins.models import IndexGeneratorConfig
+from niamoto.gui.api.services.templates.config_service import EXPORT_CONFIG_WRITE_LOCK
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-SITE_CONFIG_WRITE_LOCK = threading.RLock()
 
 _LANGUAGE_PREFIX_RE = re.compile(r"^[a-z]{2}(?:-[a-z]{2})?$", re.IGNORECASE)
 _ROOT_INDEX_TEMPLATE = "index.html"
@@ -848,7 +847,7 @@ async def update_site_config(request: Request, update: SiteConfigUpdate):
     web_pages export configuration. Creates a backup before saving.
     """
     require_desktop_mutation_auth(request)
-    with SITE_CONFIG_WRITE_LOCK:
+    with EXPORT_CONFIG_WRITE_LOCK:
         export_config = _get_export_config()
         exports = export_config.get("exports", [])
 

@@ -1033,7 +1033,7 @@ class TestSiteGroups:
                 app = create_app()
                 client = TestClient(app)
 
-                site_router.SITE_CONFIG_WRITE_LOCK.acquire()
+                site_router.EXPORT_CONFIG_WRITE_LOCK.acquire()
                 try:
                     with ThreadPoolExecutor(max_workers=1) as executor:
                         future = executor.submit(
@@ -1042,11 +1042,11 @@ class TestSiteGroups:
                         with pytest.raises(TimeoutError):
                             future.result(timeout=0.1)
 
-                        site_router.SITE_CONFIG_WRITE_LOCK.release()
+                        site_router.EXPORT_CONFIG_WRITE_LOCK.release()
                         response = future.result(timeout=5)
                 finally:
-                    if site_router.SITE_CONFIG_WRITE_LOCK._is_owned():
-                        site_router.SITE_CONFIG_WRITE_LOCK.release()
+                    if site_router.EXPORT_CONFIG_WRITE_LOCK._is_owned():
+                        site_router.EXPORT_CONFIG_WRITE_LOCK.release()
 
             assert response.status_code == 200, response.text
             assert not list(config_dir.glob("*.tmp"))

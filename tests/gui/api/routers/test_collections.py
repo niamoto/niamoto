@@ -351,6 +351,155 @@ def test_collection_data_options_waits_for_collection_config_lock(monkeypatch):
     assert errors == []
 
 
+def test_list_collections_waits_for_collection_config_lock(monkeypatch):
+    collection_write_lock = TrackingRLock()
+    save_entered = threading.Event()
+    release_save = threading.Event()
+    read_entered = threading.Event()
+    errors: list[BaseException] = []
+
+    class FakeCatalogService:
+        def __init__(self):
+            self.import_config = {"metadata": {"collections": {}}}
+
+        def create_collection(self, **payload):
+            self.import_config["metadata"]["collections"][payload["name"]] = payload
+            return {"name": payload["name"]}
+
+        def list_collections(self):
+            read_entered.set()
+            return {"collections": [], "sources": [], "total": 0}
+
+    def fake_save_service_config(service):
+        save_entered.set()
+        release_save.wait(timeout=2)
+
+    monkeypatch.setattr(collections, "_catalog_service", FakeCatalogService)
+    monkeypatch.setattr(collections, "_save_service_config", fake_save_service_config)
+    monkeypatch.setattr(collections, "COLLECTION_CONFIG_LOCK", collection_write_lock)
+
+    def create():
+        try:
+            asyncio.run(
+                collections.create_collection(
+                    collections.CollectionCreateRequest(
+                        name="occurrence_records",
+                        source_type="dataset",
+                        source_name="occurrences",
+                        grain="occurrence",
+                        roles=["api"],
+                    )
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    def read_catalog():
+        try:
+            asyncio.run(collections.list_collections())
+        except BaseException as exc:
+            errors.append(exc)
+
+    writer = threading.Thread(target=create)
+    reader = threading.Thread(target=read_catalog)
+
+    writer.start()
+    assert save_entered.wait(timeout=2)
+    reader.start()
+
+    assert collection_write_lock.contended_acquire.wait(timeout=2)
+    assert not read_entered.is_set()
+
+    release_save.set()
+    writer.join(timeout=2)
+    reader.join(timeout=2)
+
+    assert not writer.is_alive()
+    assert not reader.is_alive()
+    assert read_entered.is_set()
+    assert errors == []
+
+
+def test_widget_proposal_read_waits_for_collection_config_lock(monkeypatch):
+    collection_write_lock = TrackingRLock()
+    save_entered = threading.Event()
+    release_save = threading.Event()
+    read_entered = threading.Event()
+    errors: list[BaseException] = []
+
+    class FakeCatalogService:
+        def __init__(self):
+            self.import_config = {"metadata": {"collections": {}}}
+
+        def create_collection(self, **payload):
+            self.import_config["metadata"]["collections"][payload["name"]] = payload
+            return {"name": payload["name"]}
+
+    class FakeWidgetProposalService:
+        def get_proposals(self, collection_name: str):
+            read_entered.set()
+            return {
+                "collection": collection_name,
+                "recommended": [],
+                "warnings": [],
+                "review_only": [],
+            }
+
+    def fake_save_service_config(service):
+        save_entered.set()
+        release_save.wait(timeout=2)
+
+    monkeypatch.setattr(collections, "_catalog_service", FakeCatalogService)
+    monkeypatch.setattr(
+        collections, "_widget_proposal_service", FakeWidgetProposalService
+    )
+    monkeypatch.setattr(collections, "_save_service_config", fake_save_service_config)
+    monkeypatch.setattr(collections, "COLLECTION_CONFIG_LOCK", collection_write_lock)
+
+    def create():
+        try:
+            asyncio.run(
+                collections.create_collection(
+                    collections.CollectionCreateRequest(
+                        name="occurrence_records",
+                        source_type="dataset",
+                        source_name="occurrences",
+                        grain="occurrence",
+                        roles=["api"],
+                    )
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    def read_proposals():
+        try:
+            asyncio.run(
+                collections.get_collection_widget_proposals("occurrence_records")
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    writer = threading.Thread(target=create)
+    reader = threading.Thread(target=read_proposals)
+
+    writer.start()
+    assert save_entered.wait(timeout=2)
+    reader.start()
+
+    assert collection_write_lock.contended_acquire.wait(timeout=2)
+    assert not read_entered.is_set()
+
+    release_save.set()
+    writer.join(timeout=2)
+    reader.join(timeout=2)
+
+    assert not writer.is_alive()
+    assert not reader.is_alive()
+    assert read_entered.is_set()
+    assert errors == []
+
+
 def test_create_manual_collection_rejects_unknown_source_without_writing(
     gui_duckdb_client, gui_duckdb_context
 ):

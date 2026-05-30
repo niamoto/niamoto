@@ -211,6 +211,10 @@ def find_export_group(
         for group in groups:
             if group.get("group_by") == group_by:
                 return group
+        params = export_entry.get("params", {}) or {}
+        for group in params.get("groups", []) or []:
+            if isinstance(group, dict) and group.get("group_by") == group_by:
+                return group
     return None
 
 

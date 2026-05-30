@@ -15,6 +15,7 @@ import shutil
 from datetime import datetime
 
 from ..context import get_database_path, get_working_directory
+from ..desktop_auth import require_desktop_mutation_auth
 from niamoto.gui.api.services.templates.config_service import (
     EXPORT_CONFIG_WRITE_LOCK,
     TRANSFORM_CONFIG_WRITE_LOCK,
@@ -177,6 +178,31 @@ def _find_export_group_in_supported_locations(
             if isinstance(candidate, dict) and candidate.get("group_by") == group_by:
                 return candidate
 
+    return None
+
+
+def _is_web_export_entry(export_entry: Dict[str, Any]) -> bool:
+    """Return whether an export target represents the site/page exporter."""
+    exporter = export_entry.get("exporter")
+    return exporter == "html_page_exporter" or (
+        exporter is None and export_entry.get("name") == "web_pages"
+    )
+
+
+def _find_web_export_group_in_supported_locations(
+    export_config: Dict[str, Any], group_by: str
+) -> Optional[Dict[str, Any]]:
+    """Find a web-page export group without being shadowed by API exporters."""
+    for export_entry in export_config.get("exports", []) or []:
+        if not isinstance(export_entry, dict) or not _is_web_export_entry(export_entry):
+            continue
+        for group in export_entry.get("groups", []) or []:
+            if isinstance(group, dict) and group.get("group_by") == group_by:
+                return group
+        params = export_entry.get("params", {}) or {}
+        for group in params.get("groups", []) or []:
+            if isinstance(group, dict) and group.get("group_by") == group_by:
+                return group
     return None
 
 
@@ -1019,8 +1045,9 @@ class DatasetsResponse(BaseModel):
 
 
 @router.get("/references/{reference_name}/config")
-async def get_reference_config(reference_name: str):
+async def get_reference_config(request: Request, reference_name: str):
     """Get full configuration for a specific reference from import.yml."""
+    require_desktop_mutation_auth(request)
     config_path = get_working_directory() / "config" / "import.yml"
 
     if not config_path.exists():
@@ -2065,7 +2092,7 @@ async def list_export_widgets(group_by: str) -> List[Dict[str, Any]]:
     """
     try:
         export_config = _load_export_config()
-        group = _find_export_group_in_supported_locations(export_config, group_by)
+        group = _find_web_export_group_in_supported_locations(export_config, group_by)
 
         if not group:
             return []

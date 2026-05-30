@@ -1,4 +1,6 @@
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -430,6 +432,40 @@ def test_execute_import_dataset_rejects_concurrent_job_for_same_target(
     assert set(imports.import_jobs) == before_job_ids
 
 
+def test_execute_import_dataset_rejects_active_reference_job_for_same_workdir(
+    monkeypatch,
+    tmp_path,
+):
+    work_dir = tmp_path
+    active_job_id = "active-reference-import"
+    before_job_ids = set(imports.import_jobs)
+    imports.import_jobs[active_job_id] = {
+        **_base_job(active_job_id),
+        "status": "running",
+        "import_type": "reference",
+        "entity_name": "taxons",
+        "working_directory": str(work_dir.resolve()),
+    }
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+
+    try:
+        response = TestClient(create_app()).post(
+            "/api/imports/execute/dataset/occurrences",
+            data={"reset_table": "true"},
+        )
+    finally:
+        imports.import_jobs.pop(active_job_id, None)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {
+        "message": "An import job is already pending or running",
+        "job_id": active_job_id,
+    }
+    assert set(imports.import_jobs) == before_job_ids
+
+
 def test_execute_import_dataset_accepts_valid_desktop_auth(monkeypatch):
     monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
 
@@ -784,6 +820,104 @@ def test_delete_entity_drops_registry_table_before_removing_config(
     assert events == ['DROP TABLE IF EXISTS "actual_imported_plots"']
     updated_config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
     assert "plots" not in updated_config["entities"]["references"]
+
+
+def test_delete_entity_rejects_active_import_job_for_same_workdir(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path
+    config_dir = work_dir / "config"
+    config_dir.mkdir()
+    import_path = config_dir / "import.yml"
+    original_config = {
+        "entities": {
+            "datasets": {"occurrences": {"connector": {"type": "file"}}},
+            "references": {},
+        }
+    }
+    import_path.write_text(
+        yaml.safe_dump(original_config, sort_keys=False),
+        encoding="utf-8",
+    )
+    active_job_id = "active-reference-import"
+    imports.import_jobs[active_job_id] = {
+        **_base_job(active_job_id),
+        "status": "running",
+        "import_type": "reference",
+        "entity_name": "taxons",
+        "working_directory": str(work_dir.resolve()),
+    }
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+
+    try:
+        response = TestClient(create_app()).delete(
+            "/api/imports/entities/dataset/occurrences"
+        )
+    finally:
+        imports.import_jobs.pop(active_job_id, None)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {
+        "message": "An import job is already pending or running",
+        "job_id": active_job_id,
+    }
+    saved = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    assert saved == original_config
+
+
+def test_delete_entity_holds_import_admission_lock_while_writing(monkeypatch, tmp_path):
+    work_dir = tmp_path
+    config_dir = work_dir / "config"
+    config_dir.mkdir()
+    import_path = config_dir / "import.yml"
+    import_path.write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "datasets": {"occurrences": {"connector": {"type": "file"}}},
+                    "references": {},
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+
+    original_dump = yaml.dump
+    entered_dump = threading.Event()
+    release_dump = threading.Event()
+
+    def blocking_dump(*args, **kwargs):
+        entered_dump.set()
+        assert release_dump.wait(timeout=5)
+        return original_dump(*args, **kwargs)
+
+    monkeypatch.setattr(yaml, "dump", blocking_dump)
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(
+            lambda: asyncio.run(
+                imports.delete_entity(_request(), "dataset", "occurrences")
+            )
+        )
+        assert entered_dump.wait(timeout=5)
+
+        acquired = imports.IMPORT_JOBS_LOCK.acquire(blocking=False)
+        try:
+            assert acquired is False
+        finally:
+            if acquired:
+                imports.IMPORT_JOBS_LOCK.release()
+
+        release_dump.set()
+        response = future.result(timeout=5)
+
+    assert response["success"] is True
 
 
 def test_delete_dataset_fallback_drops_dataset_table_not_reference_collision(

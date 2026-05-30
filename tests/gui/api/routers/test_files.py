@@ -507,6 +507,29 @@ def test_browse_missing_path_returns_not_found(monkeypatch, tmp_path):
     assert response.json()["detail"] == "Path not found"
 
 
+def test_browse_skips_child_symlinks_to_external_files(monkeypatch, tmp_path):
+    work_dir = tmp_path / "project"
+    imports_dir = work_dir / "imports"
+    imports_dir.mkdir(parents=True)
+    (imports_dir / "public.csv").write_text("id\n1\n", encoding="utf-8")
+    external = tmp_path / "secret.csv"
+    external.write_text("secret\n", encoding="utf-8")
+    try:
+        os.symlink(external, imports_dir / "linked-secret.csv")
+    except OSError as exc:
+        pytest.skip(f"symlink creation is not available: {exc}")
+
+    monkeypatch.setattr(files_router, "get_working_directory", lambda: work_dir)
+
+    client = TestClient(create_app())
+    response = client.get("/api/files/browse", params={"path": "imports"})
+
+    assert response.status_code == 200, response.text
+    names = {item["name"] for item in response.json()["items"]}
+    assert "public.csv" in names
+    assert "linked-secret.csv" not in names
+
+
 def test_read_export_file_rejects_intermediate_symlink(monkeypatch, tmp_path):
     work_dir = tmp_path / "project"
     exports_dir = work_dir / "exports"

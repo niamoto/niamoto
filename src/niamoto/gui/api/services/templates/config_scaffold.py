@@ -30,6 +30,23 @@ from niamoto.gui.api.services.templates.relation_detection import (
 logger = logging.getLogger(__name__)
 
 
+def _snapshot_file(path: Path) -> Tuple[bool, str]:
+    """Capture a config file before a multi-file scaffold write."""
+    if not path.exists():
+        return False, ""
+    return True, path.read_text(encoding="utf-8")
+
+
+def _restore_file(path: Path, snapshot: Tuple[bool, str]) -> None:
+    """Restore a config file snapshot after a paired write failure."""
+    existed, content = snapshot
+    if existed:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    else:
+        path.unlink(missing_ok=True)
+
+
 def build_relation_config(
     ref_name: str,
     kind: str,
@@ -156,10 +173,21 @@ def scaffold_configs(work_dir: Path) -> Tuple[bool, str]:
 
         # Sauvegarder si des changements ont été faits
         changed = bool(transform_added or export_added)
-        if transform_added:
-            save_transform_config(work_dir, transform_groups, create_backup=True)
-        if export_added:
-            save_export_config(work_dir, export_config, create_backup=True)
+        transform_path = work_dir / "config" / "transform.yml"
+        export_path = work_dir / "config" / "export.yml"
+        snapshots = {
+            transform_path: _snapshot_file(transform_path),
+            export_path: _snapshot_file(export_path),
+        }
+        try:
+            if transform_added:
+                save_transform_config(work_dir, transform_groups, create_backup=True)
+            if export_added:
+                save_export_config(work_dir, export_config, create_backup=True)
+        except Exception:
+            for path, snapshot in snapshots.items():
+                _restore_file(path, snapshot)
+            raise
 
     parts = []
     if transform_added:

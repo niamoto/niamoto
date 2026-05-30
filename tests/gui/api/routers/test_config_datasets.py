@@ -125,6 +125,53 @@ def test_update_reference_config_rejects_invalid_reference_without_writing(
     assert response.status_code == 422
     assert "Invalid reference configuration" in response.json()["detail"]
     assert import_path.read_text(encoding="utf-8") == original_text
+
+
+def test_get_reference_config_requires_desktop_auth_when_token_configured(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+    work_dir = tmp_path / "project"
+    config_dir = work_dir / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "references": {
+                        "taxons": {
+                            "kind": "hierarchical",
+                            "enrichment": [
+                                {
+                                    "api": "endemia",
+                                    "auth_params": {"key": "secret-api-key"},
+                                }
+                            ],
+                        }
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config_router, "get_working_directory", lambda: work_dir)
+    client = TestClient(create_app())
+
+    unauthorized = client.get("/api/config/references/taxons/config")
+    authorized = client.get(
+        "/api/config/references/taxons/config",
+        headers={"x-niamoto-desktop-token": "desktop-secret"},
+    )
+
+    assert unauthorized.status_code == 401
+    assert unauthorized.json()["detail"] == "Invalid desktop auth token."
+    assert authorized.status_code == 200, authorized.text
+    assert (
+        authorized.json()["config"]["enrichment"][0]["auth_params"]["key"]
+        == "secret-api-key"
+    )
     assert not (config_dir / "backups").exists()
 
 

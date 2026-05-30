@@ -43,6 +43,7 @@ from niamoto.gui.api.services.templates.utils.widget_utils import (
     generate_widget_params,
 )
 from niamoto.gui.api.services.templates.config_service import (
+    EXPORT_CONFIG_WRITE_LOCK,
     TRANSFORM_CONFIG_WRITE_LOCK,
 )
 
@@ -459,12 +460,24 @@ async def generate_transform_config(request: GenerateConfigRequest):
                     status_code=422,
                     detail="Combined template config requires object transformer and widget sections",
                 )
+            widget_plugin = widget_cfg.get("plugin")
+            if not isinstance(widget_plugin, str) or not widget_plugin.strip():
+                raise HTTPException(
+                    status_code=422,
+                    detail="Combined template widget section requires a non-empty plugin",
+                )
+            widget_params = widget_cfg.get("params", {})
+            if widget_params is not None and not isinstance(widget_params, dict):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Combined template widget params must be an object",
+                )
             params = transformer_cfg.get("params", {})
             # Carry widget config as export_override for _generate_export_config
             export_override = {
-                "plugin": widget_cfg.get("plugin"),
+                "plugin": widget_plugin,
                 "title": cfg.get("title") or template.config.get("title"),
-                "params": widget_cfg.get("params"),
+                "params": widget_params,
             }
         elif isinstance(cfg, dict) and "params" in cfg and "plugin" in cfg:
             # Nested structure - extract just the params
@@ -707,9 +720,8 @@ def _build_export_config(
         export_override = widget_config.get("export_override")
         if export_override and isinstance(export_override, dict):
             export_widget: Dict[str, Any] = {
-                "plugin": export_override.get(
-                    "plugin", map_transformer_to_widget(plugin, widget_id)
-                ),
+                "plugin": export_override.get("plugin")
+                or map_transformer_to_widget(plugin, widget_id),
                 "title": export_override.get(
                     "title", generate_widget_title(widget_id, plugin, params)
                 ),
@@ -889,7 +901,7 @@ async def save_transform_config(request: SaveConfigRequest, http_request: Reques
     transform_path = config_dir / "transform.yml"
 
     try:
-        with TRANSFORM_CONFIG_WRITE_LOCK:
+        with TRANSFORM_CONFIG_WRITE_LOCK, EXPORT_CONFIG_WRITE_LOCK:
             # Ensure config directory exists
             config_dir.mkdir(parents=True, exist_ok=True)
 

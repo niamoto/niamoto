@@ -58,6 +58,47 @@ def test_list_export_widgets_reads_groups_under_params(
     ]
 
 
+def test_list_export_widgets_skips_non_web_export_group_shadow(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "json_api",
+                        "exporter": "json_api_exporter",
+                        "groups": [{"group_by": "taxons", "fields": ["id"]}],
+                    },
+                    {
+                        "name": "web_pages",
+                        "exporter": "html_page_exporter",
+                        "groups": [
+                            {
+                                "group_by": "taxons",
+                                "widgets": [
+                                    {
+                                        "plugin": "info_grid",
+                                        "data_source": "general_info",
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.get("/api/config/export/taxons/widgets")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == [{"plugin": "info_grid", "data_source": "general_info"}]
+
+
 def test_get_index_generator_reads_groups_under_params(
     gui_duckdb_client, gui_duckdb_context
 ):

@@ -3,6 +3,7 @@
 import logging
 import traceback
 from pathlib import Path
+import threading
 from typing import Any, Dict, List, Literal, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Form, Query, Request
 from fastapi.encoders import jsonable_encoder
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 # Import status tracking (in production, use a database)
 import_jobs: Dict[str, Dict[str, Any]] = {}
+IMPORT_JOBS_LOCK = threading.RLock()
 MAX_IMPORT_EVENTS = 40
 MAX_RETAINED_IMPORT_JOBS = 100
 ACTIVE_IMPORT_STATUSES = {"pending", "running"}
@@ -174,8 +176,9 @@ def _prune_import_jobs() -> None:
 
 
 def _store_import_job(job_id: str, job: Dict[str, Any]) -> None:
-    import_jobs[job_id] = job
-    _prune_import_jobs()
+    with IMPORT_JOBS_LOCK:
+        import_jobs[job_id] = job
+        _prune_import_jobs()
 
 
 def _set_job_state(
@@ -291,6 +294,16 @@ def _raise_if_import_conflicts(
             },
         )
 
+    active_job = _find_active_import_job(working_directory)
+    if active_job is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "An import job is already pending or running",
+                "job_id": active_job.get("id"),
+            },
+        )
+
 
 class ImportStatus(BaseModel):
     """Status of a particular entity import."""
@@ -333,19 +346,6 @@ async def execute_import_all(
         raise HTTPException(status_code=400, detail="Working directory not set")
 
     working_directory = _working_directory_key(work_dir)
-    active_job = _find_active_import_job(working_directory)
-    if active_job is not None:
-        if active_job.get("import_type") == "all":
-            message = "An import-all job is already pending or running"
-        else:
-            message = "An import job is already pending or running"
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "message": message,
-                "job_id": active_job.get("id"),
-            },
-        )
 
     # Generate job ID
     job_id = str(uuid.uuid4())
@@ -372,7 +372,21 @@ async def execute_import_all(
         "events": [],
     }
 
-    _store_import_job(job_id, job)
+    with IMPORT_JOBS_LOCK:
+        active_job = _find_active_import_job(working_directory)
+        if active_job is not None:
+            if active_job.get("import_type") == "all":
+                message = "An import-all job is already pending or running"
+            else:
+                message = "An import job is already pending or running"
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": message,
+                    "job_id": active_job.get("id"),
+                },
+            )
+        _store_import_job(job_id, job)
 
     # Queue background import task
     background_tasks.add_task(
@@ -406,7 +420,6 @@ async def execute_import_reference(
         raise HTTPException(status_code=400, detail="Working directory not set")
 
     working_directory = _working_directory_key(work_dir)
-    _raise_if_import_conflicts(working_directory, "reference", entity_name)
 
     # Generate job ID
     job_id = str(uuid.uuid4())
@@ -432,7 +445,9 @@ async def execute_import_reference(
         "events": [],
     }
 
-    _store_import_job(job_id, job)
+    with IMPORT_JOBS_LOCK:
+        _raise_if_import_conflicts(working_directory, "reference", entity_name)
+        _store_import_job(job_id, job)
 
     # Queue background import task
     background_tasks.add_task(
@@ -468,7 +483,6 @@ async def execute_import_dataset(
         raise HTTPException(status_code=400, detail="Working directory not set")
 
     working_directory = _working_directory_key(work_dir)
-    _raise_if_import_conflicts(working_directory, "dataset", entity_name)
 
     # Generate job ID
     job_id = str(uuid.uuid4())
@@ -494,7 +508,9 @@ async def execute_import_dataset(
         "events": [],
     }
 
-    _store_import_job(job_id, job)
+    with IMPORT_JOBS_LOCK:
+        _raise_if_import_conflicts(working_directory, "dataset", entity_name)
+        _store_import_job(job_id, job)
 
     # Queue background import task
     background_tasks.add_task(
@@ -596,97 +612,118 @@ async def delete_entity(
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not set")
 
-    config_path = work_dir / "config" / "import.yml"
-
-    if not config_path.exists():
-        raise HTTPException(status_code=404, detail="import.yml not found")
-
-    try:
-        # Read current config
-        with open(config_path, "r", encoding="utf-8") as f:
-            import_config = yaml.safe_load(f) or {}
-
-        entities = import_config.get("entities", {})
-        section_key = "datasets" if entity_type == "dataset" else "references"
-        section = entities.get(section_key, {})
-
-        if entity_name not in section:
+    working_directory = _working_directory_key(work_dir)
+    with IMPORT_JOBS_LOCK:
+        active_job = _find_active_import_job(working_directory)
+        if active_job is not None:
+            message = (
+                "An import-all job is already pending or running"
+                if active_job.get("import_type") == "all"
+                else "An import job is already pending or running"
+            )
             raise HTTPException(
-                status_code=404,
-                detail=f"{entity_type.capitalize()} '{entity_name}' not found in configuration",
+                status_code=409,
+                detail={
+                    "message": message,
+                    "job_id": active_job.get("id"),
+                },
             )
 
-        table_dropped = False
-        if delete_table:
-            try:
-                config_dir = str(work_dir / "config")
-                config = Config(config_dir=config_dir, create_default=False)
-                with open_database(config.database_path) as db:
-                    table_names = []
-                    try:
-                        if db.has_table(EntityRegistry.ENTITIES_TABLE):
-                            registry = EntityRegistry(db)
-                            entity_meta = registry.get(entity_name)
-                            expected_kind = (
-                                EntityKind.DATASET
-                                if entity_type == "dataset"
-                                else EntityKind.REFERENCE
-                            )
-                            if entity_meta.kind == expected_kind:
-                                table_names.append(entity_meta.table_name)
-                    except (DatabaseQueryError, KeyError):
-                        logger.warning(
-                            "Entity '%s' not found in registry, using table name fallbacks",
-                            entity_name,
-                        )
+        config_path = work_dir / "config" / "import.yml"
 
-                    if entity_type == "dataset":
-                        table_names.extend([f"dataset_{entity_name}", entity_name])
-                    else:
-                        table_names.extend([f"reference_{entity_name}", entity_name])
+        if not config_path.exists():
+            raise HTTPException(status_code=404, detail="import.yml not found")
 
-                    for table_name in dict.fromkeys(table_names):
-                        if not table_name:
-                            continue
-                        if db.has_table(table_name):
-                            quoted_table = quote_identifier(db, table_name)
-                            db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
-                            table_dropped = True
-                            break
-            except Exception as e:
-                logger.exception(
-                    "Could not drop table for entity '%s': %s", entity_name, e
-                )
+        try:
+            # Read current config
+            with open(config_path, "r", encoding="utf-8") as f:
+                import_config = yaml.safe_load(f) or {}
+
+            entities = import_config.get("entities", {})
+            section_key = "datasets" if entity_type == "dataset" else "references"
+            section = entities.get(section_key, {})
+
+            if entity_name not in section:
                 raise HTTPException(
-                    status_code=500,
-                    detail=f"Could not drop table for entity '{entity_name}': {e}",
+                    status_code=404,
+                    detail=f"{entity_type.capitalize()} '{entity_name}' not found in configuration",
                 )
 
-        # Remove entity from config only after requested table cleanup succeeds
-        del section[entity_name]
-        entities[section_key] = section
-        import_config["entities"] = entities
+            table_dropped = False
+            if delete_table:
+                try:
+                    config_dir = str(work_dir / "config")
+                    config = Config(config_dir=config_dir, create_default=False)
+                    with open_database(config.database_path) as db:
+                        table_names = []
+                        try:
+                            if db.has_table(EntityRegistry.ENTITIES_TABLE):
+                                registry = EntityRegistry(db)
+                                entity_meta = registry.get(entity_name)
+                                expected_kind = (
+                                    EntityKind.DATASET
+                                    if entity_type == "dataset"
+                                    else EntityKind.REFERENCE
+                                )
+                                if entity_meta.kind == expected_kind:
+                                    table_names.append(entity_meta.table_name)
+                        except (DatabaseQueryError, KeyError):
+                            logger.warning(
+                                "Entity '%s' not found in registry, using table name fallbacks",
+                                entity_name,
+                            )
 
-        # Write updated config
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(
-                import_config,
-                f,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
+                        if entity_type == "dataset":
+                            table_names.extend([f"dataset_{entity_name}", entity_name])
+                        else:
+                            table_names.extend(
+                                [f"reference_{entity_name}", entity_name]
+                            )
+
+                        for table_name in dict.fromkeys(table_names):
+                            if not table_name:
+                                continue
+                            if db.has_table(table_name):
+                                quoted_table = quote_identifier(db, table_name)
+                                db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
+                                table_dropped = True
+                                break
+                except Exception as e:
+                    logger.exception(
+                        "Could not drop table for entity '%s': %s", entity_name, e
+                    )
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Could not drop table for entity '{entity_name}': {e}",
+                    )
+
+            # Remove entity from config only after requested table cleanup succeeds
+            del section[entity_name]
+            entities[section_key] = section
+            import_config["entities"] = entities
+
+            # Write updated config
+            with open(config_path, "w", encoding="utf-8") as f:
+                yaml.dump(
+                    import_config,
+                    f,
+                    default_flow_style=False,
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
+
+            return {
+                "success": True,
+                "message": f"{entity_type.capitalize()} '{entity_name}' deleted successfully",
+                "table_dropped": table_dropped,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=500, detail=f"Error deleting entity: {str(e)}"
             )
-
-        return {
-            "success": True,
-            "message": f"{entity_type.capitalize()} '{entity_name}' deleted successfully",
-            "table_dropped": table_dropped,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error deleting entity: {str(e)}")
 
 
 @router.get("/entities")

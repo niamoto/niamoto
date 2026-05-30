@@ -6,6 +6,7 @@ and serve as regression tests during refactoring.
 """
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import pytest
 from unittest.mock import patch
 import os
@@ -18,6 +19,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
+from niamoto.gui.api.routers import templates as templates_router
 
 
 class FakePreviewEngine:
@@ -425,6 +427,32 @@ class TestTemplatesEndpoints:
             "Combined template config requires object transformer and widget sections"
         )
 
+    def test_generate_config_rejects_combined_config_without_widget_plugin(
+        self, client
+    ):
+        response = client.post(
+            "/api/templates/generate-config",
+            json={
+                "templates": [
+                    {
+                        "template_id": "combined_widget",
+                        "plugin": "field_aggregator",
+                        "config": {
+                            "transformer": {"params": {"field": "height"}},
+                            "widget": {"params": {}},
+                        },
+                    }
+                ],
+                "group_by": "taxons",
+                "reference_kind": "hierarchical",
+            },
+        )
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == (
+            "Combined template widget section requires a non-empty plugin"
+        )
+
     def test_generate_config_uses_import_relation_and_dataset(
         self, client, test_work_dir
     ):
@@ -645,6 +673,31 @@ class TestTemplatesEndpoints:
         )
 
         assert response.status_code == 401
+
+    def test_save_config_waits_for_export_config_write_lock(self, client):
+        templates_router.EXPORT_CONFIG_WRITE_LOCK.acquire()
+        try:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    client.post,
+                    "/api/templates/save-config",
+                    json={
+                        "group_by": "taxons",
+                        "sources": [],
+                        "widgets_data": {},
+                        "mode": "merge",
+                    },
+                )
+                with pytest.raises(TimeoutError):
+                    future.result(timeout=0.1)
+
+                templates_router.EXPORT_CONFIG_WRITE_LOCK.release()
+                response = future.result(timeout=5)
+        finally:
+            if templates_router.EXPORT_CONFIG_WRITE_LOCK._is_owned():
+                templates_router.EXPORT_CONFIG_WRITE_LOCK.release()
+
+        assert response.status_code == 200, response.text
 
     def test_save_config_does_not_update_export_when_transform_is_invalid(
         self, client, test_work_dir

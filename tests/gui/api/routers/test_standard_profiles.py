@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import os
 
 import pytest
@@ -263,6 +264,36 @@ def test_standard_profile_config_lock_rejects_preexisting_symlink(
         assert getattr(exc, "status_code", None) == 503
         assert "Process-safe export configuration locking" in exc.detail
     assert target_path.read_text(encoding="utf-8") == "do not truncate"
+
+
+def test_standard_profile_config_lock_waits_for_shared_export_config_write_lock(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        standard_profiles_router, "get_working_directory", lambda: tmp_path
+    )
+    monkeypatch.setattr(
+        standard_profiles_router,
+        "_standard_profile_lock_path",
+        lambda _: tmp_path / "profile.lock",
+    )
+
+    def acquire_standard_profile_lock():
+        with standard_profiles_router._standard_profile_config_lock():
+            return True
+
+    standard_profiles_router.EXPORT_CONFIG_WRITE_LOCK.acquire()
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(acquire_standard_profile_lock)
+            with pytest.raises(TimeoutError):
+                future.result(timeout=0.1)
+
+            standard_profiles_router.EXPORT_CONFIG_WRITE_LOCK.release()
+            assert future.result(timeout=5) is True
+    finally:
+        if standard_profiles_router.EXPORT_CONFIG_WRITE_LOCK._is_owned():
+            standard_profiles_router.EXPORT_CONFIG_WRITE_LOCK.release()
 
 
 def test_auto_config_standard_profile_returns_reviewable_dwc_proposal(
