@@ -60,7 +60,7 @@ describe('WidgetProposalWorkspace', () => {
     queryState.value.applyState = { isPending: false, error: null }
   })
 
-  async function renderWorkspace(props?: { onApplied?: () => void }) {
+  async function renderWorkspace(props?: { onApplied?: () => void | Promise<void> }) {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -379,6 +379,83 @@ describe('WidgetProposalWorkspace', () => {
       previewToken: 'preview-token',
     })
     expect(onApplied).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).not.toContain('Review changes before adding widgets')
+  })
+
+  it('keeps the adding loader visible while the parent refreshes widgets', async () => {
+    const previewResponse: WidgetProposalPreviewResponse = {
+      collection: 'taxons',
+      writes_files: true,
+      preview_token: 'preview-token',
+      changes: [
+        {
+          proposal_id: 'wp_1',
+          widget_id: 'dbh_cm',
+          title: 'Dbh cm',
+          action: 'add',
+          transform_widget: {},
+          export_widget: {},
+        },
+      ],
+      conflicts: [],
+      invalid: [],
+    }
+    const applyResponse: WidgetProposalApplyResponse = {
+      collection: 'taxons',
+      success: true,
+      applied: previewResponse.changes,
+      skipped: [],
+      message: 'Applied 1 widget proposal(s).',
+      preview_token: 'preview-token',
+      written_files: ['transform.yml', 'export.yml'],
+      backup_files: [],
+    }
+    const pendingParentRefresh = deferred<void>()
+    const onApplied = vi.fn().mockReturnValue(pendingParentRefresh.promise)
+
+    queryState.value.data = {
+      collection: 'taxons',
+      recommended: [makeProposal({ id: 'wp_1', title: 'Dbh cm' })],
+      warnings: [],
+      missing_chart: [],
+      skipped: [],
+      already_configured: [],
+      review_only: [],
+      partial: false,
+      messages: [],
+    }
+    queryState.value.preview = vi.fn().mockResolvedValue(previewResponse)
+    queryState.value.apply = vi.fn().mockResolvedValue(applyResponse)
+
+    await renderWorkspace({ onApplied })
+
+    const reviewButton = [...container!.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Review and add'),
+    )
+    expect(reviewButton).toBeDefined()
+
+    await act(async () => {
+      reviewButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    const addButton = [...document.body.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Add widgets'),
+    )
+    expect(addButton).toBeDefined()
+
+    await act(async () => {
+      addButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(onApplied).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).toContain('Adding widgets')
+    expect(document.body.textContent).toContain('Review changes before adding widgets')
+
+    await act(async () => {
+      pendingParentRefresh.resolve()
+      await pendingParentRefresh.promise
+    })
+
     expect(document.body.textContent).not.toContain('Review changes before adding widgets')
   })
 })

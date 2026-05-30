@@ -40,11 +40,11 @@ vi.mock('@/features/collections/components/blocks/WidgetProposalWorkspace', () =
     onApplied,
   }: {
     collectionName: string
-    onApplied: () => void
+    onApplied: () => void | Promise<void>
   }) => (
     <div data-testid="widget-proposal-workspace">
       {collectionName}
-      <button type="button" onClick={onApplied}>
+      <button type="button" onClick={() => { void onApplied() }}>
         apply proposals
       </button>
     </div>
@@ -72,6 +72,14 @@ const reference: ReferenceInfo = {
   table_name: 'entity_taxons',
   kind: 'hierarchical',
   schema_fields: [],
+}
+
+function deferred<T = void>() {
+  let resolve: (value: T | PromiseLike<T>) => void = () => undefined
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+  return { promise, resolve }
 }
 
 function ContentTabRouteHarness({
@@ -172,6 +180,43 @@ describe('ContentTab', () => {
     })
 
     expect(widgetConfigState.refetch).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeNull()
+    expect(container.querySelector('[data-testid="content-right-panel"]')).toBeTruthy()
+  })
+
+  it('keeps widget proposals visible until the refreshed blocks data is ready', async () => {
+    const pendingRefresh = deferred()
+    widgetConfigState.refetch.mockReturnValueOnce(pendingRefresh.promise)
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(
+        <MemoryRouter initialEntries={['/groups/taxons?panel=widget-proposals']}>
+          <ContentTab reference={reference} />
+        </MemoryRouter>,
+      )
+    })
+
+    const applyButton = [...container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('apply proposals'),
+    )
+    expect(applyButton).toBeDefined()
+
+    await act(async () => {
+      applyButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(widgetConfigState.refetch).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="content-right-panel"]')).toBeNull()
+
+    await act(async () => {
+      pendingRefresh.resolve()
+      await pendingRefresh.promise
+    })
+
     expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeNull()
     expect(container.querySelector('[data-testid="content-right-panel"]')).toBeTruthy()
   })

@@ -17,7 +17,7 @@ import { WidgetProposalPagePreview } from './WidgetProposalPagePreview'
 interface WidgetProposalWorkspaceProps {
   collectionName: string
   onClose: () => void
-  onApplied: () => void
+  onApplied: () => void | Promise<void>
 }
 
 export function WidgetProposalWorkspace({
@@ -130,7 +130,7 @@ export function WidgetProposalWorkspace({
       })
       setApplyResult(response)
       if (response.success) {
-        onApplied()
+        await onApplied()
         setDialogOpen(false)
         setPreview(null)
         setPreviewSelections([])

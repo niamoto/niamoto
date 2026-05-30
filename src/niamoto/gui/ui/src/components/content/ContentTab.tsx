@@ -273,14 +273,17 @@ export function ContentTab({ reference }: ContentTabProps) {
     })
   }, [reference.name, refetchWidgets])
 
-  const handleWidgetProposalsApplied = useCallback(() => {
-    refetchWidgets()
-    handleBackToLayout()
-    setProposalWorkspaceState({
-      referenceName: reference.name,
-      open: false,
-      dismissedRouteRequestKey: routeProposalRequestKey,
-    })
+  const handleWidgetProposalsApplied = useCallback(async () => {
+    try {
+      await refetchWidgets()
+    } finally {
+      handleBackToLayout()
+      setProposalWorkspaceState({
+        referenceName: reference.name,
+        open: false,
+        dismissedRouteRequestKey: routeProposalRequestKey,
+      })
+    }
   }, [handleBackToLayout, reference.name, refetchWidgets, routeProposalRequestKey])
 
   const leftPanelRef = useRef<PanelImperativeHandle>(null)
