@@ -15,6 +15,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ModuleLayout } from '@/components/layout/ModuleLayout'
+import { StablePanelSkeleton } from '@/components/loading/StableLoadingState'
 import { PanelTransition } from '@/components/motion/PanelTransition'
 import { DataTree, type DataSelection } from './DataTree'
 import { ImportWizard } from '@/features/import/components/ImportWizard'
@@ -62,12 +63,16 @@ export function DataModule() {
 
   const { data: datasetsData, isLoading: datasetsLoading } = useDatasets()
   const { data: referencesData, isLoading: referencesLoading } = useReferences()
-  const { data: importSummary } = useImportSummary()
+  const { data: importSummary, isLoading: importSummaryLoading } = useImportSummary()
 
   const datasets = datasetsData?.datasets ?? []
   const references = referencesData?.references ?? []
   const layerCount = importSummary?.layer_count ?? 0
   const hasImportedData = datasets.length > 0 || references.length > 0 || layerCount > 0
+  const entityListsLoading =
+    (datasetsLoading && !datasetsData) || (referencesLoading && !referencesData)
+  const inventoryLoading =
+    entityListsLoading || (importSummaryLoading && !importSummary)
 
   const selection = useMemo(() => selectionFromLocation(pathname), [pathname])
 
@@ -139,6 +144,10 @@ export function DataModule() {
       case 'dataset': {
         const dataset = datasets.find((d) => d.name === selection.name)
         if (!dataset) {
+          if (datasetsLoading && !datasetsData) {
+            return <StablePanelSkeleton rows={4} />
+          }
+
           return (
             <div className="flex h-full items-center justify-center p-4">
               <p className="text-muted-foreground">
@@ -160,6 +169,10 @@ export function DataModule() {
       case 'reference': {
         const reference = references.find((r) => r.name === selection.name)
         if (!reference) {
+          if (referencesLoading && !referencesData) {
+            return <StablePanelSkeleton rows={4} />
+          }
+
           return (
             <div className="flex h-full items-center justify-center p-4">
               <p className="text-muted-foreground">
@@ -190,6 +203,10 @@ export function DataModule() {
 
       case 'overview':
       default: {
+        if (inventoryLoading) {
+          return <StablePanelSkeleton rows={6} />
+        }
+
         if (!hasImportedData) {
           return (
             <SourcesEmptyState

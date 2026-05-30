@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest"
 import { renderToStaticMarkup } from "react-dom/server"
+import type { ReactNode } from "react"
 
 import { DashboardView } from "./DashboardView"
+import { OnboardingView } from "./OnboardingView"
 import { QuickActions } from "./QuickActions"
 import { ActivityFeed } from "./ActivityFeed"
+import ProjectHub from "../views/ProjectHub"
 import type { PipelineStatus } from "@/hooks/usePipelineStatus"
 
 const pipelineStatusState = vi.hoisted(() => ({
@@ -17,6 +20,22 @@ const pipelineStatusState = vi.hoisted(() => ({
 const pipelineHistoryState = vi.hoisted(() => ({
   value: {
     data: [],
+  },
+}))
+
+const datasetsState = vi.hoisted(() => ({
+  value: {
+    data: { datasets: [] } as { datasets: unknown[] } | undefined,
+    isLoading: false,
+    isFetching: false,
+  },
+}))
+
+const referencesState = vi.hoisted(() => ({
+  value: {
+    data: { references: [] } as { references: unknown[] } | undefined,
+    isLoading: false,
+    isFetching: false,
   },
 }))
 
@@ -51,6 +70,19 @@ vi.mock("react-router-dom", () => ({
   useNavigate: () => vi.fn(),
 }))
 
+vi.mock("@/components/motion/CardEntrance", () => ({
+  CardEntrance: (props: { children: ReactNode; className?: string }) => (
+    <div className={props.className} data-entrance-animation="card-group">
+      {props.children}
+    </div>
+  ),
+  CardEntranceItem: (props: { children: ReactNode; className?: string }) => (
+    <div className={props.className} data-entrance-animation="card-item">
+      {props.children}
+    </div>
+  ),
+}))
+
 vi.mock("date-fns", () => ({
   formatDistanceToNow: () => "il y a un instant",
 }))
@@ -67,6 +99,14 @@ vi.mock("@/hooks/usePipelineStatus", async () => {
 
 vi.mock("@/hooks/usePipelineHistory", () => ({
   usePipelineHistory: () => pipelineHistoryState.value,
+}))
+
+vi.mock("@/hooks/useDatasets", () => ({
+  useDatasets: () => datasetsState.value,
+}))
+
+vi.mock("@/hooks/useReferences", () => ({
+  useReferences: () => referencesState.value,
 }))
 
 function buildPipelineStatus(
@@ -116,6 +156,32 @@ function buildPipelineStatus(
 }
 
 describe("dashboard redesign regressions", () => {
+  it("renders the empty-project onboarding without entrance animation wrappers", () => {
+    const html = renderToStaticMarkup(<OnboardingView />)
+
+    expect(html).toContain("Commencer votre projet")
+    expect(html).not.toContain("data-entrance-animation")
+  })
+
+  it("keeps the project hub shell stable while the inventory loads", () => {
+    datasetsState.value = {
+      data: undefined,
+      isLoading: true,
+      isFetching: true,
+    }
+    referencesState.value = {
+      data: undefined,
+      isLoading: true,
+      isFetching: true,
+    }
+
+    const html = renderToStaticMarkup(<ProjectHub />)
+
+    expect(html).toContain('data-stable-loading="page"')
+    expect(html).not.toContain("Commencer votre projet")
+    expect(html).not.toContain("animate-spin")
+  })
+
   it("keeps the dashboard in pending state until the first build exists", () => {
     pipelineStatusState.value = {
       data: buildPipelineStatus({

@@ -1,5 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import { PageTransition } from '@/components/motion/PageTransition'
+import { getRouteSurfaceKey } from '@/components/motion/routeSurfaceKey'
 import { useEffect, useLayoutEffect } from 'react'
 import { NavigationSidebar } from './NavigationSidebar'
 import { TopBar } from './TopBar'
@@ -45,10 +46,7 @@ export function MainLayout() {
   const { setBreadcrumbs } = useNavigationStore()
   const { isDesktop, isTauri, project } = useRuntimeMode()
   const desktopProjectScope = buildDesktopProjectScope(project)
-  const routeSurfaceKey = pathname.startsWith('/help/')
-    || pathname === '/help'
-    ? '/help'
-    : pathname
+  const routeSurfaceKey = getRouteSurfaceKey(pathname)
 
   useJobPolling()
   useShellBindings({ isDesktop, isTauri })
@@ -104,11 +102,11 @@ export function MainLayout() {
                 'transition-all duration-200'
               )}
             >
-              <FeedbackErrorBoundary key={routeSurfaceKey}>
-                <PageTransition transitionKey={routeSurfaceKey}>
+              <PageTransition transitionKey={routeSurfaceKey}>
+                <FeedbackErrorBoundary key={routeSurfaceKey}>
                   <Outlet />
-                </PageTransition>
-              </FeedbackErrorBoundary>
+                </FeedbackErrorBoundary>
+              </PageTransition>
             </main>
 
             {isDesktop && <DesktopStatusBar />}

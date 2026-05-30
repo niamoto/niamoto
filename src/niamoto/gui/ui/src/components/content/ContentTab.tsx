@@ -273,6 +273,16 @@ export function ContentTab({ reference }: ContentTabProps) {
     })
   }, [reference.name, refetchWidgets])
 
+  const handleWidgetProposalsApplied = useCallback(() => {
+    refetchWidgets()
+    handleBackToLayout()
+    setProposalWorkspaceState({
+      referenceName: reference.name,
+      open: false,
+      dismissedRouteRequestKey: routeProposalRequestKey,
+    })
+  }, [handleBackToLayout, reference.name, refetchWidgets, routeProposalRequestKey])
+
   const leftPanelRef = useRef<PanelImperativeHandle>(null)
   const [isCollapsed, setIsCollapsed] = useState(false)
 
@@ -420,7 +430,7 @@ export function ContentTab({ reference }: ContentTabProps) {
                 <WidgetProposalWorkspace
                   collectionName={reference.name}
                   onClose={handleCloseProposalWorkspace}
-                  onApplied={refetchWidgets}
+                  onApplied={handleWidgetProposalsApplied}
                 />
               ) : (
                 <ContentRightPanel

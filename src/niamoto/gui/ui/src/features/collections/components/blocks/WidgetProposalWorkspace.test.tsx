@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   WidgetProposal,
+  WidgetProposalApplyResponse,
   WidgetProposalGroups,
+  WidgetProposalPreviewResponse,
 } from '@/features/collections/api/widget-proposals'
 import { WidgetProposalWorkspace } from './WidgetProposalWorkspace'
 
@@ -51,9 +53,14 @@ describe('WidgetProposalWorkspace', () => {
     queryState.value.data = undefined
     queryState.value.isLoading = false
     queryState.value.error = null
+    queryState.value.refetch = vi.fn()
+    queryState.value.preview = vi.fn()
+    queryState.value.apply = vi.fn()
+    queryState.value.previewState = { isPending: false, error: null }
+    queryState.value.applyState = { isPending: false, error: null }
   })
 
-  async function renderWorkspace() {
+  async function renderWorkspace(props?: { onApplied?: () => void }) {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -63,7 +70,7 @@ describe('WidgetProposalWorkspace', () => {
         <WidgetProposalWorkspace
           collectionName="taxons"
           onClose={() => undefined}
-          onApplied={() => undefined}
+          onApplied={props?.onApplied ?? (() => undefined)}
         />,
       )
     })
@@ -126,6 +133,14 @@ describe('WidgetProposalWorkspace', () => {
         },
       },
     }
+  }
+
+  function deferred<T>() {
+    let resolve: (value: T) => void = () => undefined
+    const promise = new Promise<T>((nextResolve) => {
+      resolve = nextResolve
+    })
+    return { promise, resolve }
   }
 
   it('renders grouped recommended proposals and details', async () => {
@@ -282,5 +297,88 @@ describe('WidgetProposalWorkspace', () => {
     expect(rainfallCard?.parentElement?.className).not.toContain('2xl:grid-cols-2')
     expect(rainfallCard?.className).toContain('grid-cols-1')
     expect(rainfallCard?.className).not.toContain('grid-cols-[280px_minmax')
+  })
+
+  it('shows an adding state and closes the review dialog after applying widgets', async () => {
+    const onApplied = vi.fn()
+    const previewResponse: WidgetProposalPreviewResponse = {
+      collection: 'taxons',
+      writes_files: true,
+      preview_token: 'preview-token',
+      changes: [
+        {
+          proposal_id: 'wp_1',
+          widget_id: 'dbh_cm',
+          title: 'Dbh cm',
+          action: 'add',
+          transform_widget: {},
+          export_widget: {},
+        },
+      ],
+      conflicts: [],
+      invalid: [],
+    }
+    const applyResponse: WidgetProposalApplyResponse = {
+      collection: 'taxons',
+      success: true,
+      applied: previewResponse.changes,
+      skipped: [],
+      message: 'Applied 1 widget proposal(s).',
+      preview_token: 'preview-token',
+      written_files: ['transform.yml', 'export.yml'],
+      backup_files: [],
+    }
+    const pendingApply = deferred<WidgetProposalApplyResponse>()
+
+    queryState.value.data = {
+      collection: 'taxons',
+      recommended: [makeProposal({ id: 'wp_1', title: 'Dbh cm' })],
+      warnings: [],
+      missing_chart: [],
+      skipped: [],
+      already_configured: [],
+      review_only: [],
+      partial: false,
+      messages: [],
+    }
+    queryState.value.preview = vi.fn().mockResolvedValue(previewResponse)
+    queryState.value.apply = vi.fn().mockReturnValue(pendingApply.promise)
+
+    await renderWorkspace({ onApplied })
+
+    const reviewButton = [...container!.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Review and add'),
+    )
+    expect(reviewButton).toBeDefined()
+
+    await act(async () => {
+      reviewButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(document.body.textContent).toContain('Review changes before adding widgets')
+
+    const addButton = [...document.body.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Add widgets'),
+    ) as HTMLButtonElement | undefined
+    expect(addButton).toBeDefined()
+
+    await act(async () => {
+      addButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(document.body.textContent).toContain('Adding widgets')
+    expect(addButton?.disabled).toBe(true)
+
+    await act(async () => {
+      pendingApply.resolve(applyResponse)
+      await pendingApply.promise
+    })
+
+    expect(queryState.value.apply).toHaveBeenCalledWith({
+      selections: [{ proposal_id: 'wp_1' }],
+      previewToken: 'preview-token',
+    })
+    expect(onApplied).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).not.toContain('Review changes before adding widgets')
   })
 })

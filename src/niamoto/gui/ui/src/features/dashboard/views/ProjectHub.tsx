@@ -1,24 +1,30 @@
-import { Loader2 } from "lucide-react"
-
+import { StablePageSkeleton } from "@/components/loading/StableLoadingState"
+import { getStableQueryState } from "@/components/loading/stableQueryState"
 import { useDatasets } from "@/hooks/useDatasets"
 import { useReferences } from "@/hooks/useReferences"
 import { DashboardView } from "../components/DashboardView"
 import { OnboardingView } from "../components/OnboardingView"
 
 export default function ProjectHub() {
-  const { data: datasetsData, isLoading: datasetsLoading } = useDatasets()
-  const { data: referencesData, isLoading: referencesLoading } = useReferences()
+  const {
+    data: datasetsData,
+    isLoading: datasetsLoading,
+    isFetching: datasetsFetching,
+  } = useDatasets()
+  const {
+    data: referencesData,
+    isLoading: referencesLoading,
+    isFetching: referencesFetching,
+  } = useReferences()
 
-  const isInitialLoading =
-    (datasetsLoading && !datasetsData) ||
-    (referencesLoading && !referencesData)
+  const { isInitialLoading } = getStableQueryState({
+    isLoading: datasetsLoading || referencesLoading,
+    isFetching: datasetsFetching || referencesFetching,
+    hasData: Boolean(datasetsData && referencesData),
+  })
 
   if (isInitialLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    )
+    return <StablePageSkeleton />
   }
 
   const datasets = datasetsData?.datasets ?? []

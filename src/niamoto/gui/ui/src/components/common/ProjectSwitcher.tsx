@@ -68,16 +68,49 @@ export function ProjectSwitcher({ compact = false, className }: ProjectSwitcherP
     }
   };
 
-  if (loading && !currentProject) {
-    return null; // Don't show while initially loading
-  }
-
   const triggerHoverClass =
     'text-foreground hover:!bg-muted/60 hover:!text-foreground data-[state=open]:!bg-muted/60 data-[state=open]:!text-foreground';
   const menuItemHoverClass =
     'hover:!bg-muted/60 hover:!text-foreground focus:!bg-muted/60 focus:!text-foreground data-[highlighted]:!bg-muted/60 data-[highlighted]:!text-foreground';
   const currentMenuItemClass =
     'bg-muted/90 text-foreground shadow-none border-border/70 hover:!bg-muted focus:!bg-muted data-[highlighted]:!bg-muted hover:!text-foreground focus:!text-foreground data-[highlighted]:!text-foreground';
+  const loadingLabel = t('project.loading', 'Loading project...');
+
+  if (loading && !currentProject) {
+    return compact ? (
+      <Button
+        variant="outline"
+        size="icon"
+        className={cn(
+          'h-9 w-9 mx-auto',
+          triggerHoverClass,
+          className
+        )}
+        disabled
+        aria-busy="true"
+        title={loadingLabel}
+      >
+        <FolderOpen className="h-4 w-4" />
+      </Button>
+    ) : (
+      <Button
+        variant="outline"
+        className={cn(
+          'w-full justify-between',
+          triggerHoverClass,
+          className
+        )}
+        disabled
+        aria-busy="true"
+      >
+        <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+          <FolderOpen className="h-4 w-4 flex-shrink-0" />
+          <span className="truncate text-sm">{loadingLabel}</span>
+        </div>
+        <ChevronDown className="h-4 w-4 flex-shrink-0 opacity-50" />
+      </Button>
+    );
+  }
 
   return (
     <DropdownMenu>

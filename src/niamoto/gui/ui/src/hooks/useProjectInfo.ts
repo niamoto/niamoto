@@ -46,7 +46,7 @@ export function useProjectInfo() {
       const response = await axios.get('/api/config/project')
       return response.data
     },
-    refetchOnMount: 'always',
+    staleTime: 5 * 60_000,
     retry: 1,
   })
 }

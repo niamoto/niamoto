@@ -1,10 +1,10 @@
 /**
- * PageTransition — Subtle fade + slide for routed page content.
+ * PageTransition — Lightweight route polish without exit overlays.
  * Wraps the router outlet, not the entire shell.
  * Respects prefers-reduced-motion.
  */
 
-import { AnimatePresence, motion } from 'motion/react'
+import { motion } from 'motion/react'
 import { useLocation } from 'react-router-dom'
 import { useReducedMotion } from '@/components/motion/useReducedMotion'
 
@@ -25,20 +25,17 @@ export function PageTransition({
   }
 
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={transitionKey ?? location.pathname}
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -4 }}
-        transition={{
-          duration: 0.15,
-          ease: [0.22, 1, 0.36, 1],
-        }}
-        className="h-full"
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
+    <motion.div
+      key={transitionKey ?? location.pathname}
+      initial={{ opacity: 0.98, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.18,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+      className="h-full"
+    >
+      {children}
+    </motion.div>
   )
 }

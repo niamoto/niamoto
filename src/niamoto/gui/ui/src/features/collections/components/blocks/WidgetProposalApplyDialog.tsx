@@ -37,6 +37,7 @@ export function WidgetProposalApplyDialog({
 }: WidgetProposalApplyDialogProps) {
   const canApply =
     !loading &&
+    !applying &&
     Boolean(preview) &&
     preview!.conflicts.length === 0 &&
     preview!.invalid.length === 0 &&
@@ -61,7 +62,14 @@ export function WidgetProposalApplyDialog({
             </div>
           )}
 
-          {!loading && preview && (
+          {applying && (
+            <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Adding widgets
+            </div>
+          )}
+
+          {!loading && !applying && preview && (
             <div className="space-y-2">
               {preview.changes.map((change) => (
                 <div
@@ -82,13 +90,13 @@ export function WidgetProposalApplyDialog({
             </div>
           )}
 
-          {error && (
+          {!applying && error && (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
               {error.message}
             </div>
           )}
 
-          {result && (
+          {!applying && result && (
             <div className="rounded-md border bg-muted/30 p-3 text-sm">
               {result.message}
             </div>
@@ -96,12 +104,12 @@ export function WidgetProposalApplyDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" disabled={applying} onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button disabled={!canApply || applying} onClick={onApply}>
             {applying && <Loader2 className="h-4 w-4 animate-spin" />}
-            Add widgets
+            {applying ? 'Adding widgets' : 'Add widgets'}
           </Button>
         </DialogFooter>
       </DialogContent>

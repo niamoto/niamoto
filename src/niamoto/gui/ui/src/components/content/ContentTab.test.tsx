@@ -10,6 +10,10 @@ import type { ReferenceInfo } from '@/hooks/useReferences'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
+const widgetConfigState = vi.hoisted(() => ({
+  refetch: vi.fn(),
+}))
+
 vi.mock('@/components/ui/resizable', () => ({
   ResizableHandle: () => <div />,
   ResizablePanel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -25,14 +29,25 @@ vi.mock('@/components/widgets', () => ({
     deleteWidget: vi.fn(),
     duplicateWidget: vi.fn(),
     reorderWidgets: vi.fn(),
-    refetch: vi.fn(),
+    refetch: widgetConfigState.refetch,
   }),
   useSuggestions: () => ({ suggestions: [], loading: false }),
 }))
 
 vi.mock('@/features/collections/components/blocks/WidgetProposalWorkspace', () => ({
-  WidgetProposalWorkspace: ({ collectionName }: { collectionName: string }) => (
-    <div data-testid="widget-proposal-workspace">{collectionName}</div>
+  WidgetProposalWorkspace: ({
+    collectionName,
+    onApplied,
+  }: {
+    collectionName: string
+    onApplied: () => void
+  }) => (
+    <div data-testid="widget-proposal-workspace">
+      {collectionName}
+      <button type="button" onClick={onApplied}>
+        apply proposals
+      </button>
+    </div>
   ),
 }))
 
@@ -83,6 +98,7 @@ describe('ContentTab', () => {
     container?.remove()
     container = null
     root = null
+    widgetConfigState.refetch.mockClear()
   })
 
   it('opens widget proposals when requested by the route panel marker', async () => {
@@ -129,5 +145,34 @@ describe('ContentTab', () => {
 
     expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeTruthy()
     expect(container.textContent).toContain('taxons')
+  })
+
+  it('returns to the normal blocks preview after widget proposals are applied', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(
+        <MemoryRouter initialEntries={['/groups/taxons?panel=widget-proposals']}>
+          <ContentTab reference={reference} />
+        </MemoryRouter>,
+      )
+    })
+
+    expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeTruthy()
+
+    const applyButton = [...container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('apply proposals'),
+    )
+    expect(applyButton).toBeDefined()
+
+    await act(async () => {
+      applyButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(widgetConfigState.refetch).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeNull()
+    expect(container.querySelector('[data-testid="content-right-panel"]')).toBeTruthy()
   })
 })

@@ -35,6 +35,7 @@ export function WidgetProposalWorkspace({
   const [preview, setPreview] = useState<WidgetProposalPreviewResponse | null>(null)
   const [previewSelections, setPreviewSelections] = useState<WidgetProposalSelection[]>([])
   const [applyResult, setApplyResult] = useState<WidgetProposalApplyResponse | null>(null)
+  const [applyInFlight, setApplyInFlight] = useState(false)
   const previewRequestId = useRef(0)
 
   const groups = useMemo(() => {
@@ -108,6 +109,7 @@ export function WidgetProposalWorkspace({
     const requestId = previewRequestId.current + 1
     previewRequestId.current = requestId
     setApplyResult(null)
+    setApplyInFlight(false)
     setPreview(null)
     setPreviewSelections(nextSelections)
     setDialogOpen(true)
@@ -118,14 +120,23 @@ export function WidgetProposalWorkspace({
   }
 
   const applySelected = async () => {
-    if (!preview) return
-    const response = await query.apply({
-      selections: previewSelections,
-      previewToken: preview.preview_token,
-    })
-    setApplyResult(response)
-    if (response.success) {
-      onApplied()
+    if (!preview || applyInFlight) return
+    setApplyResult(null)
+    setApplyInFlight(true)
+    try {
+      const response = await query.apply({
+        selections: previewSelections,
+        previewToken: preview.preview_token,
+      })
+      setApplyResult(response)
+      if (response.success) {
+        onApplied()
+        setDialogOpen(false)
+        setPreview(null)
+        setPreviewSelections([])
+      }
+    } finally {
+      setApplyInFlight(false)
     }
   }
 
@@ -195,13 +206,16 @@ export function WidgetProposalWorkspace({
         open={dialogOpen}
         preview={preview}
         loading={query.previewState.isPending}
-        applying={query.applyState.isPending}
+        applying={applyInFlight || query.applyState.isPending}
         result={applyResult}
         error={
           (query.previewState.error as Error | null) ??
           (query.applyState.error as Error | null)
         }
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          if (applyInFlight && !open) return
+          setDialogOpen(open)
+        }}
         onApply={applySelected}
       />
     </div>
