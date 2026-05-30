@@ -11,6 +11,7 @@ from niamoto.core.plugins.transformers.aggregation.database_aggregator import (
     QueryConfig,
     ComputedFieldConfig,
     DatabaseAggregatorConfig,
+    ValidationConfig,
 )
 from niamoto.common.exceptions import DataValidationError
 
@@ -138,6 +139,23 @@ class TestDatabaseAggregatorPlugin:
 
         with pytest.raises(DataValidationError):
             plugin._execute_query("SELECT * FROM nonexistent_table")
+
+    def test_validate_database_state_quotes_required_table_names(self):
+        """required_tables must be treated as identifiers, not SQL fragments."""
+        plugin = self.plugin
+        mock_result = Mock()
+        mock_result.fetchone.return_value = (1,)
+        self.mock_session.execute.return_value = mock_result
+        self.plugin.db.engine.dialect.identifier_preparer.quote.side_effect = (
+            lambda name: f'"{name}"'
+        )
+
+        plugin._validate_database_state(
+            ValidationConfig(required_tables=["safe_table; DROP TABLE users"])
+        )
+
+        executed_sql = str(self.mock_session.execute.call_args.args[0])
+        assert 'FROM "safe_table; DROP TABLE users" LIMIT 1' in executed_sql
 
     def test_execute_template(self):
         """Test template-based query execution."""

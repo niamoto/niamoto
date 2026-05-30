@@ -88,13 +88,15 @@ class TransformCancelled(RuntimeError):
     """Raised inside the transform worker when a user cancels the job."""
 
 
-def _validate_transform_config_path(config_path: str) -> None:
+def _validate_transform_config_path(
+    config_path: str, working_directory: Path | None = None
+) -> None:
     """Allow transform execution only from the project transform.yml."""
     requested_path = Path(config_path)
     if requested_path.is_absolute() or ".." in requested_path.parts:
         raise HTTPException(status_code=400, detail="Invalid transform config path")
 
-    work_dir = get_working_directory()
+    work_dir = working_directory or get_working_directory()
     if not work_dir:
         raise HTTPException(status_code=500, detail="Working directory not set")
 
@@ -104,10 +106,16 @@ def _validate_transform_config_path(config_path: str) -> None:
         raise HTTPException(status_code=400, detail="Invalid transform config path")
 
 
-def get_transform_config(config_path: str) -> Dict[str, Any]:
+def get_transform_config(
+    config_path: str, working_directory: Path | None = None
+) -> Dict[str, Any]:
     """Load and parse transform configuration."""
-    _validate_transform_config_path(config_path)
-    path = get_config_path(config_path)
+    _validate_transform_config_path(config_path, working_directory)
+    path = (
+        (working_directory / config_path).resolve()
+        if working_directory is not None
+        else get_config_path(config_path)
+    )
 
     if not path.exists():
         raise HTTPException(
@@ -151,6 +159,8 @@ async def execute_transform_background(
     transformations: Optional[List[str]] = None,
     group_by: Optional[str] = None,
     group_bys: Optional[List[str]] = None,
+    working_directory: Optional[str] = None,
+    database_path: Optional[str] = None,
 ):
     """Execute transformations in the background."""
 
@@ -165,17 +175,28 @@ async def execute_transform_background(
         raise_if_cancelled()
 
         # Load configuration
-        config = get_transform_config(config_path)
+        work_dir = (
+            Path(working_directory).resolve()
+            if working_directory
+            else get_working_directory()
+        )
+        if not work_dir:
+            raise ValueError("Working directory not set")
+
+        config = (
+            get_transform_config(config_path, work_dir)
+            if working_directory
+            else get_transform_config(config_path)
+        )
 
         # Initialize transformer service
-        db_path = get_database_path()
+        db_path = Path(database_path) if database_path else get_database_path()
         if not db_path:
             raise ValueError(
                 "Database not found. Please ensure the database is initialized."
             )
 
         # Initialize Config with the correct config directory
-        work_dir = get_working_directory()
         config_dir = str(work_dir / "config")
         app_config = Config(config_dir=config_dir, create_default=False)
         transformer_service = TransformerService(
@@ -411,7 +432,9 @@ async def execute_transform(
     This starts a background job that processes the transformations
     defined in the transform.yml configuration file.
     """
-    _validate_transform_config_path(request.config_path)
+    work_dir = get_working_directory()
+    _validate_transform_config_path(request.config_path, work_dir)
+    db_path = get_database_path()
     job_store = _get_job_store(http_request)
 
     # Vérifier qu'aucun job n'est déjà en cours
@@ -440,6 +463,8 @@ async def execute_transform(
         request.transformations,
         request.group_by,
         request.group_bys,
+        str(work_dir.resolve()) if work_dir else None,
+        str(db_path) if db_path else None,
     )
 
     return TransformResponse(

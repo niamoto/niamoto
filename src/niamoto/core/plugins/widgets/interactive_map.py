@@ -16,6 +16,7 @@ from niamoto.core.plugins.widgets.plotly_utils import (
     render_plotly_figure,
     get_plotly_config,
     get_map_tile_fallback_script,
+    json_dumps_for_html_script,
 )
 
 
@@ -661,11 +662,11 @@ class InteractiveMapWidget(WidgetPlugin):
             // Use requestAnimationFrame to ensure smooth loading
             requestAnimationFrame(function() {{
                 // Embedded TopoJSON data
-                const niamotoTopoData = {json.dumps(topojson_data)};
+                const niamotoTopoData = {json_dumps_for_html_script(topojson_data)};
 
                 // Style configurations
-                const shapeStyle = {json.dumps(shape_style)};
-                const forestStyle = {json.dumps(forest_style)};
+                const shapeStyle = {json_dumps_for_html_script(shape_style)};
+                const forestStyle = {json_dumps_for_html_script(forest_style)};
 
                 // Create Plotly figure
                 const traces = [];
@@ -897,7 +898,7 @@ class InteractiveMapWidget(WidgetPlugin):
             mapConfig.style = "white-bg";
             mapConfig.layers = [{{
                 sourcetype: "raster",
-                source: ["{params.custom_tiles_url}"],
+                source: [{json_dumps_for_html_script(params.custom_tiles_url)}],
                 below: "traces"
             }}];
             '''
@@ -905,7 +906,7 @@ class InteractiveMapWidget(WidgetPlugin):
             ""
             if params.custom_tiles_url
             else f'''
-            mapConfig.style = "{params.map_style or "carto-positron"}";
+            mapConfig.style = {json_dumps_for_html_script(params.map_style or "carto-positron")};
             '''
         }
 

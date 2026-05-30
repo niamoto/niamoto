@@ -144,6 +144,54 @@ def test_execute_transform_rejects_unsandboxed_config_path_before_job_creation(
     assert job_store_called is False
 
 
+def test_execute_transform_queues_captured_project_paths(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    """Background transform jobs must use the project captured at queue time."""
+    project = tmp_path / "project-a"
+    config_dir = project / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "transform.yml").write_text("transforms: []\n", encoding="utf-8")
+    db_path = project / "db" / "niamoto.duckdb"
+    captured = {}
+
+    class CapturingBackgroundTasks:
+        def add_task(self, func, *args, **kwargs):
+            captured["func"] = func
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+
+    class DummyJobStore:
+        def get_running_job(self):
+            return None
+
+        def create_job(self, job_type, group_by=None, group_bys=None):
+            return {
+                "id": "job-1",
+                "started_at": "2026-04-12T09:00:00",
+            }
+
+    monkeypatch.setattr(transform_router, "get_working_directory", lambda: project)
+    monkeypatch.setattr(transform_router, "get_database_path", lambda: db_path)
+    monkeypatch.setattr(
+        transform_router, "_get_job_store", lambda _request: DummyJobStore()
+    )
+
+    request = transform_router.TransformRequest(config_path="config/transform.yml")
+    response = asyncio.run(
+        transform_router.execute_transform(
+            request,
+            CapturingBackgroundTasks(),
+            SimpleNamespace(app=SimpleNamespace()),
+        )
+    )
+
+    assert response.job_id == "job-1"
+    assert captured["func"] is transform_router.execute_transform_background
+    assert captured["args"][6] == str(project.resolve())
+    assert captured["args"][7] == str(db_path)
+
+
 @pytest.mark.anyio
 async def test_execute_transform_background_filters_requested_group_bys(
     monkeypatch: pytest.MonkeyPatch,

@@ -36,6 +36,10 @@ def test_build_codex_prompt_includes_baselines_and_allowed_paths(tmp_path):
     assert "regularisation globale" in prompt
 
 
+def test_default_allowed_paths_exclude_metric_evaluator():
+    assert "ml/scripts/eval/evaluate.py" not in DEFAULT_ALLOWED_PATHS
+
+
 def test_build_codex_prompt_allows_deferred_stack_baseline(tmp_path):
     cache_dir = tmp_path / "cache"
     prompt = build_codex_prompt(

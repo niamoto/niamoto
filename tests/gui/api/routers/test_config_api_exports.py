@@ -1530,6 +1530,39 @@ def test_api_export_preview_get_route_uses_saved_group_config(monkeypatch):
     assert payload["metadata"]["source_record_id"] == 7
 
 
+def test_api_export_preview_get_route_rejects_unsaved_group(monkeypatch):
+    monkeypatch.setattr(
+        config_router,
+        "_load_export_config",
+        lambda: {
+            "exports": [
+                {
+                    "name": "json_api",
+                    "exporter": "json_api_exporter",
+                    "params": {"output_dir": "exports/json_api"},
+                    "groups": [],
+                }
+            ]
+        },
+    )
+
+    def fail_load_preview_item(*_args, **_kwargs):
+        raise AssertionError("preview should not read tables for unsaved groups")
+
+    monkeypatch.setattr(
+        config_router, "_load_api_export_preview_item", fail_load_preview_item
+    )
+
+    response = TestClient(create_app()).get(
+        "/api/config/export/api-targets/json_api/groups/internal_table/preview"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == (
+        "API export group 'internal_table' is not saved"
+    )
+
+
 def test_api_export_preview_route_applies_dwc_transformer_for_detail(monkeypatch):
     monkeypatch.setattr(
         config_router,

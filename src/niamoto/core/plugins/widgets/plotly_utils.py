@@ -6,6 +6,7 @@ including consistent configuration and styling.
 """
 
 import colorsys
+import json
 from typing import Any, Dict, List, Set
 
 # Plotly bundle paths for the exported site.
@@ -28,6 +29,16 @@ MUTED_CHART_COLORS = [
     "#a36f82",
     "#7f7f72",
 ]
+
+
+def escape_json_for_html_script(json_text: str) -> str:
+    """Escape JSON text before embedding it in an inline script block."""
+    return json_text.replace("</", "<\\/")
+
+
+def json_dumps_for_html_script(value: Any) -> str:
+    """Serialize a value as JSON safe for inline script embedding."""
+    return escape_json_for_html_script(json.dumps(value))
 
 
 def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
@@ -340,11 +351,8 @@ def render_plotly_figure(
 
     div_id = str(uuid.uuid4())
 
-    # Get the JSON representation of the figure
-    import json
-
-    fig_json = fig.to_json()
-    config_json = json.dumps(plotly_config)
+    fig_json = escape_json_for_html_script(fig.to_json())
+    config_json = json_dumps_for_html_script(plotly_config)
 
     # Create HTML that waits for Plotly to be loaded
     is_map_js = "true" if is_map else "false"

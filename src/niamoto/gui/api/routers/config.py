@@ -3216,9 +3216,12 @@ async def preview_saved_api_export_group_config(
             )
 
         saved_group = deepcopy(_find_target_group(export_target, group_by))
-        group_payload = saved_group or _build_default_api_group_config(
-            export_name, group_by
-        )
+        if saved_group is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"API export group '{group_by}' is not saved",
+            )
+        group_payload = saved_group
         request = ApiExportPreviewRequest.model_validate(
             {**group_payload, "section": section}
         )

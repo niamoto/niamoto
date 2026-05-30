@@ -61,8 +61,8 @@ class TestCreateApp:
         # CORSMiddleware should be wrapped in a callable
         assert len(app.user_middleware) > 0
 
-    def test_cors_allows_null_origin_for_desktop_iframes(self):
-        """Packaged desktop previews use origin null and must pass CORS."""
+    def test_cors_rejects_null_origin(self):
+        """Sandboxed previews with origin null must not read GUI APIs via CORS."""
         app = create_app()
         client = TestClient(app)
 
@@ -74,8 +74,8 @@ class TestCreateApp:
             },
         )
 
-        assert response.status_code == 200
-        assert response.headers["access-control-allow-origin"] == "null"
+        assert response.status_code == 400
+        assert "access-control-allow-origin" not in response.headers
 
     def test_configured_cors_origins_ignore_wildcards_and_untrusted_hosts(
         self, monkeypatch

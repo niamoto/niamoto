@@ -62,6 +62,23 @@ def test_list_collections_returns_reviewable_candidates(
     ]
 
 
+def test_list_collections_maps_invalid_metadata_to_client_error(
+    gui_duckdb_client, gui_duckdb_context
+):
+    import_path = gui_duckdb_context / "config" / "import.yml"
+    import_config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    import_config["metadata"] = {"collections": {"taxons": {"review_status": "done"}}}
+    import_path.write_text(
+        yaml.safe_dump(import_config, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.get("/api/collections")
+
+    assert response.status_code == 400
+    assert "Invalid review_status for collection 'taxons'" in response.json()["detail"]
+
+
 def test_update_collection_review_state_persists_metadata(
     gui_duckdb_client, gui_duckdb_context
 ):
@@ -121,6 +138,18 @@ def test_update_collection_rejects_unknown_fields_without_saving(
     assert import_path.read_text(encoding="utf-8") == original
 
 
+def test_update_collection_missing_name_returns_unquoted_detail(
+    gui_duckdb_client,
+):
+    response = gui_duckdb_client.patch(
+        "/api/collections/missing",
+        json={"review_status": "accepted"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Collection 'missing' not found"
+
+
 def test_create_manual_collection_from_dataset_persists_non_page_collection(
     gui_duckdb_client, gui_duckdb_context
 ):
@@ -151,6 +180,28 @@ def test_create_manual_collection_from_dataset_persists_non_page_collection(
         "type": "dataset",
         "name": "occurrences",
     }
+
+
+def test_create_manual_collection_rejects_unknown_fields_without_writing(
+    gui_duckdb_client, gui_duckdb_context
+):
+    import_path = gui_duckdb_context / "config" / "import.yml"
+    before = import_path.read_text(encoding="utf-8")
+
+    response = gui_duckdb_client.post(
+        "/api/collections",
+        json={
+            "name": "occurrence_records",
+            "source_type": "dataset",
+            "source_name": "occurrences",
+            "grain": "occurrence",
+            "roles": ["api"],
+            "review_status": "accepted",
+        },
+    )
+
+    assert response.status_code == 422
+    assert import_path.read_text(encoding="utf-8") == before
 
 
 def test_concurrent_collection_creates_preserve_both_metadata_entries(monkeypatch):
@@ -227,6 +278,77 @@ def test_concurrent_collection_creates_preserve_both_metadata_entries(monkeypatc
     assert errors == []
     saved_collections = current_import_config["metadata"]["collections"]
     assert set(saved_collections) == {"first_collection", "second_collection"}
+
+
+def test_collection_data_options_waits_for_collection_config_lock(monkeypatch):
+    collection_write_lock = TrackingRLock()
+    save_entered = threading.Event()
+    release_save = threading.Event()
+    read_entered = threading.Event()
+    errors: list[BaseException] = []
+
+    class FakeCatalogService:
+        def __init__(self):
+            self.import_config = {"metadata": {"collections": {}}}
+
+        def create_collection(self, **payload):
+            self.import_config["metadata"]["collections"][payload["name"]] = payload
+            return {"name": payload["name"]}
+
+    class FakeDataOptionsService:
+        def get_options(self, collection_name: str):
+            read_entered.set()
+            return {"collection": collection_name}
+
+    def fake_save_service_config(service):
+        save_entered.set()
+        release_save.wait(timeout=2)
+
+    monkeypatch.setattr(collections, "_catalog_service", FakeCatalogService)
+    monkeypatch.setattr(collections, "_data_options_service", FakeDataOptionsService)
+    monkeypatch.setattr(collections, "_save_service_config", fake_save_service_config)
+    monkeypatch.setattr(collections, "COLLECTION_CONFIG_LOCK", collection_write_lock)
+
+    def create():
+        try:
+            asyncio.run(
+                collections.create_collection(
+                    collections.CollectionCreateRequest(
+                        name="occurrence_records",
+                        source_type="dataset",
+                        source_name="occurrences",
+                        grain="occurrence",
+                        roles=["api"],
+                    )
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    def read_options():
+        try:
+            asyncio.run(collections.get_collection_data_options("occurrence_records"))
+        except BaseException as exc:
+            errors.append(exc)
+
+    writer = threading.Thread(target=create)
+    reader = threading.Thread(target=read_options)
+
+    writer.start()
+    assert save_entered.wait(timeout=2)
+    reader.start()
+
+    assert collection_write_lock.contended_acquire.wait(timeout=2)
+    assert not read_entered.is_set()
+
+    release_save.set()
+    writer.join(timeout=2)
+    reader.join(timeout=2)
+
+    assert not writer.is_alive()
+    assert not reader.is_alive()
+    assert read_entered.is_set()
+    assert errors == []
 
 
 def test_create_manual_collection_rejects_unknown_source_without_writing(

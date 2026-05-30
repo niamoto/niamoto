@@ -20,6 +20,10 @@ async def _collect_lines(generator):
     return [line async for line in generator]
 
 
+async def _async_default_branch(branch: str):
+    return branch, None
+
+
 class _FakeGitHubResponse:
     def __init__(self, status_code: int = 200, payload: dict | None = None):
         self.status_code = status_code
@@ -79,6 +83,11 @@ def test_github_deployer_pushes_exports_with_local_git(monkeypatch):
             "_configure_git_credentials",
             staticmethod(lambda credential_file, owner, repo, token: None),
         )
+        monkeypatch.setattr(
+            GitHubDeployer,
+            "_get_repository_default_branch",
+            staticmethod(lambda owner, repo, token: _async_default_branch("main")),
+        )
 
         deployer = GitHubDeployer()
         config = DeployConfig(
@@ -130,6 +139,11 @@ def test_github_deployer_blocks_large_api_fallback_without_git(monkeypatch):
         monkeypatch.setattr(
             "niamoto.core.plugins.deployers.github.shutil.which", lambda name: None
         )
+        monkeypatch.setattr(
+            GitHubDeployer,
+            "_get_repository_default_branch",
+            staticmethod(lambda owner, repo, token: _async_default_branch("main")),
+        )
 
         deployer = GitHubDeployer()
         config = DeployConfig(
@@ -143,6 +157,114 @@ def test_github_deployer_blocks_large_api_fallback_without_git(monkeypatch):
 
         assert any("Git is not available on this system" in line for line in lines)
         assert any(line.strip() == "data: DONE" for line in lines)
+
+
+def test_github_deployer_refuses_dangerous_deploy_branch(monkeypatch, tmp_path):
+    exports_dir = tmp_path / "exports"
+    exports_dir.mkdir()
+    (exports_dir / "index.html").write_text("ok", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.github.CredentialService.get",
+        lambda platform, key: "github_pat_test",
+    )
+
+    deployer = GitHubDeployer()
+    config = DeployConfig(
+        platform="github",
+        exports_dir=exports_dir,
+        project_name="niamoto-test",
+        extra={"repo": "arsis-dev/niamoto-test", "branch": "main"},
+    )
+
+    lines = asyncio.run(_collect_lines(deployer.deploy(config)))
+
+    assert any(
+        "Refusing to deploy to protected branch 'main'" in line for line in lines
+    )
+    assert lines[-1].strip() == "data: DONE"
+
+
+def test_github_deployer_refuses_repository_default_deploy_branch(
+    monkeypatch, tmp_path
+):
+    exports_dir = tmp_path / "exports"
+    exports_dir.mkdir()
+    (exports_dir / "index.html").write_text("ok", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.github.CredentialService.get",
+        lambda platform, key: "github_pat_test",
+    )
+    monkeypatch.setattr(
+        GitHubDeployer,
+        "_get_repository_default_branch",
+        staticmethod(lambda owner, repo, token: _async_default_branch("production")),
+    )
+
+    deployer = GitHubDeployer()
+    config = DeployConfig(
+        platform="github",
+        exports_dir=exports_dir,
+        project_name="niamoto-test",
+        extra={"repo": "arsis-dev/niamoto-test", "branch": "refs/heads/production"},
+    )
+
+    lines = asyncio.run(_collect_lines(deployer.deploy(config)))
+
+    assert any(
+        "Refusing to deploy to protected branch 'production'" in line for line in lines
+    )
+    assert lines[-1].strip() == "data: DONE"
+
+
+def test_github_deployer_refuses_dangerous_unpublish_branch(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.github.CredentialService.get",
+        lambda platform, key: "github_pat_test",
+    )
+
+    deployer = GitHubDeployer()
+    config = DeployConfig(
+        platform="github",
+        exports_dir=tmp_path,
+        project_name="niamoto-test",
+        extra={"repo": "arsis-dev/niamoto-test", "branch": "main"},
+    )
+
+    lines = asyncio.run(_collect_lines(deployer.unpublish(config)))
+
+    assert any("Refusing to delete protected branch 'main'" in line for line in lines)
+    assert lines[-1].strip() == "data: DONE"
+
+
+def test_github_deployer_refuses_repository_default_unpublish_branch(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.github.CredentialService.get",
+        lambda platform, key: "github_pat_test",
+    )
+    monkeypatch.setattr(
+        GitHubDeployer,
+        "_get_repository_default_branch",
+        staticmethod(lambda owner, repo, token: _async_default_branch("production")),
+    )
+
+    deployer = GitHubDeployer()
+    config = DeployConfig(
+        platform="github",
+        exports_dir=tmp_path,
+        project_name="niamoto-test",
+        extra={"repo": "arsis-dev/niamoto-test", "branch": "production"},
+    )
+
+    lines = asyncio.run(_collect_lines(deployer.unpublish(config)))
+
+    assert any(
+        "Refusing to delete protected branch 'production'" in line for line in lines
+    )
+    assert lines[-1].strip() == "data: DONE"
 
 
 def test_github_deployer_api_fallback_preserves_nojekyll(monkeypatch):
@@ -295,6 +417,11 @@ def test_github_deployer_unpublish_reports_network_errors(monkeypatch, tmp_path)
     monkeypatch.setattr(
         "niamoto.core.plugins.deployers.github.httpx.AsyncClient",
         FailingAsyncClient,
+    )
+    monkeypatch.setattr(
+        GitHubDeployer,
+        "_get_repository_default_branch",
+        staticmethod(lambda owner, repo, token: _async_default_branch("main")),
     )
 
     deployer = GitHubDeployer()

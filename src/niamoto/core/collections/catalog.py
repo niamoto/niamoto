@@ -92,7 +92,10 @@ class CollectionCatalogService:
         normalized = self._normalized_update(updates)
 
         metadata = self._ensure_collection_metadata()
-        entry = metadata.setdefault(name, {})
+        entry = metadata.get(name)
+        if not isinstance(entry, dict):
+            entry = {}
+            metadata[name] = entry
         entry.update(normalized)
         return self.get_collection(name)
 

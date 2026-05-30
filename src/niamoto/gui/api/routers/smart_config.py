@@ -593,10 +593,20 @@ async def _handle_zip_upload(
             # Create subdirectory for shapefile components
             shapefile_name = Path(filename).stem
             shapefile_dir = target_dir / shapefile_name
+            if shapefile_dir.is_symlink():
+                raise ValueError(f"Archive destination is a symlink: {shapefile_name}")
             shapefile_dir.mkdir(exist_ok=True)
 
             # Copy extracted files
+            target_dir_resolved = target_dir.resolve()
             shapefile_dir_resolved = shapefile_dir.resolve()
+            try:
+                shapefile_dir_resolved.relative_to(target_dir_resolved)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Archive destination escapes imports directory: {shapefile_name}"
+                ) from exc
+
             for extracted_file in extracted_files:
                 dest = shapefile_dir / extracted_file.name
                 try:

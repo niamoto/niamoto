@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import logging
+import uuid
 
 from niamoto.common.database import Database
 from niamoto.common.utils import error_handler
@@ -21,6 +22,7 @@ from niamoto.core.imports.config_models import (
     DatasetEntityConfig,
     ConnectorType,
 )
+from niamoto.common.table_resolver import quote_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -125,10 +127,6 @@ class ImporterService:
                         f"Ensure datasets are imported before derived references.",
                     )
 
-                if reset_table and self.db.has_table(table_name):
-                    self.db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
-                    logger.info(f"Dropped existing table: {table_name}")
-
                 # 2. Import via hierarchy builder
                 result = self.engine.import_derived_reference(
                     entity_name=name,
@@ -161,10 +159,6 @@ class ImporterService:
                     source_copy = source.model_copy(update={"path": str(resolved_path)})
                     resolved_sources.append(source_copy)
 
-                if reset_table and self.db.has_table(table_name):
-                    self.db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
-                    logger.info(f"Dropped existing table: {table_name}")
-
                 # Import via multi-feature engine
                 result = self.engine.import_multi_feature(
                     entity_name=name,
@@ -192,25 +186,28 @@ class ImporterService:
                         details={"path": str(source_path)},
                     )
 
-                if reset_table and self.db.has_table(table_name):
-                    self.db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
-                    logger.info(f"Dropped existing table: {table_name}")
-
+                # reset_table intentionally does not drop here. The generic
+                # importer stages replacements and restores the old table if
+                # any later import step fails.
                 # Import using generic engine
-                result = self.engine.import_from_csv(
-                    entity_name=name,
-                    table_name=table_name,
-                    source_path=str(source_path),
-                    kind=kind,
-                    id_field=config.schema.id_field if config.schema else None,
-                    extra_config={
-                        "hierarchy": config.hierarchy.model_dump()
-                        if config.hierarchy
-                        else None,
-                        "enrichment": [e.model_dump() for e in config.enrichment]
-                        if config.enrichment
-                        else [],
-                    },
+                result = self._run_with_reset_backup(
+                    table_name,
+                    reset_table,
+                    lambda: self.engine.import_from_csv(
+                        entity_name=name,
+                        table_name=table_name,
+                        source_path=str(source_path),
+                        kind=kind,
+                        id_field=config.schema.id_field if config.schema else None,
+                        extra_config={
+                            "hierarchy": config.hierarchy.model_dump()
+                            if config.hierarchy
+                            else None,
+                            "enrichment": [e.model_dump() for e in config.enrichment]
+                            if config.enrichment
+                            else [],
+                        },
+                    ),
                 )
 
                 return f"Imported {result.rows} records into {table_name} from {source_path.name}"
@@ -271,24 +268,28 @@ class ImporterService:
             # Build table name
             table_name = f"dataset_{name}"
 
-            # Reset table if requested
-            if reset_table and self.db.has_table(table_name):
-                self.db.execute_sql(f"DROP TABLE IF EXISTS {table_name}")
-                logger.info(f"Dropped existing table: {table_name}")
-
+            # reset_table intentionally does not drop here. The generic importer
+            # stages replacements and restores the old table if any later import
+            # step fails.
             # Import using generic engine
-            result = self.engine.import_from_csv(
-                entity_name=name,
-                table_name=table_name,
-                source_path=str(source_path),
-                kind=EntityKind.DATASET,
-                id_field=config.schema.id_field if config.schema else None,
-                extra_config={
-                    "links": [link.model_dump() for link in config.links]
-                    if config.links
-                    else [],
-                    "options": config.options.model_dump() if config.options else {},
-                },
+            result = self._run_with_reset_backup(
+                table_name,
+                reset_table,
+                lambda: self.engine.import_from_csv(
+                    entity_name=name,
+                    table_name=table_name,
+                    source_path=str(source_path),
+                    kind=EntityKind.DATASET,
+                    id_field=config.schema.id_field if config.schema else None,
+                    extra_config={
+                        "links": [link.model_dump() for link in config.links]
+                        if config.links
+                        else [],
+                        "options": config.options.model_dump()
+                        if config.options
+                        else {},
+                    },
+                ),
             )
 
             return f"Imported {result.rows} records into {table_name} from {source_path.name}"
@@ -393,6 +394,59 @@ class ImporterService:
             visit(ref_name)
 
         return ordered
+
+    def _run_with_reset_backup(self, table_name: str, reset_table: bool, operation):
+        """Run a reset import with a restorable copy of the previous table."""
+        backup_table = self._create_reset_backup(table_name, reset_table)
+        try:
+            result = operation()
+        except Exception:
+            self._restore_reset_backup(table_name, backup_table)
+            raise
+        else:
+            self._drop_reset_backup(backup_table)
+            return result
+
+    def _create_reset_backup(self, table_name: str, reset_table: bool) -> str | None:
+        if not reset_table or not self.db.has_table(table_name):
+            return None
+
+        backup_table = self._reset_backup_table_name(table_name)
+        quoted_table = quote_identifier(self.db, table_name)
+        quoted_backup = quote_identifier(self.db, backup_table)
+        self.db.execute_sql(
+            f"CREATE TABLE {quoted_backup} AS SELECT * FROM {quoted_table}"
+        )
+        self.db.invalidate_table_names_cache()
+        return backup_table
+
+    def _restore_reset_backup(self, table_name: str, backup_table: str | None) -> None:
+        if not backup_table:
+            return
+
+        quoted_table = quote_identifier(self.db, table_name)
+        quoted_backup = quote_identifier(self.db, backup_table)
+        self.db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
+        self.db.execute_sql(
+            f"CREATE TABLE {quoted_table} AS SELECT * FROM {quoted_backup}"
+        )
+        self.db.execute_sql(f"DROP TABLE IF EXISTS {quoted_backup}")
+        self.db.invalidate_table_names_cache()
+
+    def _drop_reset_backup(self, backup_table: str | None) -> None:
+        if not backup_table:
+            return
+
+        quoted_backup = quote_identifier(self.db, backup_table)
+        self.db.execute_sql(f"DROP TABLE IF EXISTS {quoted_backup}")
+        self.db.invalidate_table_names_cache()
+
+    @staticmethod
+    def _reset_backup_table_name(table_name: str) -> str:
+        safe_name = "".join(
+            char if char.isalnum() or char == "_" else "_" for char in table_name
+        )
+        return f"__niamoto_reset_{safe_name[:24]}_{uuid.uuid4().hex[:12]}"
 
     @error_handler(log=True, raise_error=True)
     def import_all(

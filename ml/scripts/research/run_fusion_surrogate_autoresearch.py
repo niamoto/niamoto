@@ -26,7 +26,6 @@ DEFAULT_ALLOWED_UNTRACKED = {"ml-detection-dashboard.html"}
 DEFAULT_ALLOWED_PATHS = (
     "ml/scripts/train/train_fusion.py",
     "src/niamoto/core/imports/ml/classifier.py",
-    "ml/scripts/eval/evaluate.py",
 )
 DEFAULT_PROMOTIONS_FILENAME = "fusion-surrogate-promotions.jsonl"
 PROMPT_HISTORY_LIMIT = 10

@@ -58,6 +58,8 @@ class CollectionUpdateRequest(BaseModel):
 class CollectionCreateRequest(BaseModel):
     """Payload for creating a manual collection."""
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(min_length=1)
     source_type: CollectionSourceType
     source_name: str = Field(min_length=1)
@@ -122,7 +124,10 @@ def _raise_catalog_error(exc: ValueError) -> NoReturn:
 @router.get("", response_model=CollectionCatalog)
 async def list_collections() -> CollectionCatalog:
     """List reviewable collection candidates and manual source options."""
-    return _catalog_service().list_collections()
+    try:
+        return _catalog_service().list_collections()
+    except ValueError as exc:
+        _raise_catalog_error(exc)
 
 
 @router.get(
@@ -133,11 +138,12 @@ async def get_collection_data_options(
     collection_name: str,
 ) -> CollectionDataOptionsResponse:
     """Return configured and available reusable data outputs for a collection."""
-    try:
-        return _data_options_service().get_options(collection_name)
-    except KeyError as exc:
-        message = str(exc.args[0]) if exc.args else str(exc)
-        raise HTTPException(status_code=404, detail=message) from exc
+    with COLLECTION_CONFIG_LOCK:
+        try:
+            return _data_options_service().get_options(collection_name)
+        except KeyError as exc:
+            message = str(exc.args[0]) if exc.args else str(exc)
+            raise HTTPException(status_code=404, detail=message) from exc
 
 
 @router.get(
@@ -217,7 +223,8 @@ async def update_collection(
         try:
             collection = service.update_collection(collection_name, **payload)
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            message = str(exc.args[0]) if exc.args else str(exc)
+            raise HTTPException(status_code=404, detail=message) from exc
         except ValueError as exc:
             _raise_catalog_error(exc)
         _save_service_config(service)

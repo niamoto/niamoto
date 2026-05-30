@@ -171,6 +171,7 @@ def test_transform_only_groups_are_exposed_as_technical_candidates():
 
     collections = {item.name: item for item in service.list_collections().collections}
 
+    assert collections["taxons"].source_type == "reference"
     assert collections["plot_stats"].source_type == "transform_group"
     assert collections["plot_stats"].roles == ["technical"]
     assert collections["plot_stats"].visible is False
@@ -187,15 +188,15 @@ def test_list_sources_includes_references_datasets_and_transform_groups():
         ],
     )
 
-    sources = {(source.type, source.name) for source in service.list_sources()}
+    sources = [(source.type, source.name) for source in service.list_sources()]
 
-    assert sources == {
+    assert sources == [
         ("reference", "taxons"),
         ("reference", "plots"),
         ("dataset", "occurrences"),
         ("transform_group", "taxons"),
         ("transform_group", "plot_stats"),
-    }
+    ]
 
 
 def test_update_collection_validates_roles_and_review_status():
@@ -225,6 +226,19 @@ def test_update_collection_validates_roles_and_review_status():
         assert "review_status must be one of" in str(exc)
     else:
         raise AssertionError("Expected invalid review_status to be rejected")
+
+
+def test_update_collection_repairs_non_dict_metadata_overlay():
+    import_config = _import_config()
+    import_config["metadata"] = {"collections": {"taxons": "legacy scalar"}}
+    service = CollectionCatalogService(import_config=import_config)
+
+    updated = service.update_collection("taxons", label="Accepted taxons")
+
+    assert updated.label == "Accepted taxons"
+    assert import_config["metadata"]["collections"]["taxons"] == {
+        "label": "Accepted taxons"
+    }
 
 
 def test_get_collection_rejects_missing_name():

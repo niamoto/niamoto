@@ -389,6 +389,35 @@ class TestUploadFiles:
         assert outside_file.read_bytes() == b"outside data"
         assert symlink_component.is_symlink()
 
+    def test_upload_zip_rejects_symlinked_extraction_directory(
+        self, test_client: TestClient, tmp_path: Path, working_directory: Path
+    ):
+        """ZIP extraction must not write through a symlinked target directory."""
+        outside_dir = tmp_path / "outside"
+        outside_dir.mkdir()
+        symlink_dir = working_directory / "imports" / "data"
+        try:
+            symlink_dir.symlink_to(outside_dir, target_is_directory=True)
+        except OSError:
+            pytest.skip("Symlinks are not supported on this platform")
+
+        zip_path = tmp_path / "data.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("plots.shp", b"replacement shapefile")
+
+        with open(zip_path, "rb") as f:
+            response = test_client.post(
+                "/api/smart/upload-files?overwrite=true",
+                files={"files": ("data.zip", f, "application/zip")},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["uploaded_files"] == []
+        assert data["errors"]
+        assert not (outside_dir / "plots.shp").exists()
+        assert symlink_dir.is_symlink()
+
     def test_upload_zip_rejects_oversized_extracted_content(
         self,
         test_client: TestClient,

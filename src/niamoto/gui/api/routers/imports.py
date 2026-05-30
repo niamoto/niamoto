@@ -2,6 +2,7 @@
 
 import logging
 import traceback
+from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Form, Query, Request
 from fastapi.encoders import jsonable_encoder
@@ -212,6 +213,24 @@ def _working_directory_key(work_dir: Any) -> str:
         return str(work_dir)
 
 
+def _resolve_import_work_dir(
+    job: Dict[str, Any], working_directory: Optional[str] = None
+) -> Path:
+    if working_directory:
+        return Path(working_directory).resolve()
+
+    stored_working_directory = job.get("working_directory")
+    if stored_working_directory:
+        return Path(str(stored_working_directory)).resolve()
+
+    from ..context import get_working_directory
+
+    work_dir = get_working_directory()
+    if not work_dir:
+        raise ValueError("Working directory not set")
+    return Path(work_dir).resolve()
+
+
 def _find_active_import_all_job(working_directory: str) -> Dict[str, Any] | None:
     for job in import_jobs.values():
         if (
@@ -360,6 +379,7 @@ async def execute_import_all(
         process_generic_import_all,
         job_id,
         reset_table,
+        working_directory,
     )
 
     return ImportJobResponse(
@@ -421,6 +441,7 @@ async def execute_import_reference(
         entity_name,
         "reference",
         reset_table,
+        working_directory,
     )
 
     return ImportJobResponse(
@@ -482,6 +503,7 @@ async def execute_import_dataset(
         entity_name,
         "dataset",
         reset_table,
+        working_directory,
     )
 
     return ImportJobResponse(
@@ -769,7 +791,7 @@ async def get_import_status() -> ImportStatusResponse:
         with open_database(config.database_path) as db:
             registry = EntityRegistry(db)
 
-            for entity in registry.list_all():
+            for entity in registry.list_entities():
                 row_count = 0
                 is_imported = False
 
@@ -816,11 +838,11 @@ async def get_import_status() -> ImportStatusResponse:
 async def process_generic_import_all(
     job_id: str,
     reset_table: bool,
+    working_directory: Optional[str] = None,
 ):
     """Process generic import of all entities in background."""
     import asyncio
     from niamoto.common.progress import set_progress_mode
-    from ..context import get_working_directory
 
     # Disable progress bars in API mode
     set_progress_mode(use_progress_bar=False)
@@ -843,10 +865,8 @@ async def process_generic_import_all(
             ),
         )
 
-        # Get config and create importer using working directory
-        work_dir = get_working_directory()
-        if not work_dir:
-            raise ValueError("Working directory not set")
+        # Get config and create importer using the queued working directory.
+        work_dir = _resolve_import_work_dir(job, working_directory)
 
         config_dir = str(work_dir / "config")
         config = Config(config_dir=config_dir, create_default=False)
@@ -1086,11 +1106,11 @@ async def process_generic_import_entity(
     entity_name: str,
     entity_type: str,  # 'reference' or 'dataset'
     reset_table: bool,
+    working_directory: Optional[str] = None,
 ):
     """Process generic import of a single entity in background."""
     import asyncio
     from niamoto.common.progress import set_progress_mode
-    from ..context import get_working_directory
 
     # Disable progress bars in API mode
     set_progress_mode(use_progress_bar=False)
@@ -1120,10 +1140,8 @@ async def process_generic_import_entity(
             ),
         )
 
-        # Get config and create importer using working directory
-        work_dir = get_working_directory()
-        if not work_dir:
-            raise ValueError("Working directory not set")
+        # Get config and create importer using the queued working directory.
+        work_dir = _resolve_import_work_dir(job, working_directory)
 
         config_dir = str(work_dir / "config")
         config = Config(config_dir=config_dir, create_default=False)

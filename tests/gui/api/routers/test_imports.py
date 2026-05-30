@@ -89,7 +89,7 @@ def test_get_import_status_classifies_references_and_datasets(monkeypatch, tmp_p
         def __init__(self, db):
             assert isinstance(db, FakeDB)
 
-        def list_all(self):
+        def list_entities(self):
             return [
                 SimpleNamespace(
                     name="taxons",
@@ -117,6 +117,58 @@ def test_get_import_status_classifies_references_and_datasets(monkeypatch, tmp_p
     assert payload["references"][0]["row_count"] == 3
     assert [item["entity_name"] for item in payload["datasets"]] == ["occurrences"]
     assert payload["datasets"][0]["row_count"] == 10
+
+
+def test_execute_import_all_queues_captured_working_directory(monkeypatch, tmp_path):
+    """Background import-all jobs must use the project captured at queue time."""
+    project = tmp_path / "project-a"
+    project.mkdir()
+    captured = {}
+
+    class CapturingBackgroundTasks:
+        def add_task(self, func, *args, **kwargs):
+            captured["func"] = func
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: project
+    )
+
+    response = asyncio.run(
+        imports.execute_import_all(_request(), CapturingBackgroundTasks())
+    )
+
+    assert response.status == "pending"
+    assert captured["func"] is imports.process_generic_import_all
+    assert captured["args"][2] == str(project.resolve())
+
+
+def test_execute_import_entity_queues_captured_working_directory(monkeypatch, tmp_path):
+    """Single-entity imports must not resolve the mutable current project later."""
+    project = tmp_path / "project-a"
+    project.mkdir()
+    captured = {}
+
+    class CapturingBackgroundTasks:
+        def add_task(self, func, *args, **kwargs):
+            captured["func"] = func
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: project
+    )
+
+    response = asyncio.run(
+        imports.execute_import_dataset(
+            _request(), "occurrences", CapturingBackgroundTasks()
+        )
+    )
+
+    assert response.status == "pending"
+    assert captured["func"] is imports.process_generic_import_entity
+    assert captured["args"][4] == str(project.resolve())
 
 
 def test_process_generic_import_all_emits_entity_events(monkeypatch, tmp_path):

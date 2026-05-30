@@ -28,6 +28,17 @@ class TestRenderPlotlyFigure(NiamotoTestCase):
         self.assertIn("plotConfig.responsive = false;", html)
         self.assertIn("plotConfig.staticPlot = true;", html)
 
+    def test_inline_json_escapes_script_end_tags(self):
+        fig = Mock()
+        fig.to_json.return_value = (
+            '{"data":[],"layout":{"title":{"text":"</script><img src=x>"}}}'
+        )
+
+        html = render_plotly_figure(fig, {"note": "</script><img src=x>"})
+
+        self.assertIn("<\\/script><img src=x>", html)
+        self.assertNotIn("</script><img src=x>", html)
+
 
 def test_layout_defaults_use_muted_colorway():
     defaults = get_plotly_layout_defaults()
