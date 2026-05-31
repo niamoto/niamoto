@@ -126,6 +126,24 @@ describe('ContentTab', () => {
     expect(container.textContent).toContain('taxons')
   })
 
+  it('hides the normal widget list while reviewing automatic proposals', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root?.render(
+        <MemoryRouter initialEntries={['/groups/taxons?panel=widget-proposals']}>
+          <ContentTab reference={reference} />
+        </MemoryRouter>,
+      )
+    })
+
+    expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="widget-list"]')).toBeNull()
+    expect(container.querySelector('[data-testid="content-right-panel"]')).toBeNull()
+  })
+
   it('opens widget proposals when the route panel marker is added after mount', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)

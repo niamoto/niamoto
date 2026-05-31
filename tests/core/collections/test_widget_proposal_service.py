@@ -455,8 +455,19 @@ def test_phenology_state_fields_are_not_proposed_again_as_standalone_booleans():
             "time_field": "month_obs",
             "fields": {"flower": "flower", "fruit": "fruit"},
         },
-        widget_plugin="line_plot",
-        widget_params={"x_axis": "labels", "y_axis": ["flower", "fruit"]},
+        widget_plugin="bar_plot",
+        widget_params={
+            "transform": "monthly_data",
+            "transform_params": {
+                "labels_field": "labels",
+                "data_field": "month_data",
+                "melt": True,
+            },
+            "x_axis": "labels",
+            "y_axis": "value",
+            "color_field": "series",
+            "barmode": "group",
+        },
     )
 
     result = service.generate_for_collection(
@@ -481,6 +492,9 @@ def test_phenology_state_fields_are_not_proposed_again_as_standalone_booleans():
     assert any(
         proposal.candidate.origin == "combined_fields"
         and proposal.candidate.field_names == ["month_obs", "flower", "fruit"]
+        and proposal.primary_fit is not None
+        and proposal.primary_fit.widget == "bar_plot"
+        and proposal.recipe["widget"]["plugin"] == "bar_plot"
         for proposal in result.all_proposals()
     )
 
@@ -498,7 +512,7 @@ def make_pattern(
         MultiFieldPatternType.BOOLEAN_COMPARISON: "boolean_comparison",
     }
     widget_by_type = {
-        MultiFieldPatternType.PHENOLOGY: "line_plot",
+        MultiFieldPatternType.PHENOLOGY: "bar_plot",
         MultiFieldPatternType.ALLOMETRY: "scatter_plot",
         MultiFieldPatternType.TRAIT_COMPARISON: "info_grid",
         MultiFieldPatternType.TEMPORAL_SERIES: "line_plot",

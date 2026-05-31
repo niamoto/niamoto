@@ -610,17 +610,18 @@ class WidgetProposalService:
         force_review_only: bool = False,
     ) -> WidgetProposal:
         chart_fit = evaluate_chart_fit(candidate.shape)
+        primary_fit = self._primary_fit_for_candidate(candidate, chart_fit.primary)
         score = ProposalScore(
             dimensions={
                 **score_dimensions,
-                "chart_fit": chart_fit.primary.score if chart_fit.primary else 0.0,
+                "chart_fit": primary_fit.score if primary_fit else 0.0,
             },
             weights=SCORE_WEIGHTS,
         )
-        fingerprint = self._fingerprint(candidate, chart_fit.primary)
+        fingerprint = self._fingerprint(candidate, primary_fit)
         status = self._status_for(candidate, chart_fit, fingerprint, existing_keys)
         applyability = self._applyability_for(status, candidate, force_review_only)
-        title = self._title_for(candidate, chart_fit.primary)
+        title = self._title_for(candidate, primary_fit)
 
         return WidgetProposal(
             id=fingerprint,
@@ -629,7 +630,7 @@ class WidgetProposalService:
             status=status,
             candidate=candidate,
             shape=candidate.shape,
-            primary_fit=chart_fit.primary,
+            primary_fit=primary_fit,
             alternatives=chart_fit.alternatives,
             suppressed_fits=chart_fit.suppressed,
             missing_chart=chart_fit.missing_chart,
@@ -638,7 +639,41 @@ class WidgetProposalService:
             skip_reasons=list(candidate.skip_reasons),
             applyability=applyability,
             fingerprint=fingerprint,
-            recipe=self._recipe_for(candidate, chart_fit.primary),
+            recipe=self._recipe_for(candidate, primary_fit),
+        )
+
+    def _primary_fit_for_candidate(
+        self,
+        candidate: TransformationCandidate,
+        chart_primary: ChartFitResult | None,
+    ) -> ChartFitResult | None:
+        """Let explicit combined-widget metadata drive the displayed widget fit."""
+        widget_plugin = candidate.metadata.get("widget_plugin")
+        if not isinstance(widget_plugin, str) or not widget_plugin:
+            return chart_primary
+
+        widget_params = candidate.metadata.get("widget_params")
+        if chart_primary is None:
+            return ChartFitResult(
+                widget=widget_plugin,
+                status="primary",
+                score=0.86,
+                reason=candidate.intent,
+                params=widget_params if isinstance(widget_params, dict) else {},
+                rank=1,
+            )
+
+        if chart_primary.widget == widget_plugin:
+            return chart_primary
+
+        return chart_primary.model_copy(
+            update={
+                "widget": widget_plugin,
+                "reason": candidate.intent,
+                "params": widget_params
+                if isinstance(widget_params, dict)
+                else chart_primary.params,
+            }
         )
 
     def _status_for(

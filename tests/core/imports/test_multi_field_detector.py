@@ -88,9 +88,21 @@ def test_selection_detects_phenology_and_marks_it_recommended():
     assert suggestions[0].is_recommended is True
     assert suggestions[0].transformer_plugin == "time_series_analysis"
     assert suggestions[0].transformer_params["time_field"] == "month_obs"
-    assert suggestions[0].widget_plugin == "line_plot"
+    assert suggestions[0].transformer_params["fields"] == {
+        "flower": "flower",
+        "fruit": "fruit",
+    }
+    assert suggestions[0].widget_plugin == "bar_plot"
     assert suggestions[0].widget_params["x_axis"] == "labels"
-    assert suggestions[0].widget_params["y_axis"] == ["flower", "fruit"]
+    assert suggestions[0].widget_params["y_axis"] == "value"
+    assert suggestions[0].widget_params["color_field"] == "series"
+    assert suggestions[0].widget_params["barmode"] == "group"
+    assert suggestions[0].widget_params["transform"] == "monthly_data"
+    assert suggestions[0].widget_params["transform_params"] == {
+        "labels_field": "labels",
+        "data_field": "month_data",
+        "melt": True,
+    }
     assert suggestions[0].fields == ["month_obs", "flower", "fruit"]
     assert set(suggestions[0].widget_params["color_discrete_map"]) == {
         "flower",
@@ -100,6 +112,55 @@ def test_selection_detects_phenology_and_marks_it_recommended():
         suggestion.pattern_type is MultiFieldPatternType.BOOLEAN_COMPARISON
         for suggestion in suggestions
     )
+
+
+def test_phenology_excludes_unrelated_boolean_fields():
+    detector = MultiFieldPatternDetector()
+    profiles = [
+        make_profile(
+            name="month_obs",
+            data_category=DataCategory.TEMPORAL,
+            field_purpose=FieldPurpose.METADATA,
+            dtype="int64",
+        ),
+        make_profile(
+            name="flower",
+            data_category=DataCategory.BOOLEAN,
+            field_purpose=FieldPurpose.CLASSIFICATION,
+            dtype="bool",
+        ),
+        make_profile(
+            name="fruit",
+            data_category=DataCategory.BOOLEAN,
+            field_purpose=FieldPurpose.CLASSIFICATION,
+            dtype="bool",
+        ),
+        make_profile(
+            name="habitat_flag",
+            data_category=DataCategory.BOOLEAN,
+            field_purpose=FieldPurpose.CLASSIFICATION,
+            dtype="bool",
+        ),
+        make_profile(
+            name="protected_area_member",
+            data_category=DataCategory.BOOLEAN,
+            field_purpose=FieldPurpose.CLASSIFICATION,
+            dtype="bool",
+        ),
+    ]
+
+    suggestions = detector.suggest_for_selection(profiles, source_name="occurrences")
+    phenology_pattern = next(
+        suggestion
+        for suggestion in suggestions
+        if suggestion.pattern_type is MultiFieldPatternType.PHENOLOGY
+    )
+
+    assert phenology_pattern.fields == ["month_obs", "flower", "fruit"]
+    assert phenology_pattern.transformer_params["fields"] == {
+        "flower": "flower",
+        "fruit": "fruit",
+    }
 
 
 def test_trait_detection_falls_back_to_other_numeric_measurements():
@@ -160,6 +221,12 @@ def test_selection_keeps_stronger_pattern_when_numeric_detectors_overlap():
 
     assert len(scatter_patterns) == 1
     assert scatter_patterns[0].pattern_type is MultiFieldPatternType.ALLOMETRY
+    assert scatter_patterns[0].widget_params["x_axis"] == "x"
+    assert scatter_patterns[0].widget_params["y_axis"] == "y"
+    assert scatter_patterns[0].widget_params["labels"] == {
+        "x": "Dbh",
+        "y": "Height",
+    }
 
 
 def test_temporal_series_uses_valid_time_series_field_mapping():
@@ -191,6 +258,77 @@ def test_temporal_series_uses_valid_time_series_field_mapping():
     assert temporal_pattern.widget_plugin == "line_plot"
     assert temporal_pattern.widget_params["x_axis"] == "labels"
     assert temporal_pattern.widget_params["y_axis"] == ["abundance"]
+
+
+def test_static_traits_are_not_proposed_as_temporal_series():
+    detector = MultiFieldPatternDetector()
+    profiles = [
+        make_profile(
+            name="month_obs",
+            data_category=DataCategory.TEMPORAL,
+            field_purpose=FieldPurpose.METADATA,
+            dtype="int64",
+        ),
+        make_profile(
+            name="dbh",
+            data_category=DataCategory.NUMERIC_CONTINUOUS,
+            field_purpose=FieldPurpose.MEASUREMENT,
+            dtype="float64",
+        ),
+        make_profile(
+            name="height",
+            data_category=DataCategory.NUMERIC_CONTINUOUS,
+            field_purpose=FieldPurpose.MEASUREMENT,
+            dtype="float64",
+        ),
+        make_profile(
+            name="bark_thickness",
+            data_category=DataCategory.NUMERIC_CONTINUOUS,
+            field_purpose=FieldPurpose.MEASUREMENT,
+            dtype="float64",
+        ),
+    ]
+
+    suggestions = detector.suggest_for_selection(profiles, source_name="occurrences")
+
+    assert not any(
+        suggestion.pattern_type is MultiFieldPatternType.TEMPORAL_SERIES
+        for suggestion in suggestions
+    )
+
+
+def test_numeric_correlation_scatter_widget_uses_transformer_output_columns():
+    detector = MultiFieldPatternDetector()
+    profiles = [
+        make_profile(
+            name="leaf_area",
+            data_category=DataCategory.NUMERIC_CONTINUOUS,
+            field_purpose=FieldPurpose.MEASUREMENT,
+            dtype="float64",
+        ),
+        make_profile(
+            name="wood_density",
+            data_category=DataCategory.NUMERIC_CONTINUOUS,
+            field_purpose=FieldPurpose.MEASUREMENT,
+            dtype="float64",
+        ),
+    ]
+
+    suggestions = detector.suggest_for_selection(profiles, source_name="occurrences")
+    numeric_pattern = next(
+        suggestion
+        for suggestion in suggestions
+        if suggestion.pattern_type is MultiFieldPatternType.NUMERIC_CORRELATION
+    )
+
+    assert numeric_pattern.transformer_params["x_field"] == "leaf_area"
+    assert numeric_pattern.transformer_params["y_field"] == "wood_density"
+    assert numeric_pattern.widget_params["x_axis"] == "x"
+    assert numeric_pattern.widget_params["y_axis"] == "y"
+    assert numeric_pattern.widget_params["labels"] == {
+        "x": "Leaf Area",
+        "y": "Wood Density",
+    }
 
 
 def test_detect_semantic_groups_finds_phenology_dimensions_and_traits():

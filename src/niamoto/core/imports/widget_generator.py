@@ -442,12 +442,12 @@ class WidgetGenerator:
 
         This maps the transformer output fields to the widget input fields.
         Uses WIDGET_CONFIG_MAP for standard pairs, with a special case for
-        scatter_analysis which needs the column name from the profile.
+        scatter_analysis which returns a normalized x/y DataFrame.
         """
-        # Special case: scatter_analysis uses profile.name for x_axis
+        # Special case: scatter_analysis outputs normalized x/y columns.
         if transformer_name == "scatter_analysis" and widget_name == "scatter_plot":
             return {
-                "x_axis": profile.name if profile else "x",
+                "x_axis": "x",
                 "y_axis": "y",
             }
 

@@ -316,96 +316,35 @@ export function ContentTab({ reference }: ContentTabProps) {
 
   return (
     <div className="h-full flex flex-col">
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
-        {/* Left Panel - Widget List */}
-        <ResizablePanel
-          panelRef={leftPanelRef}
-          defaultSize="20%"
-          minSize="14%"
-          maxSize="26%"
-          collapsible
-          collapsedSize={0}
-          onResize={handleLeftPanelResize}
-        >
-          <div className="relative h-full">
-          <div className="absolute inset-0 flex flex-col">
-            {/* Header with Add button + collapse toggle */}
-            <div className="px-2 py-1.5 border-b flex items-center gap-1">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" className="gap-1">
-                    <Plus className="h-4 w-4" />
-                    {t('widgets:actions.addWidget')}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={handleOpenProposalWorkspace}>
-                    {t('widgets:actions.reviewProposals')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleOpenAddModal('suggestions')}>
-                    {t('widgets:actions.addFromSuggestions')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleOpenAddModal('combined')}>
-                    {t('widgets:actions.addCombinedWidget')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleOpenAddModal('custom')}>
-                    {t('widgets:modal.custom')}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 ml-auto" onClick={togglePanel} title="Hide widget list">
-                <PanelLeft className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Search */}
-            <div className="px-2 py-1.5 border-b">
-              <Input
-                placeholder={t('common:actions.search')}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-7 text-xs"
-              />
-            </div>
-
-            {/* Widget List */}
-            <div className="flex-1 min-h-0">
-              <WidgetListPanel
-                widgets={filteredWidgets}
-                selectedId={selectedWidgetId}
-                loading={configuredWidgetsLoading || widgetsLoading}
-                onSelect={handleSelectWidget}
-                onDelete={handleDeleteWidget}
-                onDuplicate={handleDuplicateWidget}
-                onReorder={handleReorderWidgets}
-              />
-            </div>
-
-            {/* Footer */}
-            <div className="shrink-0 p-2 border-t text-xs text-muted-foreground text-center">
-              {t('widgets:layout.widgetsConfigured', { count: configuredWidgets.length })}
-            </div>
-          </div>
-          </div>
-        </ResizablePanel>
-
-        {/* Resize Handle */}
-        <ResizableHandle />
-
-        {/* Right Panel - Contextual */}
-        <ResizablePanel defaultSize="80%" minSize="55%">
-          <div className="relative h-full">
-          <div className="absolute inset-0 flex flex-col">
-            {/* Collapsed toolbar: toggle + add widget */}
-            {isCollapsed && (
-              <div className="flex items-center gap-1 border-b px-2 py-1 shrink-0">
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={togglePanel} title="Show widget list">
-                  <PanelLeft className="h-4 w-4" />
-                </Button>
+      {proposalWorkspaceOpen ? (
+        <div className="min-h-0 flex-1">
+          <WidgetProposalWorkspace
+            collectionName={reference.name}
+            onClose={handleCloseProposalWorkspace}
+            onApplied={handleWidgetProposalsApplied}
+          />
+        </div>
+      ) : (
+        <ResizablePanelGroup direction="horizontal" className="flex-1">
+          {/* Left Panel - Widget List */}
+          <ResizablePanel
+            panelRef={leftPanelRef}
+            defaultSize="20%"
+            minSize="14%"
+            maxSize="26%"
+            collapsible
+            collapsedSize={0}
+            onResize={handleLeftPanelResize}
+          >
+            <div className="relative h-full">
+            <div className="absolute inset-0 flex flex-col">
+              {/* Header with Add button + collapse toggle */}
+              <div className="px-2 py-1.5 border-b flex items-center gap-1">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <Button size="sm" className="gap-1">
                       <Plus className="h-4 w-4" />
+                      {t('widgets:actions.addWidget')}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start">
@@ -423,19 +362,82 @@ export function ContentTab({ reference }: ContentTabProps) {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <span className="text-xs text-muted-foreground ml-1">
-                  {t('widgets:layout.widgetsConfigured', { count: configuredWidgets.length })}
-                </span>
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 ml-auto" onClick={togglePanel} title="Hide widget list">
+                  <PanelLeft className="h-4 w-4" />
+                </Button>
               </div>
-            )}
-            <div className="flex-1 min-h-0">
-              {proposalWorkspaceOpen ? (
-                <WidgetProposalWorkspace
-                  collectionName={reference.name}
-                  onClose={handleCloseProposalWorkspace}
-                  onApplied={handleWidgetProposalsApplied}
+
+              {/* Search */}
+              <div className="px-2 py-1.5 border-b">
+                <Input
+                  placeholder={t('common:actions.search')}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-7 text-xs"
                 />
-              ) : (
+              </div>
+
+              {/* Widget List */}
+              <div className="flex-1 min-h-0">
+                <WidgetListPanel
+                  widgets={filteredWidgets}
+                  selectedId={selectedWidgetId}
+                  loading={configuredWidgetsLoading || widgetsLoading}
+                  onSelect={handleSelectWidget}
+                  onDelete={handleDeleteWidget}
+                  onDuplicate={handleDuplicateWidget}
+                  onReorder={handleReorderWidgets}
+                />
+              </div>
+
+              {/* Footer */}
+              <div className="shrink-0 p-2 border-t text-xs text-muted-foreground text-center">
+                {t('widgets:layout.widgetsConfigured', { count: configuredWidgets.length })}
+              </div>
+            </div>
+            </div>
+          </ResizablePanel>
+
+          {/* Resize Handle */}
+          <ResizableHandle />
+
+          {/* Right Panel - Contextual */}
+          <ResizablePanel defaultSize="80%" minSize="55%">
+            <div className="relative h-full">
+            <div className="absolute inset-0 flex flex-col">
+              {/* Collapsed toolbar: toggle + add widget */}
+              {isCollapsed && (
+                <div className="flex items-center gap-1 border-b px-2 py-1 shrink-0">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={togglePanel} title="Show widget list">
+                    <PanelLeft className="h-4 w-4" />
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuItem onClick={handleOpenProposalWorkspace}>
+                        {t('widgets:actions.reviewProposals')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleOpenAddModal('suggestions')}>
+                        {t('widgets:actions.addFromSuggestions')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleOpenAddModal('combined')}>
+                        {t('widgets:actions.addCombinedWidget')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleOpenAddModal('custom')}>
+                        {t('widgets:modal.custom')}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <span className="text-xs text-muted-foreground ml-1">
+                    {t('widgets:layout.widgetsConfigured', { count: configuredWidgets.length })}
+                  </span>
+                </div>
+              )}
+              <div className="flex-1 min-h-0">
                 <ContentRightPanel
                   selectedWidget={selectedWidget}
                   allWidgets={configuredWidgets}
@@ -450,12 +452,12 @@ export function ContentTab({ reference }: ContentTabProps) {
                   onDeleteWidget={handleDeleteWidget}
                   onLayoutSaved={refetchWidgets}
                 />
-              )}
+              </div>
             </div>
-          </div>
-          </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      )}
 
       {/* Add Widget Modal */}
       {addModalOpen ? (
