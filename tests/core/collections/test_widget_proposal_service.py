@@ -12,6 +12,10 @@ from niamoto.core.imports.data_analyzer import (
     EnrichedColumnProfile,
     FieldPurpose,
 )
+from niamoto.core.imports.multi_field_detector import (
+    MultiFieldPattern,
+    MultiFieldPatternType,
+)
 
 
 def make_profile(
@@ -370,3 +374,146 @@ def test_duplicate_candidates_keep_distinct_recipe_intents():
         "family",
         "life_form",
     }
+
+
+def test_combined_boolean_pattern_remains_applicable_after_other_pattern_families():
+    service = WidgetProposalService()
+    patterns = [
+        make_pattern(MultiFieldPatternType.PHENOLOGY, ["month_obs", "flower", "fruit"]),
+        make_pattern(MultiFieldPatternType.ALLOMETRY, ["dbh", "height"]),
+        make_pattern(
+            MultiFieldPatternType.TRAIT_COMPARISON,
+            ["leaf_area", "wood_density"],
+        ),
+        make_pattern(MultiFieldPatternType.TEMPORAL_SERIES, ["date_obs", "count"]),
+        make_pattern(MultiFieldPatternType.NUMERIC_CORRELATION, ["elevation", "slope"]),
+        make_pattern(MultiFieldPatternType.BOOLEAN_COMPARISON, ["flag_a", "flag_b"]),
+    ]
+
+    result = service.generate_for_collection(
+        collection="taxons",
+        source_name="occurrences",
+        multi_field_patterns=patterns,
+    )
+
+    assert not any(
+        reason.code == "combined_candidate_limit"
+        for proposal in result.all_proposals()
+        for reason in proposal.skip_reasons
+    )
+    boolean_proposal = next(
+        proposal
+        for proposal in result.all_proposals()
+        if proposal.candidate.transformer_plugin == "boolean_comparison"
+    )
+    assert boolean_proposal.candidate.field_names == ["flag_a", "flag_b"]
+    assert boolean_proposal.applyability == "applicable"
+    assert boolean_proposal.recipe["transformer"]["plugin"] == "boolean_comparison"
+    assert boolean_proposal.recipe["widget"]["plugin"] == "bar_plot"
+
+
+def test_combined_patterns_pruned_by_limit_are_not_displayed_as_skipped_proposals():
+    service = WidgetProposalService(max_combined_candidates=1)
+    patterns = [
+        make_pattern(MultiFieldPatternType.ALLOMETRY, ["dbh", "height"]),
+        make_pattern(MultiFieldPatternType.BOOLEAN_COMPARISON, ["flag_a", "flag_b"]),
+    ]
+
+    result = service.generate_for_collection(
+        collection="taxons",
+        source_name="occurrences",
+        multi_field_patterns=patterns,
+    )
+
+    assert [proposal.candidate.field_names for proposal in result.all_proposals()] == [
+        ["dbh", "height"]
+    ]
+    assert not result.skipped
+    assert not any(
+        reason.code == "combined_candidate_limit"
+        for proposal in result.all_proposals()
+        for reason in proposal.skip_reasons
+    )
+
+
+def test_phenology_state_fields_are_not_proposed_again_as_standalone_booleans():
+    service = WidgetProposalService()
+    phenology_pattern = MultiFieldPattern(
+        pattern_type=MultiFieldPatternType.PHENOLOGY,
+        name="Phenology",
+        description="Temporal state comparison",
+        fields=["month_obs", "flower", "fruit"],
+        field_roles={
+            "month_obs": "time_axis",
+            "flower": "series",
+            "fruit": "series",
+        },
+        confidence=0.9,
+        transformer_plugin="time_series_analysis",
+        transformer_params={
+            "source": "occurrences",
+            "time_field": "month_obs",
+            "fields": {"flower": "flower", "fruit": "fruit"},
+        },
+        widget_plugin="line_plot",
+        widget_params={"x_axis": "labels", "y_axis": ["flower", "fruit"]},
+    )
+
+    result = service.generate_for_collection(
+        collection="taxons",
+        source_name="occurrences",
+        profiles=[
+            make_profile("month_obs", DataCategory.TEMPORAL),
+            make_profile("flower", DataCategory.BOOLEAN),
+            make_profile("fruit", DataCategory.BOOLEAN),
+        ],
+        multi_field_patterns=[phenology_pattern],
+    )
+
+    raw_fields = {
+        proposal.candidate.field_names[0]
+        for proposal in result.all_proposals()
+        if proposal.candidate.origin == "raw_field"
+    }
+
+    assert "flower" not in raw_fields
+    assert "fruit" not in raw_fields
+    assert any(
+        proposal.candidate.origin == "combined_fields"
+        and proposal.candidate.field_names == ["month_obs", "flower", "fruit"]
+        for proposal in result.all_proposals()
+    )
+
+
+def make_pattern(
+    pattern_type: MultiFieldPatternType,
+    fields: list[str],
+) -> MultiFieldPattern:
+    transformer_by_type = {
+        MultiFieldPatternType.PHENOLOGY: "time_series_analysis",
+        MultiFieldPatternType.ALLOMETRY: "scatter_analysis",
+        MultiFieldPatternType.TRAIT_COMPARISON: "field_aggregator",
+        MultiFieldPatternType.TEMPORAL_SERIES: "time_series_analysis",
+        MultiFieldPatternType.NUMERIC_CORRELATION: "scatter_analysis",
+        MultiFieldPatternType.BOOLEAN_COMPARISON: "boolean_comparison",
+    }
+    widget_by_type = {
+        MultiFieldPatternType.PHENOLOGY: "line_plot",
+        MultiFieldPatternType.ALLOMETRY: "scatter_plot",
+        MultiFieldPatternType.TRAIT_COMPARISON: "info_grid",
+        MultiFieldPatternType.TEMPORAL_SERIES: "line_plot",
+        MultiFieldPatternType.NUMERIC_CORRELATION: "scatter_plot",
+        MultiFieldPatternType.BOOLEAN_COMPARISON: "bar_plot",
+    }
+    return MultiFieldPattern(
+        pattern_type=pattern_type,
+        name=pattern_type.value,
+        description=f"Comparison of {', '.join(fields)}",
+        fields=fields,
+        field_roles={field: "value" for field in fields},
+        confidence=0.7,
+        transformer_plugin=transformer_by_type[pattern_type],
+        transformer_params={"source": "occurrences", "fields": fields},
+        widget_plugin=widget_by_type[pattern_type],
+        widget_params={"title": pattern_type.value},
+    )

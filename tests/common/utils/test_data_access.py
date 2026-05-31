@@ -3,6 +3,8 @@ Tests for the data access utilities module.
 """
 
 import unittest
+from unittest.mock import patch
+
 import pandas as pd
 
 from niamoto.common.utils import data_access as data_access_module
@@ -270,7 +272,7 @@ class TestEdgeCasesAndErrorHandling(unittest.TestCase):
             def __init__(self, *args, **kwargs):
                 raise ValueError("Simulated pandas exception")
 
-        with unittest.mock.patch(
+        with patch(
             "niamoto.common.utils.data_access.pd.DataFrame",
             RaisingDataFrame,
         ):

@@ -52,7 +52,7 @@ class WidgetProposalService:
     def __init__(
         self,
         *,
-        max_combined_candidates: int = 5,
+        max_combined_candidates: int = 8,
         max_scalar_metrics: int = 12,
     ) -> None:
         self.max_combined_candidates = max_combined_candidates
@@ -72,8 +72,16 @@ class WidgetProposalService:
 
         existing_keys = set(existing_proposal_keys)
         proposals: list[WidgetProposal] = []
+        visible_multi_field_patterns = list(
+            multi_field_patterns[: self.max_combined_candidates]
+        )
+        consumed_raw_fields = _raw_fields_consumed_by_combined_patterns(
+            visible_multi_field_patterns
+        )
 
         for profile in profiles:
+            if profile.name in consumed_raw_fields:
+                continue
             proposals.append(
                 self._proposal_from_profile(
                     collection=collection,
@@ -503,9 +511,6 @@ class WidgetProposalService:
         proposals: list[WidgetProposal] = []
         for index, pattern in enumerate(patterns):
             if index >= self.max_combined_candidates:
-                proposals.append(
-                    self._skipped_combined_pattern(collection, source_name, pattern)
-                )
                 continue
 
             shape = _shape_from_multi_field_pattern(pattern)
@@ -527,7 +532,7 @@ class WidgetProposalService:
                 intent=pattern.description,
                 shape=shape,
                 freshness="current",
-                reconstructability="partial",
+                reconstructability="full",
                 metadata={
                     "widget_plugin": pattern.widget_plugin,
                     "widget_params": pattern.widget_params,
@@ -550,9 +555,8 @@ class WidgetProposalService:
                         "coverage": 0.8,
                         "cardinality": 0.75,
                         "provenance": 0.66,
-                        "reconstructability": 0.55,
+                        "reconstructability": 1.0,
                     },
-                    force_review_only=True,
                 )
             )
         return proposals
@@ -868,6 +872,24 @@ def _shape_from_multi_field_pattern(pattern: MultiFieldPattern) -> TransformedSh
         columns=list(pattern.fields),
         has_labels=True,
     )
+
+
+def _raw_fields_consumed_by_combined_patterns(
+    patterns: Sequence[MultiFieldPattern],
+) -> set[str]:
+    """Return raw fields whose standalone chart is redundant with a combined chart."""
+
+    consumed: set[str] = set()
+    for pattern in patterns:
+        if pattern.pattern_type == MultiFieldPatternType.PHENOLOGY:
+            consumed.update(
+                field
+                for field in pattern.fields
+                if pattern.field_roles.get(field) != "time_axis"
+            )
+        elif pattern.pattern_type == MultiFieldPatternType.BOOLEAN_COMPARISON:
+            consumed.update(pattern.fields)
+    return consumed
 
 
 def _bins_for_profile(profile: EnrichedColumnProfile) -> list[float]:

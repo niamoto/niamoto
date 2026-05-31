@@ -107,7 +107,13 @@ def test_get_import_status_classifies_references_and_datasets(monkeypatch, tmp_p
 
     monkeypatch.setattr(context, "get_working_directory", lambda: work_dir)
     monkeypatch.setattr(imports, "Config", FakeConfig)
-    monkeypatch.setattr(imports, "open_database", lambda _database_path: FakeDB())
+
+    def fake_open_database(database_path, *, read_only=False):
+        assert database_path == str(work_dir / "db" / "niamoto.duckdb")
+        assert read_only is True
+        return FakeDB()
+
+    monkeypatch.setattr(imports, "open_database", fake_open_database)
     monkeypatch.setattr(imports, "EntityRegistry", FakeRegistry)
     monkeypatch.setattr(imports, "quote_identifier", lambda _db, table_name: table_name)
 
@@ -119,6 +125,29 @@ def test_get_import_status_classifies_references_and_datasets(monkeypatch, tmp_p
     assert payload["references"][0]["row_count"] == 3
     assert [item["entity_name"] for item in payload["datasets"]] == ["occurrences"]
     assert payload["datasets"][0]["row_count"] == 10
+
+
+def test_get_import_status_surfaces_database_open_errors(monkeypatch, tmp_path):
+    work_dir = tmp_path
+    (work_dir / "config").mkdir()
+
+    class FakeConfig:
+        def __init__(self, *args, **kwargs):
+            self.database_path = str(work_dir / "db" / "niamoto.duckdb")
+
+    def fail_open_database(database_path, *, read_only=False):
+        assert database_path == str(work_dir / "db" / "niamoto.duckdb")
+        assert read_only is True
+        raise RuntimeError("duckdb file is locked")
+
+    monkeypatch.setattr(context, "get_working_directory", lambda: work_dir)
+    monkeypatch.setattr(imports, "Config", FakeConfig)
+    monkeypatch.setattr(imports, "open_database", fail_open_database)
+
+    response = TestClient(create_app()).get("/api/imports/status")
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Error getting import status"
 
 
 def test_execute_import_all_queues_captured_working_directory(monkeypatch, tmp_path):
@@ -700,8 +729,9 @@ def test_list_entities_uses_registry_table_names(monkeypatch, tmp_path):
             return True
 
     class FakeOpenDatabase:
-        def __init__(self, database_path):
+        def __init__(self, database_path, *, read_only=False):
             assert database_path == str(db_path)
+            assert read_only is True
 
         def __enter__(self):
             return FakeDB()
@@ -918,6 +948,47 @@ def test_delete_entity_holds_import_admission_lock_while_writing(monkeypatch, tm
         response = future.result(timeout=5)
 
     assert response["success"] is True
+
+
+def test_delete_entity_preserves_import_config_when_yaml_write_fails(
+    monkeypatch, tmp_path
+):
+    work_dir = tmp_path
+    config_dir = work_dir / "config"
+    config_dir.mkdir()
+    import_path = config_dir / "import.yml"
+    original_config = {
+        "entities": {
+            "datasets": {"occurrences": {"connector": {"type": "file"}}},
+            "references": {},
+        }
+    }
+    import_path.write_text(
+        yaml.safe_dump(original_config, sort_keys=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.context.get_working_directory", lambda: work_dir
+    )
+
+    original_dump = yaml.dump
+
+    def fail_dump(*args, **kwargs):
+        args[1].write("partial: true\n")
+        raise RuntimeError("dump boom")
+
+    monkeypatch.setattr(yaml, "dump", fail_dump)
+
+    response = TestClient(create_app()).delete(
+        "/api/imports/entities/dataset/occurrences"
+    )
+
+    monkeypatch.setattr(yaml, "dump", original_dump)
+
+    assert response.status_code == 500
+    assert "dump boom" in response.json()["detail"]
+    saved = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    assert saved == original_config
 
 
 def test_delete_dataset_fallback_drops_dataset_table_not_reference_collision(

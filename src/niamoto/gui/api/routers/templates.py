@@ -61,6 +61,7 @@ from niamoto.core.imports.template_suggester import (  # noqa: E402
     TemplateSuggester,
     TemplateSuggestion,
 )
+from niamoto.core.plugins.models import WidgetConfig as ExportWidgetConfigModel  # noqa: E402
 from niamoto.core.imports.class_object_analyzer import analyze_csv  # noqa: E402
 from niamoto.core.imports.multi_field_detector import (  # noqa: E402
     suggest_combined_widgets,
@@ -756,6 +757,8 @@ def _build_export_config(
         widget_order += 1
         export_widgets.append(export_widget)
 
+    _validate_generated_export_widgets(export_widgets)
+
     # Update group widgets based on mode
     if mode == "merge":
         # Merge: update existing widgets by data_source, append only new ones.
@@ -797,6 +800,18 @@ def _build_export_config(
     export_config["exports"][html_exporter_idx] = html_exporter
 
     return export_path, export_config
+
+
+def _validate_generated_export_widgets(widgets: List[Dict[str, Any]]) -> None:
+    """Validate generated widget configs before writing export.yml."""
+    for widget in widgets:
+        try:
+            ExportWidgetConfigModel.model_validate(widget)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid export configuration: {exc}",
+            ) from exc
 
 
 def _write_yaml_atomic(path: Path, payload: Any) -> None:

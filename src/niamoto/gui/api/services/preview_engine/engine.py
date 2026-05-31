@@ -821,7 +821,7 @@ class PreviewEngine:
                         db, transformer_plugin, transformer_params, sample
                     )
 
-            if not result:
+            if _preview_result_is_empty(result):
                 return self._info_html("Transformer returned no data")
 
             # Adapt transformer output → widget format
@@ -1773,7 +1773,7 @@ document.addEventListener('DOMContentLoaded', function() {{
         if isinstance(result, str):
             # Error HTML returned by helper
             return result
-        if not result:
+        if _preview_result_is_empty(result):
             return self._info_html("Transformer returned no data")
 
         # Merge display params from transform.yml with widget_params from
@@ -2075,6 +2075,21 @@ document.addEventListener('DOMContentLoaded', function() {{
 # --------------------------------------------------------------------------
 # Factory (thread-safe)
 # --------------------------------------------------------------------------
+
+
+def _preview_result_is_empty(result: Any) -> bool:
+    """Return whether a transformer result is empty without truth-testing DataFrames."""
+
+    if result is None:
+        return True
+    if isinstance(result, pd.DataFrame):
+        return result.empty
+    if isinstance(result, dict):
+        return len(result) == 0
+    if isinstance(result, (list, tuple, set, str, bytes)):
+        return len(result) == 0
+    return False
+
 
 _engine_lock = threading.Lock()
 _engine_instance: PreviewEngine | None = None

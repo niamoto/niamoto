@@ -1496,6 +1496,14 @@ def test_shape_distribution_is_sync_so_fastapi_runs_it_off_event_loop():
     assert not inspect.iscoroutinefunction(stats_router.get_shape_distribution)
 
 
+def test_spatial_stats_is_sync_so_fastapi_runs_it_off_event_loop():
+    assert not inspect.iscoroutinefunction(stats_router.get_spatial_stats)
+
+
+def test_value_validation_is_sync_so_fastapi_runs_it_off_event_loop():
+    assert not inspect.iscoroutinefunction(stats_router.get_value_validation)
+
+
 def test_value_validation_histogram_includes_max_boundary(
     gui_duckdb_client: TestClient,
 ):

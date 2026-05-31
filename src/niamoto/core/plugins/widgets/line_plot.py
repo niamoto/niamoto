@@ -190,6 +190,23 @@ class LinePlotWidget(WidgetPlugin):
                         ):
                             processed_data[params.color_field] = color_values
 
+            # Case 1b: time_series_analysis output with nested month_data
+            elif params.x_axis in data and isinstance(data.get("month_data"), dict):
+                x_values = data[params.x_axis]
+                month_data = data["month_data"]
+                y_values_by_axis = {
+                    y_axis: month_data[y_axis]
+                    for y_axis in y_axes
+                    if y_axis in month_data
+                    and isinstance(month_data[y_axis], list)
+                    and len(month_data[y_axis]) == len(x_values)
+                }
+
+                if isinstance(x_values, list) and len(y_values_by_axis) == len(y_axes):
+                    processed_data = pd.DataFrame(
+                        {params.x_axis: x_values, **y_values_by_axis}
+                    )
+
             # Case 2: Dictionary with 'sizes' and 'areas'/'cumulative' structure for fragmentation_distribution
             elif "sizes" in data and (
                 "areas" in data or "cumulative" in data or "values" in data

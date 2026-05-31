@@ -634,6 +634,68 @@ def _write_yaml_atomic(config_path: Path, content: Any) -> None:
         raise
 
 
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """Safe YAML loader that rejects duplicate mapping keys."""
+
+    def __init__(self, stream: Any) -> None:
+        super().__init__(stream)
+        self._key_path: List[str] = []
+
+
+def _construct_mapping_with_unique_keys(
+    loader: _UniqueKeyLoader,
+    node: yaml.nodes.MappingNode,
+    deep: bool = False,
+) -> Dict[Any, Any]:
+    loader.flatten_mapping(node)
+    mapping: Dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            hash(key)
+        except TypeError as exc:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                "found unhashable key",
+                key_node.start_mark,
+            ) from exc
+
+        key_path = ".".join([*loader._key_path, str(key)])
+        if key in mapping:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                f"Duplicate YAML key: {key_path}",
+                key_node.start_mark,
+            )
+
+        loader._key_path.append(str(key))
+        try:
+            value = loader.construct_object(value_node, deep=deep)
+        finally:
+            loader._key_path.pop()
+        mapping[key] = value
+    return mapping
+
+
+_UniqueKeyLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_mapping_with_unique_keys,
+)
+
+
+def _safe_load_unique_yaml(content: str) -> Any:
+    return yaml.load(content, Loader=_UniqueKeyLoader)
+
+
+def _format_yaml_error(exc: yaml.YAMLError) -> str:
+    problem = getattr(exc, "problem", None)
+    if isinstance(problem, str) and problem:
+        return problem
+    return str(exc)
+
+
 @router.get("/project")
 async def get_project_info() -> Dict[str, Any]:
     """
@@ -1686,11 +1748,14 @@ async def validate_import_v2(request: ImportConfigValidateRequest):
     try:
         # Parse YAML
         try:
-            config_dict = yaml.safe_load(request.config)
+            config_dict = _safe_load_unique_yaml(request.config)
         except yaml.YAMLError as e:
+            message = _format_yaml_error(e)
+            if not message.startswith("Duplicate YAML key:"):
+                message = f"Invalid YAML syntax: {message}"
             return ImportConfigValidateResponse(
                 valid=False,
-                errors={"_global": [f"Invalid YAML syntax: {str(e)}"]},
+                errors={"_global": [message]},
                 warnings={},
             )
 
@@ -1794,7 +1859,7 @@ async def save_import_v2(request: ImportConfigSaveRequest):
                 },
             )
 
-        config_dict = yaml.safe_load(request.config)
+        config_dict = _safe_load_unique_yaml(request.config)
         if not isinstance(config_dict, dict):
             raise HTTPException(status_code=400, detail="Invalid import configuration")
 
@@ -3033,7 +3098,7 @@ def _load_api_export_preview_items(
             .all()
         )
     finally:
-        db.close_db_session()
+        db.close()
 
     if not rows:
         return []
@@ -3080,7 +3145,7 @@ def _apply_api_export_preview_transformer(
 
         return fallback_item, fallback_preview
     finally:
-        db.close_db_session()
+        db.close()
 
 
 def _build_api_export_preview_group_config(

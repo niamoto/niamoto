@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -35,6 +36,7 @@ export function WidgetProposalApplyDialog({
   onOpenChange,
   onApply,
 }: WidgetProposalApplyDialogProps) {
+  const { t } = useTranslation(['sources'])
   const canApply =
     !loading &&
     !applying &&
@@ -47,10 +49,9 @@ export function WidgetProposalApplyDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Review changes before adding widgets</DialogTitle>
+          <DialogTitle>{t('collectionPanel.widgetProposals.applyDialog.title')}</DialogTitle>
           <DialogDescription>
-            Niamoto will add the selected widgets to the transform and export configuration.
-            Nothing is written until you confirm.
+            {t('collectionPanel.widgetProposals.applyDialog.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -58,14 +59,14 @@ export function WidgetProposalApplyDialog({
           {loading && (
             <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Checking generated changes
+              {t('collectionPanel.widgetProposals.applyDialog.checking')}
             </div>
           )}
 
           {applying && (
             <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Adding widgets
+              {t('collectionPanel.widgetProposals.applyDialog.adding')}
             </div>
           )}
 
@@ -79,7 +80,7 @@ export function WidgetProposalApplyDialog({
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-medium">{change.title}</p>
                     <span className="rounded-md bg-muted px-2 py-0.5 text-xs">
-                      {change.action}
+                      {t(`collectionPanel.widgetProposals.applyDialog.actions.${change.action}`, { defaultValue: change.action })}
                     </span>
                   </div>
                   {change.reason && (
@@ -105,11 +106,13 @@ export function WidgetProposalApplyDialog({
 
         <DialogFooter>
           <Button variant="outline" disabled={applying} onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('collectionPanel.widgetProposals.applyDialog.cancel')}
           </Button>
           <Button disabled={!canApply || applying} onClick={onApply}>
             {applying && <Loader2 className="h-4 w-4 animate-spin" />}
-            {applying ? 'Adding widgets' : 'Add widgets'}
+            {applying
+              ? t('collectionPanel.widgetProposals.applyDialog.adding')
+              : t('collectionPanel.widgetProposals.applyDialog.addWidgets')}
           </Button>
         </DialogFooter>
       </DialogContent>

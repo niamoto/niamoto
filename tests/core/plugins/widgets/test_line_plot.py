@@ -96,6 +96,29 @@ class TestLinePlotWidget(NiamotoTestCase):
         self.assertNotIn("<p class='error'>", result)
         self.assertIn("plotly-graph-div", result)
 
+    def test_render_time_series_analysis_month_data(self):
+        """Test rendering nested time_series_analysis output."""
+        data = {
+            "labels": ["Jan", "Feb", "Mar"],
+            "month_data": {
+                "flower": [20, 40, 60],
+                "fruit": [10, 30, 50],
+            },
+        }
+
+        params = LinePlotParams(
+            x_axis="labels",
+            y_axis=["flower", "fruit"],
+            markers=True,
+        )
+
+        result = self.widget.render(data, params)
+
+        self.assertIsInstance(result, str)
+        self.assertNotIn("<p class='error'>", result)
+        self.assertNotIn("<p class='info'>", result)
+        self.assertIn("plotly-graph-div", result)
+
     def test_render_with_color_field(self):
         """Test rendering with color grouping field."""
         df = pd.DataFrame(

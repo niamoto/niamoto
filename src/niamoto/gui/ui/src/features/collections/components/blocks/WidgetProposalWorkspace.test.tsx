@@ -18,6 +18,7 @@ const queryState = vi.hoisted(() => ({
   value: {
     data: undefined as WidgetProposalGroups | undefined,
     isLoading: false,
+    isFetching: false,
     error: null as Error | null,
     refetch: vi.fn(),
     preview: vi.fn(),
@@ -29,6 +30,18 @@ const queryState = vi.hoisted(() => ({
 
 vi.mock('@/features/collections/hooks/useWidgetProposals', () => ({
   useWidgetProposals: () => queryState.value,
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: { count?: number; score?: number; title?: string; defaultValue?: string }) => {
+      if (options?.defaultValue) return options.defaultValue
+      if (options?.count !== undefined) return `${key}:${options.count}`
+      if (options?.score !== undefined) return `${key}:${options.score}`
+      if (options?.title !== undefined) return `${key}:${options.title}`
+      return key
+    },
+  }),
 }))
 
 vi.mock('@/components/preview', () => ({
@@ -52,6 +65,7 @@ describe('WidgetProposalWorkspace', () => {
     root = null
     queryState.value.data = undefined
     queryState.value.isLoading = false
+    queryState.value.isFetching = false
     queryState.value.error = null
     queryState.value.refetch = vi.fn()
     queryState.value.preview = vi.fn()
@@ -203,10 +217,11 @@ describe('WidgetProposalWorkspace', () => {
 
     await renderWorkspace()
 
-    expect(container?.textContent).toContain('Review proposed page')
+    expect(container?.textContent).toContain('collectionPanel.widgetProposals.reviewTitle')
     expect(container?.textContent).toContain('Dbh cm')
     expect(container?.textContent).toContain('binned_distribution')
     expect(container?.textContent).toContain('bar_plot')
+    expect(container?.textContent).toContain('collectionPanel.widgetProposals.groups.recommended')
   })
 
   it('renders a future page preview whose cards toggle selected proposals', async () => {
@@ -227,9 +242,9 @@ describe('WidgetProposalWorkspace', () => {
 
     await renderWorkspace()
 
-    expect(container?.textContent).toContain('Future page preview')
-    expect(container?.textContent).toContain('2 selected')
-    expect(container?.textContent).toContain('Review and add')
+    expect(container?.textContent).toContain('collectionPanel.widgetProposals.preview.title')
+    expect(container?.textContent).toContain('collectionPanel.widgetProposals.selectedWidgets:2')
+    expect(container?.textContent).toContain('collectionPanel.widgetProposals.reviewAndAdd')
     expect(
       container?.querySelector(
         '[data-testid="preview-dbh_cm_binned_distribution_bar_plot"]',
@@ -237,7 +252,7 @@ describe('WidgetProposalWorkspace', () => {
     ).not.toBeNull()
 
     const removeElevation = container?.querySelector(
-      '[aria-label="Remove Elevation from the future page"]',
+      '[aria-label="collectionPanel.widgetProposals.preview.removeAria:Elevation"]',
     ) as HTMLButtonElement | null
     expect(removeElevation).not.toBeNull()
 
@@ -245,11 +260,11 @@ describe('WidgetProposalWorkspace', () => {
       removeElevation?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
-    expect(container?.textContent).toContain('1 selected')
-    expect(container?.textContent).toContain('Available but not selected')
+    expect(container?.textContent).toContain('collectionPanel.widgetProposals.selectedWidgets:1')
+    expect(container?.textContent).toContain('collectionPanel.widgetProposals.preview.available')
 
     const addElevation = container?.querySelector(
-      '[aria-label="Add Elevation to the future page"]',
+      '[aria-label="collectionPanel.widgetProposals.preview.addAria:Elevation"]',
     ) as HTMLButtonElement | null
     expect(addElevation).not.toBeNull()
 
@@ -257,7 +272,108 @@ describe('WidgetProposalWorkspace', () => {
       addElevation?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
-    expect(container?.textContent).toContain('2 selected')
+    expect(container?.textContent).toContain('collectionPanel.widgetProposals.selectedWidgets:2')
+  })
+
+  it('refetches proposals and shows a refreshing state from the toolbar', async () => {
+    const refetch = vi.fn().mockResolvedValue({})
+    queryState.value.data = {
+      collection: 'taxons',
+      recommended: [makeProposal({ id: 'wp_1', title: 'Dbh cm' })],
+      warnings: [],
+      missing_chart: [],
+      skipped: [],
+      already_configured: [],
+      review_only: [],
+      partial: false,
+      messages: [],
+    }
+    queryState.value.refetch = refetch
+
+    await renderWorkspace()
+
+    const refreshButton = [...container!.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('collectionPanel.widgetProposals.refresh'),
+    ) as HTMLButtonElement | undefined
+    expect(refreshButton).toBeDefined()
+
+    await act(async () => {
+      refreshButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(refetch).toHaveBeenCalledTimes(1)
+
+    queryState.value.isFetching = true
+    await act(async () => {
+      root?.render(
+        <WidgetProposalWorkspace
+          collectionName="taxons"
+          onClose={() => undefined}
+          onApplied={() => undefined}
+        />,
+      )
+    })
+
+    const refreshingButton = [...container!.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('collectionPanel.widgetProposals.refreshing'),
+    ) as HTMLButtonElement | undefined
+    expect(refreshingButton).toBeDefined()
+    expect(refreshingButton?.disabled).toBe(true)
+    expect(refreshingButton?.querySelector('svg')?.className.baseVal).toContain('animate-spin')
+  })
+
+  it('shows visible details for applicable proposals selected from the sidebar', async () => {
+    queryState.value.data = {
+      collection: 'taxons',
+      recommended: [
+        makeProposal({ id: 'wp_1', title: 'Dbh cm' }),
+        makeProposal({ id: 'wp_2', title: 'Elevation' }),
+      ],
+      warnings: [
+        makeProposal({
+          id: 'wp_warning',
+          title: 'Rainfall',
+          status: 'warning',
+          warnings: [
+            {
+              code: 'low_confidence',
+              message: 'The confidence score needs review.',
+              severity: 'warning',
+              details: {},
+            },
+          ],
+        }),
+      ],
+      missing_chart: [],
+      skipped: [],
+      already_configured: [],
+      review_only: [],
+      partial: false,
+      messages: [],
+    }
+
+    await renderWorkspace()
+
+    const rainfallRow = [...container!.querySelectorAll('[role="button"]')].find(
+      (row) => row.textContent?.includes('Rainfall'),
+    )
+    expect(rainfallRow).toBeDefined()
+
+    await act(async () => {
+      rainfallRow?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    const detailPanel = container?.querySelector('article')
+    expect(detailPanel?.className).not.toContain('hidden')
+    expect(detailPanel?.className).toContain('h-full')
+    expect(detailPanel?.parentElement?.className).toContain('overflow-hidden')
+    expect(detailPanel?.parentElement?.parentElement?.className).toContain(
+      'grid-rows-[minmax(180px,35%)_minmax(0,1fr)]',
+    )
+    expect(container?.querySelector('section.h-full.overflow-auto')).not.toBeNull()
+    expect(detailPanel?.textContent).toContain('Rainfall')
+    expect(detailPanel?.textContent).toContain('Show Rainfall')
+    expect(detailPanel?.textContent).toContain('The confidence score needs review.')
   })
 
   it('keeps selected preview cards in a single responsive column', async () => {
@@ -288,7 +404,7 @@ describe('WidgetProposalWorkspace', () => {
     await renderWorkspace()
 
     const rainfallCard = container?.querySelector(
-      '[aria-label="Remove Rainfall from the future page"]',
+      '[aria-label="collectionPanel.widgetProposals.preview.removeAria:Rainfall"]',
     ) as HTMLButtonElement | null
     expect(rainfallCard).not.toBeNull()
 
@@ -297,6 +413,45 @@ describe('WidgetProposalWorkspace', () => {
     expect(rainfallCard?.parentElement?.className).not.toContain('2xl:grid-cols-2')
     expect(rainfallCard?.className).toContain('grid-cols-1')
     expect(rainfallCard?.className).not.toContain('grid-cols-[280px_minmax')
+  })
+
+  it('shows details in the main panel for proposals that cannot be added automatically', async () => {
+    queryState.value.data = {
+      collection: 'taxons',
+      recommended: [],
+      warnings: [],
+      missing_chart: [],
+      skipped: [],
+      already_configured: [],
+      review_only: [
+        makeProposal({
+          id: 'wp_review',
+          title: 'Rare status',
+          status: 'review_only',
+          applyability: 'review_only',
+          warnings: [
+            {
+              code: 'manual_review',
+              message: 'The field needs manual configuration.',
+              severity: 'warning',
+              details: {},
+            },
+          ],
+        }),
+      ],
+      partial: false,
+      messages: [],
+    }
+
+    await renderWorkspace()
+
+    expect(container?.textContent).toContain('collectionPanel.widgetProposals.groups.reviewOnly')
+    expect(container?.textContent).toContain('Rare status')
+    expect(container?.textContent).toContain('collectionPanel.widgetProposals.detail.title')
+    expect(container?.textContent).toContain('collectionPanel.widgetProposals.detail.reviewNotes')
+    expect(container?.textContent).toContain('The field needs manual configuration.')
+    const detailPanel = container?.querySelector('article')
+    expect(detailPanel?.className).not.toContain('hidden')
   })
 
   it('shows an adding state and closes the review dialog after applying widgets', async () => {
@@ -347,7 +502,7 @@ describe('WidgetProposalWorkspace', () => {
     await renderWorkspace({ onApplied })
 
     const reviewButton = [...container!.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('Review and add'),
+      button.textContent?.includes('collectionPanel.widgetProposals.reviewAndAdd'),
     )
     expect(reviewButton).toBeDefined()
 
@@ -355,10 +510,10 @@ describe('WidgetProposalWorkspace', () => {
       reviewButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
-    expect(document.body.textContent).toContain('Review changes before adding widgets')
+    expect(document.body.textContent).toContain('collectionPanel.widgetProposals.applyDialog.title')
 
     const addButton = [...document.body.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('Add widgets'),
+      button.textContent?.includes('collectionPanel.widgetProposals.applyDialog.addWidgets'),
     ) as HTMLButtonElement | undefined
     expect(addButton).toBeDefined()
 
@@ -366,7 +521,7 @@ describe('WidgetProposalWorkspace', () => {
       addButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
-    expect(document.body.textContent).toContain('Adding widgets')
+    expect(document.body.textContent).toContain('collectionPanel.widgetProposals.applyDialog.adding')
     expect(addButton?.disabled).toBe(true)
 
     await act(async () => {
@@ -379,7 +534,7 @@ describe('WidgetProposalWorkspace', () => {
       previewToken: 'preview-token',
     })
     expect(onApplied).toHaveBeenCalledTimes(1)
-    expect(document.body.textContent).not.toContain('Review changes before adding widgets')
+    expect(document.body.textContent).not.toContain('collectionPanel.widgetProposals.applyDialog.title')
   })
 
   it('keeps the adding loader visible while the parent refreshes widgets', async () => {
@@ -430,7 +585,7 @@ describe('WidgetProposalWorkspace', () => {
     await renderWorkspace({ onApplied })
 
     const reviewButton = [...container!.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('Review and add'),
+      button.textContent?.includes('collectionPanel.widgetProposals.reviewAndAdd'),
     )
     expect(reviewButton).toBeDefined()
 
@@ -439,7 +594,7 @@ describe('WidgetProposalWorkspace', () => {
     })
 
     const addButton = [...document.body.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('Add widgets'),
+      button.textContent?.includes('collectionPanel.widgetProposals.applyDialog.addWidgets'),
     )
     expect(addButton).toBeDefined()
 
@@ -448,14 +603,14 @@ describe('WidgetProposalWorkspace', () => {
     })
 
     expect(onApplied).toHaveBeenCalledTimes(1)
-    expect(document.body.textContent).toContain('Adding widgets')
-    expect(document.body.textContent).toContain('Review changes before adding widgets')
+    expect(document.body.textContent).toContain('collectionPanel.widgetProposals.applyDialog.adding')
+    expect(document.body.textContent).toContain('collectionPanel.widgetProposals.applyDialog.title')
 
     await act(async () => {
       pendingParentRefresh.resolve()
       await pendingParentRefresh.promise
     })
 
-    expect(document.body.textContent).not.toContain('Review changes before adding widgets')
+    expect(document.body.textContent).not.toContain('collectionPanel.widgetProposals.applyDialog.title')
   })
 })

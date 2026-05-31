@@ -1874,6 +1874,7 @@ def test_load_api_export_preview_items_uses_data_source_and_sorts(
     db_path = tmp_path / "db" / "niamoto.duckdb"
     db_path.parent.mkdir()
     db_path.touch()
+    created_databases = []
 
     class FakeRows:
         def all(self):
@@ -1897,11 +1898,15 @@ def test_load_api_export_preview_items_uses_data_source_and_sorts(
             assert read_only is True
             self.session = FakeSession()
             self.closed = False
+            created_databases.append(self)
 
         def has_table(self, table_name):
             return table_name == "plot_stats"
 
         def close_db_session(self):
+            raise AssertionError("preview helpers must dispose the Database wrapper")
+
+        def close(self):
             self.closed = True
 
     monkeypatch.setattr(config_router, "get_working_directory", lambda: tmp_path)
@@ -1917,6 +1922,7 @@ def test_load_api_export_preview_items_uses_data_source_and_sorts(
 
     assert [item["plots_id"] for item in items] == [2, 1]
     assert items[0]["general_info"]["name"]["value"] == "Plot B"
+    assert [db.closed for db in created_databases] == [True]
 
 
 def test_load_api_export_preview_items_falls_back_to_legacy_data_table(
@@ -1953,6 +1959,9 @@ def test_load_api_export_preview_items_falls_back_to_legacy_data_table(
         def close_db_session(self):
             pass
 
+        def close(self):
+            pass
+
     monkeypatch.setattr(config_router, "get_working_directory", lambda: tmp_path)
     monkeypatch.setattr("niamoto.common.database.Database", FakeDatabase)
     monkeypatch.setattr(
@@ -1984,14 +1993,20 @@ def test_apply_api_export_preview_transformer_uses_first_populated_result(
     db_path = tmp_path / "db" / "niamoto.duckdb"
     db_path.parent.mkdir()
     db_path.touch()
+    created_databases = []
 
     class FakeDatabase:
         def __init__(self, path, read_only=False):
             assert path == str(db_path)
             assert read_only is True
+            self.closed = False
+            created_databases.append(self)
 
         def close_db_session(self):
-            pass
+            raise AssertionError("preview helpers must dispose the Database wrapper")
+
+        def close(self):
+            self.closed = True
 
     class FakeExporter:
         def __init__(self, db):
@@ -2025,6 +2040,7 @@ def test_apply_api_export_preview_transformer_uses_first_populated_result(
 
     assert item == {"id": 2}
     assert preview == [{"occurrenceID": "taxon-2"}]
+    assert [db.closed for db in created_databases] == [True]
 
 
 def test_build_api_export_preview_maps_curated_detail(monkeypatch):

@@ -88,6 +88,9 @@ def test_selection_detects_phenology_and_marks_it_recommended():
     assert suggestions[0].is_recommended is True
     assert suggestions[0].transformer_plugin == "time_series_analysis"
     assert suggestions[0].transformer_params["time_field"] == "month_obs"
+    assert suggestions[0].widget_plugin == "line_plot"
+    assert suggestions[0].widget_params["x_axis"] == "labels"
+    assert suggestions[0].widget_params["y_axis"] == ["flower", "fruit"]
     assert suggestions[0].fields == ["month_obs", "flower", "fruit"]
     assert set(suggestions[0].widget_params["color_discrete_map"]) == {
         "flower",
@@ -128,6 +131,66 @@ def test_trait_detection_falls_back_to_other_numeric_measurements():
     assert trait_pattern.transformer_plugin == "field_aggregator"
     assert trait_pattern.fields == ["leaf_area", "stem_density"]
     assert trait_pattern.widget_plugin == "info_grid"
+
+
+def test_selection_keeps_stronger_pattern_when_numeric_detectors_overlap():
+    detector = MultiFieldPatternDetector()
+    profiles = [
+        make_profile(
+            name="dbh",
+            data_category=DataCategory.NUMERIC_CONTINUOUS,
+            field_purpose=FieldPurpose.MEASUREMENT,
+            dtype="float64",
+        ),
+        make_profile(
+            name="height",
+            data_category=DataCategory.NUMERIC_CONTINUOUS,
+            field_purpose=FieldPurpose.MEASUREMENT,
+            dtype="float64",
+        ),
+    ]
+
+    suggestions = detector.suggest_for_selection(profiles, source_name="occurrences")
+    scatter_patterns = [
+        suggestion
+        for suggestion in suggestions
+        if suggestion.transformer_plugin == "scatter_analysis"
+        and set(suggestion.fields) == {"dbh", "height"}
+    ]
+
+    assert len(scatter_patterns) == 1
+    assert scatter_patterns[0].pattern_type is MultiFieldPatternType.ALLOMETRY
+
+
+def test_temporal_series_uses_valid_time_series_field_mapping():
+    detector = MultiFieldPatternDetector()
+    profiles = [
+        make_profile(
+            name="month_obs",
+            data_category=DataCategory.TEMPORAL,
+            field_purpose=FieldPurpose.METADATA,
+            dtype="int64",
+        ),
+        make_profile(
+            name="abundance",
+            data_category=DataCategory.NUMERIC_CONTINUOUS,
+            field_purpose=FieldPurpose.MEASUREMENT,
+            dtype="float64",
+        ),
+    ]
+
+    suggestions = detector.suggest_for_selection(profiles, source_name="occurrences")
+    temporal_pattern = next(
+        suggestion
+        for suggestion in suggestions
+        if suggestion.pattern_type is MultiFieldPatternType.TEMPORAL_SERIES
+    )
+
+    assert temporal_pattern.transformer_params["fields"] == {"abundance": "abundance"}
+    assert "value_fields" not in temporal_pattern.transformer_params
+    assert temporal_pattern.widget_plugin == "line_plot"
+    assert temporal_pattern.widget_params["x_axis"] == "labels"
+    assert temporal_pattern.widget_params["y_axis"] == ["abundance"]
 
 
 def test_detect_semantic_groups_finds_phenology_dimensions_and_traits():

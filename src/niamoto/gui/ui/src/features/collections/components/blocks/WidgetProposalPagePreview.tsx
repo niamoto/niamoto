@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { AlertCircle, CheckCircle2, Plus, Sparkles } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -22,6 +23,7 @@ export function WidgetProposalPagePreview({
   onSelectProposal,
   onToggleProposal,
 }: WidgetProposalPagePreviewProps) {
+  const { t } = useTranslation(['sources'])
   const applicableProposals = proposals.filter(
     (proposal) => proposal.applyability === 'applicable',
   )
@@ -33,18 +35,18 @@ export function WidgetProposalPagePreview({
   )
 
   return (
-    <section className="min-h-0 overflow-auto overflow-x-hidden bg-muted/10 p-4">
+    <section className="h-full min-h-0 overflow-auto overflow-x-hidden bg-muted/10 p-4">
       <div className="mx-auto max-w-6xl min-w-0 space-y-4">
         <div>
-          <h2 className="text-base font-semibold">Future page preview</h2>
+          <h2 className="text-base font-semibold">{t('collectionPanel.widgetProposals.preview.title')}</h2>
           <p className="text-sm text-muted-foreground">
-            Click a widget card to include or remove it before writing the configuration.
+            {t('collectionPanel.widgetProposals.preview.description')}
           </p>
         </div>
 
         {selectedProposals.length === 0 ? (
           <div className="flex min-h-60 items-center justify-center rounded-md border border-dashed bg-background/80 p-8 text-center text-sm text-muted-foreground">
-            Select at least one proposal to preview the future page.
+            {t('collectionPanel.widgetProposals.preview.empty')}
           </div>
         ) : (
           <div className="grid min-w-0 grid-cols-1 gap-3 min-[1800px]:grid-cols-2">
@@ -64,7 +66,7 @@ export function WidgetProposalPagePreview({
         {unselectedProposals.length > 0 && (
           <section className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-medium">Available but not selected</h3>
+              <h3 className="text-sm font-medium">{t('collectionPanel.widgetProposals.preview.available')}</h3>
               <Badge variant="outline">{unselectedProposals.length}</Badge>
             </div>
             <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-2 min-[1800px]:grid-cols-3">
@@ -104,14 +106,22 @@ function ProposalPreviewCard({
   onSelectProposal,
   onToggleProposal,
 }: ProposalPreviewCardProps) {
+  const { t } = useTranslation(['sources'])
   const descriptor = buildPreviewDescriptor(proposal)
   const widgetName = proposal.primary_fit?.widget ?? proposal.shape.kind
-  const action = selected ? 'Remove' : 'Add'
+  const action = selected
+    ? t('collectionPanel.widgetProposals.preview.remove')
+    : t('collectionPanel.widgetProposals.preview.add')
 
   return (
     <button
       type="button"
-      aria-label={`${action} ${proposal.title} ${selected ? 'from' : 'to'} the future page`}
+      aria-label={t(
+        selected
+          ? 'collectionPanel.widgetProposals.preview.removeAria'
+          : 'collectionPanel.widgetProposals.preview.addAria',
+        { title: proposal.title },
+      )}
       className={cn(
         'group grid w-full min-w-0 gap-3 rounded-md border bg-background p-3 text-left shadow-sm transition',
         compact
@@ -147,7 +157,7 @@ function ProposalPreviewCard({
             />
           ) : (
             <span className="flex h-[158px] items-center justify-center text-xs text-muted-foreground">
-              Preview unavailable
+              {t('collectionPanel.widgetProposals.preview.unavailable')}
             </span>
           )}
           <span
@@ -175,7 +185,9 @@ function ProposalPreviewCard({
             </span>
           </span>
           <Badge variant={selected ? 'default' : 'outline'} className="shrink-0">
-            {selected ? 'Selected' : 'Add'}
+            {selected
+              ? t('collectionPanel.widgetProposals.preview.selected')
+              : action}
           </Badge>
         </span>
 

@@ -144,12 +144,31 @@ class MultiFieldPatternDetector:
 
         # Sort by confidence (highest first)
         suggestions.sort(key=lambda p: -p.confidence)
+        suggestions = self._deduplicate_equivalent_patterns(suggestions)
 
         # Mark the best one as recommended
         if suggestions:
             suggestions[0].is_recommended = True
 
         return suggestions
+
+    def _deduplicate_equivalent_patterns(
+        self,
+        suggestions: List[MultiFieldPattern],
+    ) -> List[MultiFieldPattern]:
+        """Keep the strongest pattern when detectors describe the same recipe."""
+
+        by_signature: Dict[tuple[str, tuple[str, ...], str], MultiFieldPattern] = {}
+        for suggestion in suggestions:
+            signature = (
+                suggestion.transformer_plugin,
+                tuple(sorted(suggestion.fields)),
+                suggestion.widget_plugin,
+            )
+            if signature not in by_signature:
+                by_signature[signature] = suggestion
+
+        return list(by_signature.values())
 
     def detect_semantic_groups(
         self,
@@ -263,25 +282,16 @@ class MultiFieldPatternDetector:
                     "Dec",
                 ],
             },
-            widget_plugin="bar_plot",
+            widget_plugin="line_plot",
             widget_params={
                 "title": "Phenology",
                 "description": f"Temporal distribution by {temporal.name}",
-                "transform": "monthly_data",
-                "transform_params": {
-                    "data_field": "month_data",
-                    "labels_field": "labels",
-                    "melt": True,
-                },
                 "x_axis": "labels",
-                "y_axis": "value",
-                "color_field": "series",
-                "barmode": "group",
-                "orientation": "v",
+                "y_axis": [s.name for s in states],
+                "markers": True,
                 "labels": {
-                    "x_axis": "Month",
-                    "y_axis": "Frequency",
-                    "color_field": "State",
+                    "labels": "Month",
+                    **{s.name: s.name.replace("_", " ").title() for s in states},
                 },
                 "color_discrete_map": color_map,
             },
@@ -469,14 +479,18 @@ class MultiFieldPatternDetector:
             transformer_params={
                 "source": source_name,
                 "time_field": temporal.name,
-                "value_fields": [m.name for m in measurements],
+                "fields": {m.name: m.name for m in measurements},
             },
-            widget_plugin="bar_plot",
+            widget_plugin="line_plot",
             widget_params={
                 "title": "Temporal evolution",
-                "x_axis": temporal.name,
-                "y_axis": "value",
-                "barmode": "group",
+                "x_axis": "labels",
+                "y_axis": [m.name for m in measurements],
+                "markers": True,
+                "labels": {
+                    "labels": temporal.name.replace("_", " ").title(),
+                    **{m.name: m.name.replace("_", " ").title() for m in measurements},
+                },
             },
         )
 

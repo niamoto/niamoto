@@ -316,6 +316,78 @@ def test_save_import_v2_rejects_missing_entities_without_writing(
     assert import_path.read_text(encoding="utf-8") == "version: '2'\nentities: {}\n"
 
 
+def test_validate_import_v2_rejects_duplicate_entity_keys():
+    duplicated_config = """
+entities:
+  datasets:
+    occurrences:
+      connector:
+        type: file
+        format: csv
+        path: imports/occurrences.csv
+      schema: {}
+    occurrences:
+      connector:
+        type: file
+        format: csv
+        path: imports/other.csv
+      schema: {}
+  references: {}
+""".lstrip()
+
+    response = TestClient(create_app()).post(
+        "/api/config/import/v2/validate",
+        json={"config": duplicated_config},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["valid"] is False
+    assert response.json()["errors"]["_global"] == [
+        "Duplicate YAML key: entities.datasets.occurrences"
+    ]
+
+
+def test_save_import_v2_rejects_duplicate_entity_keys_without_writing(
+    monkeypatch,
+    tmp_path,
+):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    import_path = config_dir / "import.yml"
+    original_config = "version: '2'\nentities: {}\n"
+    import_path.write_text(original_config, encoding="utf-8")
+    monkeypatch.setattr(config_router, "ensure_config_dir", lambda: config_dir)
+
+    duplicated_config = """
+entities:
+  datasets:
+    occurrences:
+      connector:
+        type: file
+        format: csv
+        path: imports/occurrences.csv
+      schema: {}
+    occurrences:
+      connector:
+        type: file
+        format: csv
+        path: imports/other.csv
+      schema: {}
+  references: {}
+""".lstrip()
+
+    response = TestClient(create_app()).put(
+        "/api/config/import/v2",
+        json={"config": duplicated_config},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["errors"]["_global"] == [
+        "Duplicate YAML key: entities.datasets.occurrences"
+    ]
+    assert import_path.read_text(encoding="utf-8") == original_config
+
+
 def test_save_import_v2_writes_valid_config(monkeypatch, tmp_path):
     config_dir = tmp_path / "config"
     config_dir.mkdir()

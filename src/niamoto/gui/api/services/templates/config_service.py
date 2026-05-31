@@ -5,7 +5,9 @@ Centralizes all config file operations to avoid duplication across routers.
 """
 
 import logging
+import os
 import shutil
+import tempfile
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -18,6 +20,33 @@ from niamoto.common.transform_config_models import validate_transform_config
 logger = logging.getLogger(__name__)
 TRANSFORM_CONFIG_WRITE_LOCK = threading.RLock()
 EXPORT_CONFIG_WRITE_LOCK = threading.RLock()
+
+
+def _write_yaml_atomic(path: Path, payload: Any) -> None:
+    """Write YAML through a same-directory temp file and atomic replace."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Optional[Path] = None
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            yaml.dump(
+                payload,
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+                width=120,
+            )
+            f.flush()
+            os.fsync(f.fileno())
+        temp_path.replace(path)
+    except Exception:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+        raise
 
 
 def load_transform_config(work_dir: Path) -> List[Dict[str, Any]]:
@@ -66,15 +95,7 @@ def save_transform_config(
 
     canonical_config = validate_transform_config(config)
 
-    with open(transform_path, "w", encoding="utf-8") as f:
-        yaml.dump(
-            canonical_config,
-            f,
-            default_flow_style=False,
-            sort_keys=False,
-            allow_unicode=True,
-            width=120,
-        )
+    _write_yaml_atomic(transform_path, canonical_config)
     return backup_path
 
 
@@ -111,15 +132,7 @@ def save_import_config(
     if create_backup and import_path.exists():
         _create_backup_file(import_path)
 
-    with open(import_path, "w", encoding="utf-8") as f:
-        yaml.dump(
-            config,
-            f,
-            default_flow_style=False,
-            sort_keys=False,
-            allow_unicode=True,
-            width=120,
-        )
+    _write_yaml_atomic(import_path, config)
 
 
 def load_export_config(work_dir: Path) -> Dict[str, Any]:
@@ -163,15 +176,7 @@ def save_export_config(
     if create_backup and export_path.exists():
         backup_path = _create_backup_file(export_path)
 
-    with open(export_path, "w", encoding="utf-8") as f:
-        yaml.dump(
-            config,
-            f,
-            default_flow_style=False,
-            sort_keys=False,
-            allow_unicode=True,
-            width=120,
-        )
+    _write_yaml_atomic(export_path, config)
     return backup_path
 
 

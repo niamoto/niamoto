@@ -1,31 +1,48 @@
+import { useTranslation } from 'react-i18next'
+
 import { Badge } from '@/components/ui/badge'
 import type { WidgetProposal } from '@/features/collections/api/widget-proposals'
 
 interface WidgetProposalDetailProps {
   proposal: WidgetProposal | null
+  variant?: 'sidebar' | 'main'
 }
 
-export function WidgetProposalDetail({ proposal }: WidgetProposalDetailProps) {
+export function WidgetProposalDetail({
+  proposal,
+  variant = 'sidebar',
+}: WidgetProposalDetailProps) {
+  const { t } = useTranslation(['sources'])
+  const className =
+    variant === 'main'
+      ? 'h-full min-h-0 overflow-auto bg-background p-4'
+      : 'hidden min-h-0 overflow-auto border-l bg-background p-4 min-[2200px]:block'
+
   if (!proposal) {
+    const emptyClassName =
+      variant === 'main'
+        ? 'flex h-full items-center justify-center text-sm text-muted-foreground'
+        : 'hidden h-full items-center justify-center border-l text-sm text-muted-foreground min-[2200px]:flex'
+
     return (
-      <div className="hidden h-full items-center justify-center border-l text-sm text-muted-foreground min-[2200px]:flex">
-        Select a proposal to inspect it.
+      <div className={emptyClassName}>
+        {t('collectionPanel.widgetProposals.detail.empty')}
       </div>
     )
   }
 
   const scoreEntries = Object.entries(proposal.score.dimensions)
-  const widgetName = proposal.primary_fit?.widget ?? 'missing'
+  const widgetName = proposal.primary_fit?.widget ?? t('collectionPanel.widgetProposals.detail.missing')
   const chartFit = proposal.primary_fit?.score
   const reviewNotes = [...proposal.warnings, ...proposal.skip_reasons]
 
   return (
-    <article className="hidden min-h-0 overflow-auto border-l bg-background p-4 min-[2200px]:block">
+    <article className={className}>
       <header className="mb-4 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-base font-semibold">Selected widget</h2>
-          <Badge variant="outline">{proposal.status.replace('_', ' ')}</Badge>
-          <Badge variant="secondary">{proposal.applyability.replace('_', ' ')}</Badge>
+          <h2 className="text-base font-semibold">{t('collectionPanel.widgetProposals.detail.title')}</h2>
+          <Badge variant="outline">{t(`collectionPanel.widgetProposals.status.${proposal.status}`)}</Badge>
+          <Badge variant="secondary">{t(`collectionPanel.widgetProposals.applyability.${proposal.applyability}`)}</Badge>
         </div>
         <div>
           <p className="text-sm font-medium">{proposal.title}</p>
@@ -36,17 +53,17 @@ export function WidgetProposalDetail({ proposal }: WidgetProposalDetailProps) {
       </header>
 
       <section className="mb-4 space-y-3">
-        <DetailTile label="Display" value={widgetName} />
+        <DetailTile label={t('collectionPanel.widgetProposals.detail.display')} value={widgetName} />
         <DetailTile
-          label="Transformation"
-          value={proposal.candidate.transformer_plugin ?? 'none'}
+          label={t('collectionPanel.widgetProposals.detail.transformation')}
+          value={proposal.candidate.transformer_plugin ?? t('collectionPanel.widgetProposals.detail.none')}
         />
-        <DetailTile label="Data shape" value={proposal.shape.kind} />
+        <DetailTile label={t('collectionPanel.widgetProposals.detail.dataShape')} value={proposal.shape.kind} />
       </section>
 
       {proposal.candidate.field_names.length > 0 && (
         <section className="mb-4">
-          <h3 className="mb-2 text-sm font-medium">Source fields</h3>
+          <h3 className="mb-2 text-sm font-medium">{t('collectionPanel.widgetProposals.detail.sourceFields')}</h3>
           <div className="flex flex-wrap gap-1.5">
             {proposal.candidate.field_names.map((field) => (
               <Badge key={field} variant="outline">{field}</Badge>
@@ -56,20 +73,20 @@ export function WidgetProposalDetail({ proposal }: WidgetProposalDetailProps) {
       )}
 
       <section className="mb-4 rounded-md border bg-muted/20 p-3 text-sm">
-        <h3 className="font-medium">Why suggested</h3>
+        <h3 className="font-medium">{t('collectionPanel.widgetProposals.detail.whySuggested')}</h3>
         <p className="mt-1 text-muted-foreground">
           {proposal.primary_fit?.reason ?? proposal.candidate.intent}
         </p>
         {typeof chartFit === 'number' && (
           <p className="mt-2 text-xs text-muted-foreground">
-            Chart fit: {Math.round(chartFit * 100)}%
+            {t('collectionPanel.widgetProposals.detail.chartFit', { score: Math.round(chartFit * 100) })}
           </p>
         )}
       </section>
 
       {reviewNotes.length > 0 && (
         <section className="mb-4 space-y-2">
-          <h3 className="text-sm font-medium">Review notes</h3>
+          <h3 className="text-sm font-medium">{t('collectionPanel.widgetProposals.detail.reviewNotes')}</h3>
           {reviewNotes.map((item) => (
             <div
               key={`${item.code}:${item.message}`}
@@ -84,19 +101,19 @@ export function WidgetProposalDetail({ proposal }: WidgetProposalDetailProps) {
 
       {proposal.missing_chart ? (
         <section className="mb-4 rounded-md border border-sky-300 bg-sky-50 p-3 text-sm text-sky-950">
-          <p className="font-medium">Missing chart</p>
+          <p className="font-medium">{t('collectionPanel.widgetProposals.detail.missingChart')}</p>
           <p className="mt-1">{proposal.missing_chart.reason}</p>
         </section>
       ) : null}
 
       <details className="rounded-md border bg-muted/10 p-3">
         <summary className="cursor-pointer text-sm font-medium">
-          Technical details
+          {t('collectionPanel.widgetProposals.detail.technicalDetails')}
         </summary>
 
         {scoreEntries.length > 0 && (
           <section className="mt-3">
-            <h3 className="mb-2 text-sm font-medium">Internal score</h3>
+            <h3 className="mb-2 text-sm font-medium">{t('collectionPanel.widgetProposals.detail.internalScore')}</h3>
             <div className="grid gap-2">
               {scoreEntries.map(([name, value]) => (
                 <div key={name} className="rounded-md border bg-background p-2">
@@ -117,7 +134,7 @@ export function WidgetProposalDetail({ proposal }: WidgetProposalDetailProps) {
         )}
 
         <section className="mt-3">
-          <h3 className="mb-2 text-sm font-medium">Recipe</h3>
+          <h3 className="mb-2 text-sm font-medium">{t('collectionPanel.widgetProposals.detail.recipe')}</h3>
           <pre className="max-h-72 overflow-auto rounded-md border bg-muted/40 p-3 text-xs">
             {JSON.stringify(proposal.recipe, null, 2)}
           </pre>

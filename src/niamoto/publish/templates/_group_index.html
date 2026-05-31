@@ -318,6 +318,94 @@
     // Détecter si on est dans un contexte de preview (iframe)
     const isPreviewMode = window.parent !== window;
 
+    const HTML_ESCAPE_MAP = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+        '`': '&#96;'
+    };
+    const UNSAFE_URL_SCHEME_PATTERN = /^(javascript|data|file|vbscript):/i;
+    const SAFE_URL_PATTERN = /^(https?:|mailto:|tel:|\/|\.\/|\.\.\/|#)/i;
+
+    function escapeHtml(value) {
+        if (value === null || value === undefined) {
+            return '';
+        }
+        return String(value).replace(/[&<>"'`]/g, char => HTML_ESCAPE_MAP[char]);
+    }
+
+    function escapeAttribute(value) {
+        return escapeHtml(value);
+    }
+
+    function safeDomId(value, fallback = 'item') {
+        const safeId = String(value ?? '')
+            .trim()
+            .replace(/[^A-Za-z0-9_-]/g, '_')
+            .replace(/^_+|_+$/g, '');
+        return safeId || fallback;
+    }
+
+    function fieldFilterId(field) {
+        return `${safeDomId(field?.name, 'field')}Filter`;
+    }
+
+    function normalizedSafeUrl(value) {
+        const url = String(value ?? '').trim();
+        if (!url || UNSAFE_URL_SCHEME_PATTERN.test(url)) {
+            return '';
+        }
+        if (SAFE_URL_PATTERN.test(url) || !/^[a-z][a-z0-9+.-]*:/i.test(url)) {
+            return url;
+        }
+        return '';
+    }
+
+    function safeUrl(value) {
+        const url = normalizedSafeUrl(value);
+        return url ? escapeAttribute(url) : '';
+    }
+
+    function cssUrl(value) {
+        const url = normalizedSafeUrl(value);
+        return url ? `url(&quot;${escapeAttribute(url)}&quot;)` : '';
+    }
+
+    function sanitizeCssClass(value, fallback = '') {
+        const classes = String(value ?? '')
+            .split(/\s+/)
+            .filter(token => /^[A-Za-z0-9_:/.[\]#%-]+$/.test(token))
+            .join(' ');
+        return classes || fallback;
+    }
+
+    function sanitizeInlineStyle(value) {
+        const style = String(value ?? '').trim();
+        if (!style || /[<>"'`]/.test(style) || /(?:expression|url)\s*\(/i.test(style)) {
+            return '';
+        }
+        return escapeAttribute(style);
+    }
+
+    function safeTarget(value) {
+        const target = String(value || '_blank').trim();
+        return ['_blank', '_self', '_parent', '_top'].includes(target) ? target : '_blank';
+    }
+
+    function jsonForInlineHandler(value) {
+        return escapeAttribute(JSON.stringify(value));
+    }
+
+    function itemPageHref(item) {
+        const itemId = item?.[indexConfig.id_column];
+        if (itemId === null || itemId === undefined || itemId === '') {
+            return '#';
+        }
+        return `${encodeURIComponent(String(itemId))}.html`;
+    }
+
     // Initialisation
     document.addEventListener('DOMContentLoaded', function() {
         generateViewToggleButtons();
@@ -383,11 +471,13 @@
         const filtersHTML = indexConfig.display_fields
             .filter(field => field.type === 'select' || field.type === 'boolean')
             .map(field => {
+                const filterId = fieldFilterId(field);
+                const fieldLabel = escapeHtml(field.label || field.name);
                 if (field.type === 'boolean') {
                     return `
                         <div class="flex-1 min-w-48">
-                            <label for="${field.name}Filter" class="block text-sm font-medium text-gray-700 mb-2">${field.label || field.name}</label>
-                            <select id="${field.name}Filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm">
+                            <label for="${filterId}" class="block text-sm font-medium text-gray-700 mb-2">${fieldLabel}</label>
+                            <select id="${filterId}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm">
                                 <option value="all">Tous</option>
                                 <option value="true">Oui</option>
                                 <option value="false">Non</option>
@@ -402,13 +492,13 @@
                     )].sort();
 
                     const optionsHTML = uniqueValues.map(value =>
-                        `<option value="${value}">${value}</option>`
+                        `<option value="${escapeAttribute(value)}">${escapeHtml(value)}</option>`
                     ).join('');
 
                     return `
                         <div class="flex-1 min-w-48">
-                            <label for="${field.name}Filter" class="block text-sm font-medium text-gray-700 mb-2">${field.label || field.name}</label>
-                            <select id="${field.name}Filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm">
+                            <label for="${filterId}" class="block text-sm font-medium text-gray-700 mb-2">${fieldLabel}</label>
+                            <select id="${filterId}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm">
                                 <option value="all">Tous</option>
                                 ${optionsHTML}
                             </select>
@@ -416,13 +506,13 @@
                     `;
                 } else if (field.filter_options) {
                     const optionsHTML = field.filter_options.map(option =>
-                        `<option value="${option.value}">${option.label}</option>`
+                        `<option value="${escapeAttribute(option.value)}">${escapeHtml(option.label)}</option>`
                     ).join('');
 
                     return `
                         <div class="flex-1 min-w-48">
-                            <label for="${field.name}Filter" class="block text-sm font-medium text-gray-700 mb-2">${field.label || field.name}</label>
-                            <select id="${field.name}Filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm">
+                            <label for="${filterId}" class="block text-sm font-medium text-gray-700 mb-2">${fieldLabel}</label>
+                            <select id="${filterId}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm">
                                 <option value="all">Tous</option>
                                 ${optionsHTML}
                             </select>
@@ -438,7 +528,7 @@
                 <label for="sortBy" class="block text-sm font-medium text-gray-700 mb-2">Trier par</label>
                 <select id="sortBy" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm">
                     ${indexConfig.display_fields.map(field =>
-                        `<option value="${field.name}">${field.label || field.name}</option>`
+                        `<option value="${escapeAttribute(field.name)}">${escapeHtml(field.label || field.name)}</option>`
                     ).join('')}
                 </select>
             </div>
@@ -493,7 +583,7 @@
         const filterValues = {};
         indexConfig.display_fields.forEach(field => {
             if (field.type === 'select' || field.type === 'boolean') {
-                const filterElement = document.getElementById(`${field.name}Filter`);
+                const filterElement = document.getElementById(fieldFilterId(field));
                 if (filterElement) {
                     filterValues[field.name] = filterElement.value;
                 }
@@ -529,7 +619,7 @@
                     }
                     return String(itemValue) === filterValue;
                 } else {
-                    return itemValue === filterValue;
+                    return String(itemValue) === filterValue;
                 }
             });
 
@@ -599,7 +689,7 @@
         if (titleValue !== null && titleValue !== undefined && titleValue !== '') {
             return formatFieldValue(titleValue, titleField);
         }
-        return item[indexConfig.id_column];
+        return escapeHtml(item[indexConfig.id_column]);
     }
 
     // Vue grille générique
@@ -614,8 +704,9 @@
 
         itemsContainer.innerHTML = items.map(item => {
             const imageField = indexConfig.display_fields.find(f => f.display === 'image_preview' || f.type === 'json_array');
-            const imageUrl = getImageUrl(item, imageField);
+            const imageStyleUrl = cssUrl(getImageUrl(item, imageField));
             const itemName = getItemTitle(item);
+            const itemHref = itemPageHref(item);
 
             // Ne pas afficher la section image si aucun champ d'image n'est configuré
             const hasImageField = imageField !== undefined;
@@ -626,8 +717,8 @@
                     ${hasImageField ? `
                     <!-- Image à gauche pour desktop, en haut pour mobile -->
                     <div class="item-card-image-container">
-                        ${imageUrl ?
-                            `<div class="item-card-image" style="background-image: url('${imageUrl}')"></div>` :
+                        ${imageStyleUrl ?
+                            `<div class="item-card-image" style="background-image: ${imageStyleUrl}"></div>` :
                             '<div class="item-card-image-placeholder">Aucune image</div>'
                         }
                     </div>
@@ -636,7 +727,7 @@
                     <!-- Informations à droite pour desktop, en bas pour mobile -->
                     <div class="item-card-info">
                         <h3 class="item-name">
-                            <a href="${item[indexConfig.id_column]}.html">${itemName}</a>
+                            <a href="${itemHref}">${itemName}</a>
                         </h3>
                         <div class="flex flex-wrap gap-2 mb-3">
                             ${renderInlineBadges(item)}
@@ -667,8 +758,8 @@
         itemsContainer.style.gridTemplateColumns = ''; // Reset grid styles
         itemsContainer.innerHTML = items.map(item => {
             const imageField = indexConfig.display_fields.find(f => f.display === 'image_preview' || f.type === 'json_array');
-            const imageUrl = getImageUrl(item, imageField);
             const itemName = getItemTitle(item);
+            const itemHref = itemPageHref(item);
 
             // Ne pas afficher la section image si aucun champ d'image n'est configuré
             const hasImageField = imageField !== undefined;
@@ -679,7 +770,7 @@
                 <div class="flex">
                     <!-- Texte à gauche -->
                     <div class="${hasImageField ? 'flex-1 pr-6' : 'flex-1'}">
-                        <a href="${item[indexConfig.id_column]}.html"
+                        <a href="${itemHref}"
                            class="text-primary hover:text-green-700 font-semibold text-lg transition-colors block mb-2">
                             ${itemName}
                         </a>
@@ -713,7 +804,7 @@
             .filter(field => field.name !== 'name' && field.name !== titleField?.name && field.display !== 'hidden' && field.display !== 'image_preview' && field.display !== 'link' && field.type !== 'json_array')
             .map(field => {
                 const value = getFieldValue(item, field);
-                const label = field.label || field.name;
+                const label = escapeHtml(field.label || field.name);
                 const displayValue = formatFieldValue(value, field);
 
                 if (inline) {
@@ -746,18 +837,18 @@
                 if (field.type === 'boolean') {
                     const label = value === true ? (field.true_label || 'Oui') : (field.false_label || 'Non');
                     const colorClass = value === true ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600';
-                    return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}">${label}</span>`;
+                    return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}">${escapeHtml(label)}</span>`;
                 }
-                return value;
+                return escapeHtml(value);
             case 'map':
                 if (field.mapping && field.mapping[value]) {
-                    return field.mapping[value];
+                    return escapeHtml(field.mapping[value]);
                 }
-                return value;
+                return escapeHtml(value);
             case 'number':
-                return new Intl.NumberFormat('fr-FR').format(value);
+                return escapeHtml(new Intl.NumberFormat('fr-FR').format(value));
             default:
-                return value;
+                return escapeHtml(value);
         }
     }
 
@@ -786,16 +877,20 @@
         switch (field.format) {
             case 'badge':
                 if (field.type === 'boolean' && value === true) {
-                    const label = field.true_label || field.label || 'Oui';
+                    const label = escapeHtml(field.true_label || field.label || 'Oui');
                     const styleValue = field.badge_color || field.badge_style;
 
                     // Create the badge with proper class combination
                     if (styleValue && styleValue.includes(':')) {
                         // Inline style
-                        return `<span class="field-badge" style="${styleValue}">${label}</span>`;
+                        const cssStyle = sanitizeInlineStyle(styleValue);
+                        return cssStyle
+                            ? `<span class="field-badge" style="${cssStyle}">${label}</span>`
+                            : `<span class="field-badge">${label}</span>`;
                     } else if (styleValue) {
                         // CSS classes - combine with field-badge
-                        return `<span class="field-badge ${styleValue}">${label}</span>`;
+                        const cssClass = sanitizeCssClass(styleValue);
+                        return `<span class="field-badge ${cssClass}">${label}</span>`;
                     } else {
                         // Default styling
                         return `<span class="field-badge">${label}</span>`;
@@ -804,20 +899,24 @@
                 break;
             case 'map':
                 if (field.mapping && field.mapping[value]) {
-                    const label = field.mapping[value];
+                    const label = escapeHtml(field.mapping[value]);
                     const styleValue = (field.badge_colors && field.badge_colors[value]) ||
                                      (field.badge_styles && field.badge_styles[value]) ||
                                      'bg-gray-600 text-white';
-                    const tooltip = field.tooltip_mapping && field.tooltip_mapping[value] || '';
+                    const tooltip = escapeAttribute(field.tooltip_mapping && field.tooltip_mapping[value] || '');
 
                     // Create the badge with proper class combination
                     let badgeHtml;
                     if (styleValue.includes(':')) {
                         // Inline style
-                        badgeHtml = `<span class="field-badge" style="${styleValue}" title="${tooltip}">${label}</span>`;
+                        const cssStyle = sanitizeInlineStyle(styleValue);
+                        badgeHtml = cssStyle
+                            ? `<span class="field-badge" style="${cssStyle}" title="${tooltip}">${label}</span>`
+                            : `<span class="field-badge" title="${tooltip}">${label}</span>`;
                     } else {
                         // CSS classes - combine with field-badge
-                        badgeHtml = `<span class="field-badge ${styleValue}" title="${tooltip}">${label}</span>`;
+                        const cssClass = sanitizeCssClass(styleValue);
+                        badgeHtml = `<span class="field-badge ${cssClass}" title="${tooltip}">${label}</span>`;
                     }
 
                     return badgeHtml;
@@ -826,14 +925,19 @@
             default:
                 if (field.badge_color || field.badge_style) {
                     const styleValue = field.badge_color || field.badge_style;
+                    const label = escapeHtml(value);
 
                     // Create the badge with proper class combination
                     if (styleValue.includes(':')) {
                         // Inline style
-                        return `<span class="field-badge" style="${styleValue}">${value}</span>`;
+                        const cssStyle = sanitizeInlineStyle(styleValue);
+                        return cssStyle
+                            ? `<span class="field-badge" style="${cssStyle}">${label}</span>`
+                            : `<span class="field-badge">${label}</span>`;
                     } else {
                         // CSS classes - combine with field-badge
-                        return `<span class="field-badge ${styleValue}">${value}</span>`;
+                        const cssClass = sanitizeCssClass(styleValue);
+                        return `<span class="field-badge ${cssClass}">${label}</span>`;
                     }
                 }
         }
@@ -987,18 +1091,17 @@
 
         let allImages = [];
         let displayImages = [];
+        const thumbField = imageField?.image_fields?.thumbnail || 'small_thumb';
+        const fullField = imageField?.image_fields?.full || 'big_thumb';
+        const urlField = imageField?.image_fields?.url || 'url';
 
         // Si c'est une URL directe
         if (typeof imageData === 'string' && (imageData.startsWith('http') || imageData.startsWith('/'))) {
-            allImages = [imageData];
-            displayImages = [imageData];
+            allImages = [imageData].map(normalizedSafeUrl).filter(Boolean);
+            displayImages = allImages;
         }
         // Si c'est un tableau d'images
         else if (Array.isArray(imageData)) {
-            // Utiliser les champs configurés ou les valeurs par défaut
-            const thumbField = imageField?.image_fields?.thumbnail || 'small_thumb';
-            const urlField = imageField?.image_fields?.url || 'url';
-
             allImages = imageData
                 .map(img => {
                     if (typeof img === 'string') return img;
@@ -1010,14 +1113,12 @@
                     // Essayer d'abord le champ configuré, puis les fallbacks
                     return img[thumbField] || img[urlField] || img.small_thumb || img.url || null;
                 })
+                .map(normalizedSafeUrl)
                 .filter(url => url !== null && url !== undefined && url !== ''); // Filtrer les valeurs nulles
             displayImages = allImages.slice(0, 10);
         }
         // Si c'est un objet avec une URL
         else if (typeof imageData === 'object' && !Array.isArray(imageData)) {
-            const thumbField = imageField?.image_fields?.thumbnail || 'small_thumb';
-            const fullField = imageField?.image_fields?.full || 'big_thumb';
-            const urlField = imageField?.image_fields?.url || 'url';
             const resolvedImage =
                 imageData[thumbField]
                 || imageData[urlField]
@@ -1027,7 +1128,7 @@
                 || imageData.url
                 || null;
             if (resolvedImage) {
-                allImages = [resolvedImage];
+                allImages = [normalizedSafeUrl(resolvedImage)].filter(Boolean);
             }
             displayImages = allImages;
         }
@@ -1037,17 +1138,13 @@
         }
 
         const itemId = item[indexConfig.id_column];
-        const galleryId = `gallery-${itemId}`;
 
         // Préparer les URLs pour la modal (big_thumb)
-        const fullField = imageField?.image_fields?.full || 'big_thumb';
-        const urlField = imageField?.image_fields?.url || 'url';
-
         const modalImages = Array.isArray(imageData) ?
             imageData.map(img => {
                 if (typeof img === 'string') return img;
-                return img[fullField] || img[urlField] || img.big_thumb || img.url || img;
-            }) :
+                return img[fullField] || img[urlField] || img.big_thumb || img.url || null;
+            }).map(normalizedSafeUrl).filter(Boolean) :
             (typeof imageData === 'object' && imageData !== null && !Array.isArray(imageData)) ?
                 [
                     imageData[fullField]
@@ -1056,27 +1153,32 @@
                     || imageData.big_thumb
                     || imageData.small_thumb
                     || imageData.url
-                ].filter(Boolean) :
+                ].map(normalizedSafeUrl).filter(Boolean) :
                 allImages;
+        const safeGalleryId = `gallery-${safeDomId(itemId)}`;
+        const modalImagesArgument = jsonForInlineHandler(modalImages);
+        const galleryIdArgument = jsonForInlineHandler(safeGalleryId);
 
         // Créer une grille d'images pour la zone droite
         const imageElements = displayImages.map((imageUrl, index) => {
+            const imageStyleUrl = cssUrl(imageUrl);
             return `
                 <div class="w-20 h-20 bg-cover bg-center rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
-                     style="background-image: url('${imageUrl}')"
+                     style="background-image: ${imageStyleUrl}"
                      title="Image ${index + 1}"
-                     onclick="openImageLightbox(${JSON.stringify(modalImages).replace(/"/g, '&quot;')}, ${index})">
+                     onclick="openImageLightbox(${modalImagesArgument}, ${index})">
                 </div>
             `;
         }).join('');
 
         // Images supplémentaires cachées
         const hiddenImages = allImages.slice(10).map((imageUrl, index) => {
+            const imageStyleUrl = cssUrl(imageUrl);
             return `
                 <div class="w-20 h-20 bg-cover bg-center rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity hidden gallery-hidden"
-                     style="background-image: url('${imageUrl}')"
+                     style="background-image: ${imageStyleUrl}"
                      title="Image ${index + 11}"
-                     onclick="openImageLightbox(${JSON.stringify(modalImages).replace(/"/g, '&quot;')}, ${index + 10})">
+                     onclick="openImageLightbox(${modalImagesArgument}, ${index + 10})">
                 </div>
             `;
         }).join('');
@@ -1084,20 +1186,20 @@
         const remainingCount = allImages.length - displayImages.length;
         const expandButton = remainingCount > 0 ? `
             <div class="w-20 h-20 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-500 text-sm font-medium cursor-pointer hover:bg-gray-200 transition-colors expand-btn"
-                 onclick="expandImageGallery('${galleryId}', this)">
+                 onclick="expandImageGallery(${galleryIdArgument}, this)">
                 +${remainingCount}
             </div>
         ` : '';
 
         const collapseButton = remainingCount > 0 ? `
             <div class="w-20 h-20 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-500 text-sm font-medium cursor-pointer hover:bg-gray-200 transition-colors collapse-btn hidden"
-                 onclick="collapseImageGallery('${galleryId}', this)">
+                 onclick="collapseImageGallery(${galleryIdArgument}, this)">
                 −
             </div>
         ` : '';
 
         return `
-            <div id="${galleryId}" class="grid grid-cols-5 gap-2">
+            <div id="${escapeAttribute(safeGalleryId)}" class="grid grid-cols-5 gap-2">
                 ${imageElements}
                 ${hiddenImages}
                 ${expandButton}
@@ -1127,14 +1229,17 @@
                     // Use direct URL
                     finalUrl = value;
                 }
+                const safeFinalUrl = safeUrl(finalUrl);
+                if (!safeFinalUrl) return '';
 
-                const label = field.link_label || field.label || field.name;
-                const cssClass = field.css_class || 'external-link';
-                const cssStyle = field.css_style ? `style="${field.css_style}"` : '';
-                const title = field.link_title ? `title="${field.link_title}"` : '';
-                const target = field.link_target ? `target="${field.link_target}"` : 'target="_blank"';
+                const label = escapeHtml(field.link_label || field.label || field.name);
+                const safeCssClass = sanitizeCssClass(field.css_class, 'external-link');
+                const cssStyle = sanitizeInlineStyle(field.css_style);
+                const styleAttribute = cssStyle ? `style="${cssStyle}"` : '';
+                const title = field.link_title ? `title="${escapeAttribute(field.link_title)}"` : '';
+                const target = `target="${escapeAttribute(safeTarget(field.link_target))}"`;
 
-                return `<a href="${finalUrl}" class="${cssClass}" ${cssStyle} ${title} ${target}>${label}</a>`;
+                return `<a href="${safeFinalUrl}" class="${safeCssClass}" ${styleAttribute} ${title} ${target}>${label}</a>`;
             })
             .filter(link => link !== '');
 

@@ -38,6 +38,50 @@ def test_save_and_load_transform_config_round_trip(tmp_path):
     assert config_service.load_transform_config(tmp_path) == config
 
 
+@pytest.mark.parametrize(
+    ("filename", "save_config", "payload", "original"),
+    [
+        (
+            "transform.yml",
+            config_service.save_transform_config,
+            [{"group_by": "plots", "sources": [], "widgets_data": {}}],
+            "- group_by: old\n  sources: []\n  widgets_data: {}\n",
+        ),
+        (
+            "import.yml",
+            config_service.save_import_config,
+            {"entities": {"references": {}, "datasets": {"old": {}}}},
+            "entities:\n  datasets:\n    old: {}\n  references: {}\n",
+        ),
+        (
+            "export.yml",
+            config_service.save_export_config,
+            {"exports": [{"name": "web", "exporter": "html_page_exporter"}]},
+            "exports:\n- name: old\n  exporter: html_page_exporter\n",
+        ),
+    ],
+)
+def test_save_config_preserves_existing_file_when_yaml_dump_fails(
+    monkeypatch, tmp_path, filename, save_config, payload, original
+):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True)
+    config_path = config_dir / filename
+    config_path.write_text(original, encoding="utf-8")
+
+    def fail_dump(_payload, stream, *args, **kwargs):
+        stream.write("partial: true\n")
+        raise RuntimeError("dump boom")
+
+    monkeypatch.setattr(config_service.yaml, "dump", fail_dump)
+
+    with pytest.raises(RuntimeError, match="dump boom"):
+        save_config(tmp_path, payload)
+
+    assert config_path.read_text(encoding="utf-8") == original
+    assert not list(config_dir.glob("*.tmp"))
+
+
 def test_create_backup_file_preserves_rapid_successive_backups(monkeypatch, tmp_path):
     config_dir = tmp_path / "config"
     config_dir.mkdir()

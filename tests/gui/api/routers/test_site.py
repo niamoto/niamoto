@@ -2291,6 +2291,22 @@ class TestSiteGroups:
             assert "Plot 1" not in html
             assert "Aperçu avec données fictives" not in html
 
+    def test_group_index_template_escapes_dynamic_client_rendering(self):
+        template = Path("src/niamoto/publish/templates/_group_index.html").read_text(
+            encoding="utf-8"
+        )
+
+        assert "function escapeHtml" in template
+        assert "function safeUrl" in template
+        assert "function sanitizeInlineStyle" in template
+        assert "function sanitizeCssClass" in template
+        assert "style=\"background-image: url('${imageUrl}')\"" not in template
+        assert (
+            '<a href="${item[indexConfig.id_column]}.html">${itemName}</a>'
+            not in template
+        )
+        assert 'return `<a href="${finalUrl}" class="${cssClass}"' not in template
+
     def test_preview_group_index_does_not_read_database_from_other_project(
         self, monkeypatch: pytest.MonkeyPatch
     ):

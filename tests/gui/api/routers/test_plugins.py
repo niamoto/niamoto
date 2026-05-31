@@ -1,5 +1,6 @@
 """Tests for plugin registry API routes."""
 
+import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
@@ -87,6 +88,60 @@ class UiMetadataWidget(WidgetPlugin):
 
     def render(self, data, params):
         return "<div></div>"
+
+
+def test_list_plugins_loads_project_plugin_cascade(monkeypatch, tmp_path):
+    PluginRegistry.clear()
+    captured = {}
+
+    class FakePluginLoader:
+        def load_plugins_with_cascade(self, project_path=None):
+            captured["project_path"] = project_path
+            PluginRegistry.register_plugin(
+                "project_widget", DummyWidget, PluginType.WIDGET
+            )
+
+    monkeypatch.setattr(plugins_router, "PluginLoader", FakePluginLoader, raising=False)
+    monkeypatch.setattr(
+        plugins_router,
+        "get_optional_working_directory",
+        lambda: tmp_path,
+        raising=False,
+    )
+
+    try:
+        response = TestClient(create_app()).get("/api/plugins/?type=widget")
+
+        assert response.status_code == 200, response.text
+        assert captured["project_path"] == tmp_path
+        assert any(item["id"] == "project_widget" for item in response.json())
+    finally:
+        PluginRegistry.clear()
+
+
+def test_load_all_plugins_restores_registry_when_cascade_loading_fails(monkeypatch):
+    PluginRegistry.clear()
+    PluginRegistry.register_plugin("existing_widget", DummyWidget, PluginType.WIDGET)
+
+    class FailingPluginLoader:
+        def load_plugins_with_cascade(self, project_path=None):
+            PluginRegistry.clear()
+            raise RuntimeError("cascade boom")
+
+    monkeypatch.setattr(
+        plugins_router, "PluginLoader", FailingPluginLoader, raising=False
+    )
+    monkeypatch.setattr(
+        plugins_router, "get_optional_working_directory", lambda: None, raising=False
+    )
+
+    try:
+        with pytest.raises(RuntimeError, match="cascade boom"):
+            plugins_router.load_all_plugins()
+
+        assert PluginRegistry.has_plugin("existing_widget", PluginType.WIDGET)
+    finally:
+        PluginRegistry.clear()
 
 
 def test_check_compatibility_rejects_unknown_plugin(monkeypatch):

@@ -761,6 +761,63 @@ class TestTemplatesEndpoints:
         assert transform_path.read_text(encoding="utf-8") == original_transform
         assert export_path.read_text(encoding="utf-8") == original_export
 
+    def test_save_config_rejects_invalid_export_override_without_writing(
+        self, client, test_work_dir
+    ):
+        config_dir = Path(test_work_dir) / "config"
+        transform_path = config_dir / "transform.yml"
+        export_path = config_dir / "export.yml"
+        original_transform = transform_path.read_text(encoding="utf-8")
+        original_export = {
+            "exports": [
+                {
+                    "name": "web_pages",
+                    "enabled": True,
+                    "exporter": "html_page_exporter",
+                    "params": {
+                        "template_dir": "templates/",
+                        "output_dir": "exports/web",
+                    },
+                    "static_pages": [],
+                    "groups": [
+                        {
+                            "group_by": "taxons",
+                            "widgets": [],
+                        }
+                    ],
+                }
+            ]
+        }
+        export_path.write_text(
+            yaml.safe_dump(original_export, sort_keys=False),
+            encoding="utf-8",
+        )
+        original_export_text = export_path.read_text(encoding="utf-8")
+
+        response = client.post(
+            "/api/templates/save-config",
+            json={
+                "group_by": "taxons",
+                "sources": [],
+                "widgets_data": {
+                    "summary": {
+                        "plugin": "field_aggregator",
+                        "params": {"field": "dbh"},
+                        "export_override": {
+                            "plugin": "bar_plot",
+                            "title": ["not", "a", "localized", "string"],
+                        },
+                    }
+                },
+                "mode": "replace",
+            },
+        )
+
+        assert response.status_code == 400, response.text
+        assert "Invalid export configuration" in response.json()["detail"]
+        assert transform_path.read_text(encoding="utf-8") == original_transform
+        assert export_path.read_text(encoding="utf-8") == original_export_text
+
     def test_save_config_rolls_back_transform_when_export_replace_fails(
         self, client, test_work_dir
     ):

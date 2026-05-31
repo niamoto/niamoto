@@ -21,6 +21,7 @@ from niamoto.common.utils.error_handler import get_error_details
 from niamoto.core.services.importer import ImporterService
 from niamoto.core.imports.registry import EntityKind, EntityRegistry
 from niamoto.core.imports.config_models import ConnectorType
+from niamoto.gui.api.services.templates.config_service import save_import_config
 from niamoto.common.table_resolver import quote_identifier
 from ..utils.database import open_database
 from ..desktop_auth import require_desktop_mutation_auth
@@ -702,15 +703,7 @@ async def delete_entity(
             entities[section_key] = section
             import_config["entities"] = entities
 
-            # Write updated config
-            with open(config_path, "w", encoding="utf-8") as f:
-                yaml.dump(
-                    import_config,
-                    f,
-                    default_flow_style=False,
-                    sort_keys=False,
-                    allow_unicode=True,
-                )
+            save_import_config(work_dir, import_config, create_backup=False)
 
             return {
                 "success": True,
@@ -746,7 +739,7 @@ async def list_entities() -> Dict[str, Any]:
         try:
             db_path = Path(config.database_path)
             if db_path.exists():
-                with open_database(config.database_path) as db:
+                with open_database(config.database_path, read_only=True) as db:
                     # Check if registry table exists before querying
                     if db.has_table(EntityRegistry.ENTITIES_TABLE):
                         registry = EntityRegistry(db)
@@ -825,7 +818,7 @@ async def get_import_status() -> ImportStatusResponse:
         references: List[ImportStatus] = []
         datasets: List[ImportStatus] = []
 
-        with open_database(config.database_path) as db:
+        with open_database(config.database_path, read_only=True) as db:
             registry = EntityRegistry(db)
 
             for entity in registry.list_entities():
@@ -864,12 +857,14 @@ async def get_import_status() -> ImportStatusResponse:
 
     except HTTPException:
         raise
-    except Exception:
-        # Return empty status on error
+    except ConfigurationError:
         return ImportStatusResponse(
             references=[],
             datasets=[],
         )
+    except Exception as exc:
+        logger.exception("Error getting import status: %s", exc)
+        raise HTTPException(status_code=500, detail="Error getting import status")
 
 
 async def process_generic_import_all(

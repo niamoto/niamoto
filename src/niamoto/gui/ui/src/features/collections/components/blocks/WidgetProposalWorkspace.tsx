@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Loader2, RefreshCw, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,7 @@ export function WidgetProposalWorkspace({
   onClose,
   onApplied,
 }: WidgetProposalWorkspaceProps) {
+  const { t } = useTranslation(['sources'])
   const query = useWidgetProposals(collectionName)
   const [selectedIdOverride, setSelectedIdOverride] = useState<string | null>(null)
   const [selectedProposalIdsState, setSelectedProposalIdsState] = useState<{
@@ -37,19 +39,20 @@ export function WidgetProposalWorkspace({
   const [applyResult, setApplyResult] = useState<WidgetProposalApplyResponse | null>(null)
   const [applyInFlight, setApplyInFlight] = useState(false)
   const previewRequestId = useRef(0)
+  const isRefreshing = query.isFetching && !query.isLoading
 
   const groups = useMemo(() => {
     const data = query.data
     if (!data) return []
     return [
-      { id: 'recommended', label: 'Recommended', proposals: data.recommended },
-      { id: 'warnings', label: 'Needs review', proposals: data.warnings },
-      { id: 'review_only', label: 'Review only', proposals: data.review_only },
-      { id: 'missing_chart', label: 'Missing chart', proposals: data.missing_chart },
-      { id: 'skipped', label: 'Skipped', proposals: data.skipped },
-      { id: 'configured', label: 'Already configured', proposals: data.already_configured },
+      { id: 'recommended', label: t('collectionPanel.widgetProposals.groups.recommended'), proposals: data.recommended },
+      { id: 'warnings', label: t('collectionPanel.widgetProposals.groups.warnings'), proposals: data.warnings },
+      { id: 'review_only', label: t('collectionPanel.widgetProposals.groups.reviewOnly'), proposals: data.review_only },
+      { id: 'missing_chart', label: t('collectionPanel.widgetProposals.groups.missingChart'), proposals: data.missing_chart },
+      { id: 'skipped', label: t('collectionPanel.widgetProposals.groups.skipped'), proposals: data.skipped },
+      { id: 'configured', label: t('collectionPanel.widgetProposals.groups.configured'), proposals: data.already_configured },
     ].filter((group) => group.proposals.length > 0)
-  }, [query.data])
+  }, [query.data, t])
 
   const allProposals = useMemo(
     () => groups.flatMap((group) => group.proposals),
@@ -82,6 +85,7 @@ export function WidgetProposalWorkspace({
       : allProposals[0]?.id ?? null
 
   const selectedProposal = allProposals.find((proposal) => proposal.id === selectedId) ?? null
+  const selectedProposalIsApplicable = selectedProposal?.applyability === 'applicable'
   const selectedApplicableCount = allProposals.filter(
     (proposal) =>
       selectedProposalIds.has(proposal.id) && proposal.applyability === 'applicable',
@@ -103,6 +107,13 @@ export function WidgetProposalWorkspace({
 
   const selections = (): WidgetProposalSelection[] =>
     [...selectedProposalIds].map((proposalId) => ({ proposal_id: proposalId }))
+
+  const refreshProposals = async () => {
+    setApplyResult(null)
+    setPreview(null)
+    setPreviewSelections([])
+    await query.refetch()
+  }
 
   const openPreview = async () => {
     const nextSelections = selections()
@@ -144,7 +155,7 @@ export function WidgetProposalWorkspace({
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        Loading proposals
+        {t('collectionPanel.widgetProposals.loading')}
       </div>
     )
   }
@@ -152,7 +163,7 @@ export function WidgetProposalWorkspace({
   if (query.error || !query.data) {
     return (
       <div className="m-4 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-        {query.error instanceof Error ? query.error.message : 'Proposal analysis failed'}
+        {query.error instanceof Error ? query.error.message : t('collectionPanel.widgetProposals.analysisFailed')}
       </div>
     )
   }
@@ -169,37 +180,66 @@ export function WidgetProposalWorkspace({
       <main className="flex min-h-0 flex-col">
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
           <div>
-            <h1 className="text-base font-semibold">Review proposed page</h1>
+            <h1 className="text-base font-semibold">{t('collectionPanel.widgetProposals.reviewTitle')}</h1>
             <p className="text-sm text-muted-foreground">
-              {selectedApplicableCount} selected widget{selectedApplicableCount === 1 ? '' : 's'}
+              {t('collectionPanel.widgetProposals.selectedWidgets', { count: selectedApplicableCount })}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => query.refetch()}>
-              <RefreshCw className="h-4 w-4" />
-              Refresh
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isRefreshing}
+              onClick={() => void refreshProposals()}
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing
+                ? t('collectionPanel.widgetProposals.refreshing')
+                : t('collectionPanel.widgetProposals.refresh')}
             </Button>
             <Button
               size="sm"
               disabled={selectedApplicableCount === 0 || query.previewState.isPending}
               onClick={openPreview}
             >
-              Review and add
+              {t('collectionPanel.widgetProposals.reviewAndAdd')}
             </Button>
-            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label={t('collectionPanel.widgetProposals.close')}>
               <X className="h-4 w-4" />
             </Button>
           </div>
         </header>
-        <div className="grid min-h-0 flex-1 grid-cols-1 min-[2200px]:grid-cols-[minmax(0,1fr)_360px]">
-          <WidgetProposalPagePreview
-            proposals={allProposals}
-            selectedId={selectedId}
-            selectedProposalIds={selectedProposalIds}
-            onSelectProposal={setSelectedIdOverride}
-            onToggleProposal={toggleProposal}
-          />
-          <WidgetProposalDetail proposal={selectedProposal as WidgetProposal | null} />
+        <div
+          className={`grid min-h-0 flex-1 grid-cols-1 overflow-hidden ${
+            selectedProposalIsApplicable
+              ? 'grid-rows-[minmax(180px,35%)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_380px] xl:grid-rows-1'
+              : 'grid-rows-1'
+          }`}
+        >
+          {selectedProposalIsApplicable ? (
+            <>
+              <div className="order-2 min-h-0 overflow-hidden xl:order-1">
+                <WidgetProposalPagePreview
+                  proposals={allProposals}
+                  selectedId={selectedId}
+                  selectedProposalIds={selectedProposalIds}
+                  onSelectProposal={setSelectedIdOverride}
+                  onToggleProposal={toggleProposal}
+                />
+              </div>
+              <div className="order-1 min-h-0 overflow-hidden border-b xl:order-2 xl:border-b-0 xl:border-l">
+                <WidgetProposalDetail
+                  proposal={selectedProposal as WidgetProposal | null}
+                  variant="main"
+                />
+              </div>
+            </>
+          ) : (
+            <WidgetProposalDetail
+              proposal={selectedProposal as WidgetProposal | null}
+              variant="main"
+            />
+          )}
         </div>
       </main>
       <WidgetProposalApplyDialog
