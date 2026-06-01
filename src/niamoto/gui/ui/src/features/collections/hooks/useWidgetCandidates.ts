@@ -34,13 +34,12 @@ export function useWidgetCandidates(
       previewToken,
     }: {
       selections: WidgetCandidateSelection[]
-      previewToken?: string | null
+      previewToken: string
     }) => applyWidgetCandidates(collectionName || '', selections, previewToken),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [...widgetCandidatesQueryKey, collectionName],
       })
-      queryClient.invalidateQueries({ queryKey: ['collection-widget-proposals', collectionName] })
       queryClient.invalidateQueries({ queryKey: ['widget-config'] })
       queryClient.invalidateQueries({ queryKey: ['configured-widgets'] })
     },

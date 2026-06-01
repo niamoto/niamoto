@@ -9,20 +9,43 @@ import threading
 import duckdb
 import yaml
 
+from niamoto.core.collections.models import CollectionCatalogEntry
 from niamoto.gui.api.routers import collections
+from niamoto.gui.api.services.collection_widget_proposals import (
+    CollectionWidgetProposalService,
+)
 from tests.gui.api.routers.concurrency_helpers import TrackingRLock
 
 
-def _first_transform_backed_proposal(proposal_payload):
-    proposals = [
-        *proposal_payload["recommended"],
-        *proposal_payload["warnings"],
-        *proposal_payload["review_only"],
+def _first_transform_backed_candidate(candidate_payload):
+    candidates = [
+        *candidate_payload["recommended"],
+        *candidate_payload["available"],
+        *candidate_payload["needs_review"],
     ]
     return next(
-        proposal
-        for proposal in proposals
-        if proposal.get("recipe", {}).get("transformer")
+        candidate
+        for candidate in candidates
+        if candidate.get("recipe_summary", {}).get("transformer", {}).get("plugin")
+    )
+
+
+def _preview_widget_candidate(client, candidate_id: str):
+    response = client.post(
+        "/api/collections/taxons/widget-candidates/preview",
+        json={"selections": [{"candidate_id": candidate_id}]},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def _apply_widget_candidate(client, candidate_id: str, preview_token: str):
+    return client.post(
+        "/api/collections/taxons/widget-candidates/apply",
+        json={
+            "selections": [{"candidate_id": candidate_id}],
+            "preview_token": preview_token,
+        },
     )
 
 
@@ -420,7 +443,7 @@ def test_list_collections_waits_for_collection_config_lock(monkeypatch):
     assert errors == []
 
 
-def test_widget_proposal_read_waits_for_collection_config_lock(monkeypatch):
+def test_widget_candidate_read_waits_for_collection_config_lock(monkeypatch):
     collection_write_lock = TrackingRLock()
     save_entered = threading.Event()
     release_save = threading.Event()
@@ -435,14 +458,19 @@ def test_widget_proposal_read_waits_for_collection_config_lock(monkeypatch):
             self.import_config["metadata"]["collections"][payload["name"]] = payload
             return {"name": payload["name"]}
 
-    class FakeWidgetProposalService:
-        def get_proposals(self, collection_name: str):
+    class FakeWidgetCandidateService:
+        def get_candidates(self, collection_name: str):
             read_entered.set()
             return {
                 "collection": collection_name,
                 "recommended": [],
-                "warnings": [],
-                "review_only": [],
+                "available": [],
+                "needs_review": [],
+                "missing_chart": [],
+                "skipped": [],
+                "configured": [],
+                "partial": False,
+                "messages": [],
             }
 
     def fake_save_service_config(service):
@@ -451,7 +479,7 @@ def test_widget_proposal_read_waits_for_collection_config_lock(monkeypatch):
 
     monkeypatch.setattr(collections, "_catalog_service", FakeCatalogService)
     monkeypatch.setattr(
-        collections, "_widget_proposal_service", FakeWidgetProposalService
+        collections, "_widget_candidate_service", FakeWidgetCandidateService
     )
     monkeypatch.setattr(collections, "_save_service_config", fake_save_service_config)
     monkeypatch.setattr(collections, "COLLECTION_CONFIG_LOCK", collection_write_lock)
@@ -472,16 +500,16 @@ def test_widget_proposal_read_waits_for_collection_config_lock(monkeypatch):
         except BaseException as exc:
             errors.append(exc)
 
-    def read_proposals():
+    def read_candidates():
         try:
             asyncio.run(
-                collections.get_collection_widget_proposals("occurrence_records")
+                collections.get_collection_widget_candidates("occurrence_records")
             )
         except BaseException as exc:
             errors.append(exc)
 
     writer = threading.Thread(target=create)
-    reader = threading.Thread(target=read_proposals)
+    reader = threading.Thread(target=read_candidates)
 
     writer.start()
     assert save_entered.wait(timeout=2)
@@ -685,62 +713,58 @@ def test_get_collection_data_options_unknown_collection_returns_404(
     assert response.json()["detail"] == "Collection 'missing' not found"
 
 
-def test_get_collection_widget_proposals_returns_grouped_blocks_candidates(
+def test_get_collection_widget_candidates_returns_grouped_blocks_candidates(
     gui_duckdb_client, gui_duckdb_context
 ):
-    response = gui_duckdb_client.get("/api/collections/taxons/widget-proposals")
+    response = gui_duckdb_client.get("/api/collections/taxons/widget-candidates")
 
     assert response.status_code == 200, response.text
     payload = response.json()
-    proposals = [
+    candidates = [
         *payload["recommended"],
-        *payload["warnings"],
-        *payload["review_only"],
+        *payload["available"],
+        *payload["needs_review"],
     ]
     assert payload["collection"] == "taxons"
-    assert proposals
-    assert any(
-        proposal["primary_fit"]["widget"] == "bar_plot"
-        for proposal in proposals
-        if proposal.get("primary_fit")
-    )
+    assert candidates
+    assert any(candidate["widget_plugin"] == "bar_plot" for candidate in candidates)
 
 
-def test_get_collection_widget_proposals_includes_foundational_page_widgets(
+def test_get_collection_widget_candidates_includes_foundational_page_widgets(
     gui_duckdb_client, gui_duckdb_context
 ):
-    response = gui_duckdb_client.get("/api/collections/taxons/widget-proposals")
+    response = gui_duckdb_client.get("/api/collections/taxons/widget-candidates")
 
     assert response.status_code == 200, response.text
     payload = response.json()
-    proposals = [
+    candidates = [
         *payload["recommended"],
-        *payload["warnings"],
-        *payload["review_only"],
-        *payload["already_configured"],
+        *payload["available"],
+        *payload["needs_review"],
+        *payload["configured"],
     ]
     widgets = {
-        proposal["primary_fit"]["widget"]
-        for proposal in proposals
-        if proposal.get("primary_fit")
+        candidate["widget_plugin"]
+        for candidate in candidates
+        if candidate.get("widget_plugin")
     }
     assert "hierarchical_nav_widget" in widgets
     assert "info_grid" in widgets
 
 
-def test_get_collection_widget_proposals_lists_page_structure_widgets_first(
+def test_get_collection_widget_candidates_lists_page_structure_widgets_first(
     gui_duckdb_client, gui_duckdb_context
 ):
     _add_occurrence_geometry(gui_duckdb_context)
 
-    response = gui_duckdb_client.get("/api/collections/taxons/widget-proposals")
+    response = gui_duckdb_client.get("/api/collections/taxons/widget-candidates")
 
     assert response.status_code == 200, response.text
     payload = response.json()
     first_widgets = [
-        proposal["primary_fit"]["widget"]
-        for proposal in payload["recommended"][:3]
-        if proposal.get("primary_fit")
+        candidate["widget_plugin"]
+        for candidate in payload["recommended"][:3]
+        if candidate.get("widget_plugin")
     ]
     assert first_widgets == [
         "hierarchical_nav_widget",
@@ -828,10 +852,12 @@ def test_apply_collection_widget_candidates_writes_transform_and_export_configs(
         if item["applyability"] == "applicable"
         and item.get("recipe_summary", {}).get("transformer")
     )
+    preview = _preview_widget_candidate(gui_duckdb_client, candidate["id"])
 
-    response = gui_duckdb_client.post(
-        "/api/collections/taxons/widget-candidates/apply",
-        json={"selections": [{"candidate_id": candidate["id"]}]},
+    response = _apply_widget_candidate(
+        gui_duckdb_client,
+        candidate["id"],
+        preview["preview_token"],
     )
 
     assert response.status_code == 200, response.text
@@ -854,47 +880,293 @@ def test_apply_collection_widget_candidates_writes_transform_and_export_configs(
     assert export_group["widgets"][0]["data_source"] == candidate["id"]
 
 
-def test_preview_collection_widget_proposals_does_not_write_configs(
+def test_apply_collection_widget_candidates_reuses_params_groups_export_container(
     gui_duckdb_client, gui_duckdb_context
 ):
-    proposal_payload = gui_duckdb_client.get(
-        "/api/collections/taxons/widget-proposals"
-    ).json()
-    proposal = [
-        *proposal_payload["recommended"],
-        *proposal_payload["warnings"],
-        *proposal_payload["review_only"],
-    ][0]
-    transform_path = gui_duckdb_context / "config" / "transform.yml"
     export_path = gui_duckdb_context / "config" / "export.yml"
-    before_transform = (
-        transform_path.read_text(encoding="utf-8") if transform_path.exists() else None
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "web_pages",
+                        "enabled": True,
+                        "exporter": "html_page_exporter",
+                        "params": {
+                            "template_dir": "templates/",
+                            "output_dir": "exports/web",
+                            "groups": [
+                                {
+                                    "group_by": "taxons",
+                                    "output_pattern": "taxons/{id}.html",
+                                    "index_output_pattern": "taxons/index.html",
+                                    "widgets": [],
+                                }
+                            ],
+                        },
+                    }
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
     )
-    before_export = (
-        export_path.read_text(encoding="utf-8") if export_path.exists() else None
-    )
+    candidate_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-candidates"
+    ).json()
+    candidate = _first_transform_backed_candidate(candidate_payload)
+    preview = _preview_widget_candidate(gui_duckdb_client, candidate["id"])
 
-    response = gui_duckdb_client.post(
-        "/api/collections/taxons/widget-proposals/preview",
-        json={"selections": [{"proposal_id": proposal["id"]}]},
+    response = _apply_widget_candidate(
+        gui_duckdb_client,
+        candidate["id"],
+        preview["preview_token"],
     )
 
     assert response.status_code == 200, response.text
+    saved = yaml.safe_load(export_path.read_text(encoding="utf-8"))
+    web_export = saved["exports"][0]
+    assert "groups" not in web_export
+    export_group = web_export["params"]["groups"][0]
+    assert export_group["group_by"] == "taxons"
+    assert export_group["widgets"][0]["data_source"] == candidate["id"]
+
+
+def test_apply_collection_widget_candidates_requires_preview_token(
+    gui_duckdb_client, gui_duckdb_context
+):
+    candidate_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-candidates"
+    ).json()
+    candidate = next(
+        item
+        for item in [
+            *candidate_payload["recommended"],
+            *candidate_payload["available"],
+            *candidate_payload["needs_review"],
+        ]
+        if item["applyability"] == "applicable"
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/collections/taxons/widget-candidates/apply",
+        json={"selections": [{"candidate_id": candidate["id"]}]},
+    )
+
+    assert response.status_code == 422
+
+
+def test_collection_widget_candidates_mark_legacy_equivalent_transform_configured(
+    gui_duckdb_client, gui_duckdb_context
+):
+    candidate_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-candidates"
+    ).json()
+    candidate = _first_transform_backed_candidate(candidate_payload)
+    preview = _preview_widget_candidate(gui_duckdb_client, candidate["id"])
+    change = preview["changes"][0]
+    legacy_widget_id = "legacy_same_widget"
+
+    legacy_transform_widget = deepcopy(change["transform_widget"])
+    legacy_transform_widget.pop("export_override", None)
+    transform_path = gui_duckdb_context / "config" / "transform.yml"
+    transform_config = (
+        yaml.safe_load(transform_path.read_text(encoding="utf-8"))
+        if transform_path.exists()
+        else [{"group_by": "taxons", "sources": [], "widgets_data": {}}]
+    )
+    transform_group = next(
+        group for group in transform_config if group["group_by"] == "taxons"
+    )
+    transform_group.setdefault("widgets_data", {})[legacy_widget_id] = (
+        legacy_transform_widget
+    )
+    transform_path.write_text(
+        yaml.safe_dump(transform_config, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    legacy_export_widget = deepcopy(change["export_widget"])
+    legacy_export_widget["data_source"] = legacy_widget_id
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_config = (
+        yaml.safe_load(export_path.read_text(encoding="utf-8"))
+        if export_path.exists()
+        else {
+            "exports": [
+                {
+                    "name": "web_pages",
+                    "enabled": True,
+                    "exporter": "html_page_exporter",
+                    "params": {
+                        "template_dir": "templates/",
+                        "output_dir": "exports/web",
+                    },
+                    "groups": [
+                        {
+                            "group_by": "taxons",
+                            "output_pattern": "taxons/{id}.html",
+                            "index_output_pattern": "taxons/index.html",
+                            "widgets": [],
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+    export_group = export_config["exports"][0]["groups"][0]
+    export_group.setdefault("widgets", []).append(legacy_export_widget)
+    export_path.write_text(
+        yaml.safe_dump(export_config, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.get("/api/collections/taxons/widget-candidates")
+
+    assert response.status_code == 200, response.text
     payload = response.json()
-    assert payload["writes_files"] is False
-    assert payload["preview_token"]
-    assert payload["changes"][0]["action"] in {"add", "invalid"}
-    after_transform = (
-        transform_path.read_text(encoding="utf-8") if transform_path.exists() else None
-    )
-    after_export = (
-        export_path.read_text(encoding="utf-8") if export_path.exists() else None
-    )
-    assert after_transform == before_transform
-    assert after_export == before_export
+    assert any(item["id"] == candidate["id"] for item in payload["configured"])
+    assert all(item["id"] != candidate["id"] for item in payload["recommended"])
 
 
-def test_preview_collection_widget_proposals_invalid_without_source_relation(
+def test_collection_widget_candidates_do_not_hide_partial_legacy_transform(
+    gui_duckdb_client, gui_duckdb_context
+):
+    candidate_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-candidates"
+    ).json()
+    candidate = _first_transform_backed_candidate(candidate_payload)
+    preview = _preview_widget_candidate(gui_duckdb_client, candidate["id"])
+    change = preview["changes"][0]
+
+    legacy_transform_widget = deepcopy(change["transform_widget"])
+    legacy_transform_widget.pop("export_override", None)
+    transform_path = gui_duckdb_context / "config" / "transform.yml"
+    transform_config = (
+        yaml.safe_load(transform_path.read_text(encoding="utf-8"))
+        if transform_path.exists()
+        else [{"group_by": "taxons", "sources": [], "widgets_data": {}}]
+    )
+    transform_group = next(
+        group for group in transform_config if group["group_by"] == "taxons"
+    )
+    transform_group.setdefault("widgets_data", {})["legacy_transform_only"] = (
+        legacy_transform_widget
+    )
+    transform_path.write_text(
+        yaml.safe_dump(transform_config, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.get("/api/collections/taxons/widget-candidates")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert all(item["id"] != candidate["id"] for item in payload["configured"])
+    assert any(
+        item["id"] == candidate["id"]
+        for item in [
+            *payload["recommended"],
+            *payload["available"],
+            *payload["needs_review"],
+        ]
+    )
+
+
+def test_widget_candidate_export_group_uses_safe_collection_path_segment(tmp_path):
+    service = CollectionWidgetProposalService(
+        work_dir=tmp_path,
+        db_path=None,
+        import_config={"entities": {}},
+        transform_config=[],
+        export_config={},
+    )
+    groups: list[dict] = []
+
+    group = service._find_or_create_export_group(  # noqa: SLF001 - regression for generated paths
+        groups,
+        "../Manual Collection",
+    )
+
+    assert group["group_by"] == "../Manual Collection"
+    assert group["output_pattern"] == "manual_collection/{id}.html"
+    assert group["index_output_pattern"] == "manual_collection/index.html"
+
+
+def test_widget_candidate_identifier_and_name_heuristics_are_project_neutral(
+    tmp_path,
+):
+    service = CollectionWidgetProposalService(
+        work_dir=tmp_path,
+        db_path=None,
+        import_config={"entities": {}},
+        transform_config=[],
+        export_config={},
+    )
+
+    assert (
+        service._pick_identifier_column(  # noqa: SLF001 - regression for generic heuristics
+            ["code", "taxons_id"],
+        )
+        == "code"
+    )
+    assert (
+        service._pick_name_column(  # noqa: SLF001 - regression for generic heuristics
+            ["code", "taxaname"],
+            id_field="id",
+        )
+        == "code"
+    )
+
+
+def test_navigation_proposal_uses_context_hierarchy_fields(tmp_path):
+    service = CollectionWidgetProposalService(
+        work_dir=tmp_path,
+        db_path=None,
+        import_config={"entities": {}},
+        transform_config=[],
+        export_config={},
+    )
+    collection = CollectionCatalogEntry(
+        name="nodes",
+        label="Nodes",
+        source_type="reference",
+        source_name="node_ref",
+        grain="node",
+        roles=["site"],
+    )
+    proposal = service._navigation_proposal(  # noqa: SLF001 - regression for private builder
+        collection,
+        {
+            "id_field": "node_key",
+            "name_field": "node_name",
+            "columns": [
+                "node_key",
+                "node_name",
+                "left_bound",
+                "right_bound",
+                "parent_key",
+                "depth",
+            ],
+            "has_nested_set": True,
+            "left_field": "left_bound",
+            "right_field": "right_bound",
+            "has_parent": True,
+            "parent_field": "parent_key",
+            "has_level": True,
+            "level_field": "depth",
+        },
+        set(),
+    )
+
+    params = proposal.recipe["widget"]["params"]
+    assert params["lft_field"] == "left_bound"
+    assert params["rght_field"] == "right_bound"
+    assert params["parent_id_field"] == "parent_key"
+    assert params["level_field"] == "depth"
+
+
+def test_preview_collection_widget_candidates_invalid_without_source_relation(
     gui_duckdb_client, gui_duckdb_context
 ):
     import_path = gui_duckdb_context / "config" / "import.yml"
@@ -907,14 +1179,14 @@ def test_preview_collection_widget_proposals_invalid_without_source_relation(
         encoding="utf-8",
     )
 
-    proposal_payload = gui_duckdb_client.get(
-        "/api/collections/taxons/widget-proposals"
+    candidate_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-candidates"
     ).json()
-    proposal = _first_transform_backed_proposal(proposal_payload)
+    candidate = _first_transform_backed_candidate(candidate_payload)
 
     response = gui_duckdb_client.post(
-        "/api/collections/taxons/widget-proposals/preview",
-        json={"selections": [{"proposal_id": proposal["id"]}]},
+        "/api/collections/taxons/widget-candidates/preview",
+        json={"selections": [{"candidate_id": candidate["id"]}]},
     )
 
     assert response.status_code == 200, response.text
@@ -926,23 +1198,25 @@ def test_preview_collection_widget_proposals_invalid_without_source_relation(
     )
 
 
-def test_apply_collection_widget_proposals_writes_transform_and_export_configs(
+def test_apply_collection_widget_candidates_derives_transform_source_relation(
     gui_duckdb_client, gui_duckdb_context
 ):
-    proposal_payload = gui_duckdb_client.get(
-        "/api/collections/taxons/widget-proposals"
+    candidate_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-candidates"
     ).json()
-    proposal = _first_transform_backed_proposal(proposal_payload)
+    candidate = _first_transform_backed_candidate(candidate_payload)
+    preview = _preview_widget_candidate(gui_duckdb_client, candidate["id"])
 
-    response = gui_duckdb_client.post(
-        "/api/collections/taxons/widget-proposals/apply",
-        json={"selections": [{"proposal_id": proposal["id"]}]},
+    response = _apply_widget_candidate(
+        gui_duckdb_client,
+        candidate["id"],
+        preview["preview_token"],
     )
 
     assert response.status_code == 200, response.text
     payload = response.json()
     assert payload["success"] is True
-    assert payload["applied"][0]["widget_id"] == proposal["id"]
+    assert payload["applied"][0]["candidate_id"] == candidate["id"]
     assert payload["written_files"] == ["config/transform.yml", "config/export.yml"]
 
     transform_config = yaml.safe_load(
@@ -957,38 +1231,41 @@ def test_apply_collection_widget_proposals_writes_transform_and_export_configs(
     source = taxon_group["sources"][0]
     assert source["relation"]["key"] == "taxon_id"
     assert source["relation"]["ref_key"] == "id"
-    assert proposal["id"] in taxon_group["widgets_data"]
+    assert candidate["id"] in taxon_group["widgets_data"]
     export_group = export_config["exports"][0]["groups"][0]
-    assert export_group["widgets"][0]["data_source"] == proposal["id"]
+    assert export_group["widgets"][0]["data_source"] == candidate["id"]
 
 
-def test_apply_collection_map_proposal_persists_plotly_map_params(
+def test_apply_collection_map_candidate_persists_plotly_map_params(
     gui_duckdb_client, gui_duckdb_context
 ):
     _add_occurrence_geometry(gui_duckdb_context)
-    proposal_payload = gui_duckdb_client.get(
-        "/api/collections/taxons/widget-proposals"
+    candidate_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-candidates"
     ).json()
-    proposals = [
-        *proposal_payload["recommended"],
-        *proposal_payload["warnings"],
-        *proposal_payload["review_only"],
+    candidates = [
+        *candidate_payload["recommended"],
+        *candidate_payload["available"],
+        *candidate_payload["needs_review"],
     ]
-    proposal = next(
-        proposal
-        for proposal in proposals
-        if proposal.get("primary_fit", {}).get("widget") == "interactive_map"
+    candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.get("widget_plugin") == "interactive_map"
     )
 
-    assert proposal["title"] == "Geo Pt map"
-    assert proposal["recipe"]["transformer"]["params"]["format"] == "geojson"
-    assert proposal["recipe"]["transformer"]["params"]["group_by_coordinates"] is True
-    assert proposal["recipe"]["widget"]["params"]["geojson_field"] == "features"
-    assert proposal["recipe"]["widget"]["params"]["map_type"] == "scatter_map"
+    assert candidate["title"] == "Geo Pt map"
+    recipe_summary = candidate["recipe_summary"]
+    assert recipe_summary["transformer"]["params"]["format"] == "geojson"
+    assert recipe_summary["transformer"]["params"]["group_by_coordinates"] is True
+    assert recipe_summary["widget"]["params"]["geojson_field"] == "features"
+    assert recipe_summary["widget"]["params"]["map_type"] == "scatter_map"
+    preview = _preview_widget_candidate(gui_duckdb_client, candidate["id"])
 
-    response = gui_duckdb_client.post(
-        "/api/collections/taxons/widget-proposals/apply",
-        json={"selections": [{"proposal_id": proposal["id"]}]},
+    response = _apply_widget_candidate(
+        gui_duckdb_client,
+        candidate["id"],
+        preview["preview_token"],
     )
 
     assert response.status_code == 200, response.text
@@ -1003,14 +1280,14 @@ def test_apply_collection_map_proposal_persists_plotly_map_params(
     taxon_group = next(
         group for group in transform_config if group["group_by"] == "taxons"
     )
-    transform_widget = taxon_group["widgets_data"][proposal["id"]]
+    transform_widget = taxon_group["widgets_data"][candidate["id"]]
     assert transform_widget["params"]["format"] == "geojson"
     assert transform_widget["params"]["group_by_coordinates"] is True
     export_group = export_config["exports"][0]["groups"][0]
     map_widget = next(
         widget
         for widget in export_group["widgets"]
-        if widget["data_source"] == proposal["id"]
+        if widget["data_source"] == candidate["id"]
     )
     assert map_widget["plugin"] == "interactive_map"
     assert map_widget["title"] == "Geo Pt map"
@@ -1020,35 +1297,42 @@ def test_apply_collection_map_proposal_persists_plotly_map_params(
     assert map_widget["params"]["auto_zoom"] is True
 
 
-def test_apply_foundational_widget_proposals_writes_navigation_and_general_info(
+def test_apply_foundational_widget_candidates_writes_navigation_and_general_info(
     gui_duckdb_client, gui_duckdb_context
 ):
-    proposal_payload = gui_duckdb_client.get(
-        "/api/collections/taxons/widget-proposals"
+    candidate_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-candidates"
     ).json()
-    proposals = [
-        *proposal_payload["recommended"],
-        *proposal_payload["warnings"],
-        *proposal_payload["review_only"],
+    candidates = [
+        *candidate_payload["recommended"],
+        *candidate_payload["available"],
+        *candidate_payload["needs_review"],
     ]
     navigation = next(
-        proposal
-        for proposal in proposals
-        if proposal["primary_fit"]["widget"] == "hierarchical_nav_widget"
+        candidate
+        for candidate in candidates
+        if candidate["widget_plugin"] == "hierarchical_nav_widget"
     )
     general_info = next(
-        proposal
-        for proposal in proposals
-        if proposal["primary_fit"]["widget"] == "info_grid"
+        candidate
+        for candidate in candidates
+        if candidate["widget_plugin"] == "info_grid"
     )
+    selections = [
+        {"candidate_id": navigation["id"]},
+        {"candidate_id": general_info["id"]},
+    ]
+    preview_response = gui_duckdb_client.post(
+        "/api/collections/taxons/widget-candidates/preview",
+        json={"selections": selections},
+    )
+    assert preview_response.status_code == 200, preview_response.text
 
     response = gui_duckdb_client.post(
-        "/api/collections/taxons/widget-proposals/apply",
+        "/api/collections/taxons/widget-candidates/apply",
         json={
-            "selections": [
-                {"proposal_id": navigation["id"]},
-                {"proposal_id": general_info["id"]},
-            ]
+            "selections": selections,
+            "preview_token": preview_response.json()["preview_token"],
         },
     )
 

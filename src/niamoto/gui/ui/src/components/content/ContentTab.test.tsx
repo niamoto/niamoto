@@ -2,7 +2,7 @@
 
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { MemoryRouter, useNavigate } from 'react-router-dom'
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ContentTab } from './ContentTab'
@@ -81,9 +81,14 @@ function ContentTabRouteHarness({
   onNavigateReady: (navigateToPanel: () => void) => void
 }) {
   const navigate = useNavigate()
-  onNavigateReady(() => navigate('/groups/taxons?panel=widget-proposals'))
+  onNavigateReady(() => navigate('/groups/taxons?panel=add-widget'))
 
   return <ContentTab reference={reference} />
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <span data-testid="location-search">{location.search}</span>
 }
 
 describe('ContentTab', () => {
@@ -109,7 +114,8 @@ describe('ContentTab', () => {
 
     await act(async () => {
       root?.render(
-        <MemoryRouter initialEntries={['/groups/taxons?panel=widget-proposals']}>
+        <MemoryRouter initialEntries={['/groups/taxons?panel=add-widget']}>
+          <LocationProbe />
           <ContentTab reference={reference} />
         </MemoryRouter>,
       )
@@ -126,7 +132,8 @@ describe('ContentTab', () => {
 
     await act(async () => {
       root?.render(
-        <MemoryRouter initialEntries={['/groups/taxons?panel=widget-proposals']}>
+        <MemoryRouter initialEntries={['/groups/taxons?panel=add-widget']}>
+          <LocationProbe />
           <ContentTab reference={reference} />
         </MemoryRouter>,
       )
@@ -173,7 +180,8 @@ describe('ContentTab', () => {
 
     await act(async () => {
       root?.render(
-        <MemoryRouter initialEntries={['/groups/taxons?panel=widget-proposals']}>
+        <MemoryRouter initialEntries={['/groups/taxons?panel=add-widget']}>
+          <LocationProbe />
           <ContentTab reference={reference} />
         </MemoryRouter>,
       )
@@ -192,6 +200,7 @@ describe('ContentTab', () => {
 
     expect(container.querySelector('[data-testid="add-widget-modal"]')).toBeNull()
     expect(container.querySelector('[data-testid="content-right-panel"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="location-search"]')?.textContent).toBe('')
   })
 
   it('refreshes widgets and closes the route-opened modal after a widget is added', async () => {
@@ -201,7 +210,8 @@ describe('ContentTab', () => {
 
     await act(async () => {
       root?.render(
-        <MemoryRouter initialEntries={['/groups/taxons?panel=widget-proposals']}>
+        <MemoryRouter initialEntries={['/groups/taxons?panel=add-widget']}>
+          <LocationProbe />
           <ContentTab reference={reference} />
         </MemoryRouter>,
       )
@@ -219,6 +229,7 @@ describe('ContentTab', () => {
     expect(widgetConfigState.refetch).toHaveBeenCalledTimes(1)
     expect(container.querySelector('[data-testid="add-widget-modal"]')).toBeNull()
     expect(container.querySelector('[data-testid="content-right-panel"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="location-search"]')?.textContent).toBe('')
   })
 
   it('opens the add widget modal directly from the add button', async () => {

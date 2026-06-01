@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,7 +41,7 @@ from niamoto.core.imports.multi_field_detector import (
     MultiFieldPatternDetector,
 )
 from niamoto.core.imports.profiler import DataProfiler
-from niamoto.gui.api.models.widget_proposals import (
+from niamoto.gui.api.services.collection_widget_proposal_models import (
     WidgetProposalApplyResponse,
     WidgetProposalConfigChange,
     WidgetProposalPreviewResponse,
@@ -52,8 +53,7 @@ from niamoto.gui.api.services.templates.config_service import (
     find_or_create_transform_group,
     load_export_config,
     load_transform_config,
-    save_export_config,
-    save_transform_config,
+    save_transform_and_export_configs,
 )
 
 
@@ -62,6 +62,28 @@ class _SourceAnalysis:
     profiles: list[EnrichedColumnProfile]
     class_objects: list[ClassObjectStats]
     multi_field_patterns: list[MultiFieldPattern]
+
+
+@dataclass(frozen=True)
+class _SourceAnalysisCacheKey:
+    db_path: str
+    source_name: str
+    mtime_ns: int
+
+
+_SOURCE_ANALYSIS_CACHE_LOCK = threading.RLock()
+_SOURCE_ANALYSIS_CACHE: dict[_SourceAnalysisCacheKey, _SourceAnalysis] = {}
+_SKIPPED_SAMPLE_COLUMN_TYPES = ("BLOB", "BYTEA", "BINARY")
+
+
+@dataclass(frozen=True)
+class _ExistingWidgetSignatures:
+    transform: set[str]
+    export: set[str]
+
+    @property
+    def has_any(self) -> bool:
+        return bool(self.transform or self.export)
 
 
 class CollectionWidgetProposalService:
@@ -109,6 +131,7 @@ class CollectionWidgetProposalService:
             existing_keys,
         )[::-1]:
             self._append_proposal(groups, proposal, prepend=True)
+        groups = self._mark_existing_equivalent_proposals(groups, collection.name)
         self._prioritize_page_structure(groups)
         groups.partial = bool(groups.skipped or groups.missing_chart)
         return groups
@@ -238,19 +261,12 @@ class CollectionWidgetProposalService:
                 applicable,
             )
 
-            transform_backup = None
-            export_backup = None
-            try:
-                transform_backup = save_transform_config(
-                    self.work_dir, validated_transform, create_backup=True
-                )
-                export_backup = save_export_config(
-                    self.work_dir, updated_export, create_backup=True
-                )
-            except Exception:
-                save_transform_config(self.work_dir, self.transform_config)
-                save_export_config(self.work_dir, self.export_config)
-                raise
+            transform_backup, export_backup = save_transform_and_export_configs(
+                self.work_dir,
+                validated_transform,
+                updated_export,
+                create_backup=True,
+            )
 
             self.transform_config = validated_transform
             self.export_config = updated_export
@@ -332,7 +348,7 @@ class CollectionWidgetProposalService:
     def _config_for_proposal(
         self,
         proposal: WidgetProposal,
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
+    ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
         recipe = proposal.recipe
         transformer = recipe.get("transformer", {})
         widget = recipe.get("widget", {})
@@ -430,6 +446,33 @@ class CollectionWidgetProposalService:
         elif not name_field:
             name_field = "name"
 
+        left_field = self._schema_value(
+            schema,
+            "left_field",
+            "lft_field",
+            "left",
+            default="lft",
+        )
+        right_field = self._schema_value(
+            schema,
+            "right_field",
+            "rght_field",
+            "right",
+            default="rght",
+        )
+        parent_field = self._schema_value(
+            schema,
+            "parent_id_field",
+            "parent_field",
+            "parent",
+            default="parent_id",
+        )
+        level_field = self._schema_value(
+            schema,
+            "level_field",
+            "level",
+            default="level",
+        )
         columns_set = set(columns)
         return {
             "table_name": table_name,
@@ -437,10 +480,34 @@ class CollectionWidgetProposalService:
             "sample_df": sample_df,
             "id_field": id_field,
             "name_field": name_field,
-            "has_nested_set": {"lft", "rght"} <= columns_set,
-            "has_parent": "parent_id" in columns_set,
-            "has_level": "level" in columns_set,
+            "left_field": left_field,
+            "right_field": right_field,
+            "parent_field": parent_field,
+            "level_field": level_field,
+            "has_nested_set": {left_field, right_field} <= columns_set,
+            "has_parent": parent_field in columns_set,
+            "has_level": level_field in columns_set,
         }
+
+    def _schema_value(
+        self,
+        schema: dict[str, Any],
+        *keys: str,
+        default: str,
+    ) -> str:
+        for key in keys:
+            value = schema.get(key)
+            if value:
+                return str(value)
+
+        fields = schema.get("fields")
+        if isinstance(fields, dict):
+            for key in keys:
+                value = fields.get(key)
+                if value:
+                    return str(value)
+
+        return default
 
     def _navigation_proposal(
         self,
@@ -458,12 +525,12 @@ class CollectionWidgetProposalService:
             "show_search": True,
         }
         if context.get("has_nested_set"):
-            nav_params["lft_field"] = "lft"
-            nav_params["rght_field"] = "rght"
+            nav_params["lft_field"] = context.get("left_field") or "lft"
+            nav_params["rght_field"] = context.get("right_field") or "rght"
         if context.get("has_parent"):
-            nav_params["parent_id_field"] = "parent_id"
+            nav_params["parent_id_field"] = context.get("parent_field") or "parent_id"
         if context.get("has_level"):
-            nav_params["level_field"] = "level"
+            nav_params["level_field"] = context.get("level_field") or "level"
 
         shape = TransformedShape(
             kind="table",
@@ -685,12 +752,12 @@ class CollectionWidgetProposalService:
     ) -> list[tuple[str, float]]:
         excluded = {
             "id",
-            "lft",
-            "rght",
-            "level",
             "parent",
-            "parent_id",
             str(context.get("id_field") or ""),
+            str(context.get("left_field") or ""),
+            str(context.get("right_field") or ""),
+            str(context.get("level_field") or ""),
+            str(context.get("parent_field") or ""),
         }
         scored: list[tuple[str, float]] = []
         for column in sample_df.columns:
@@ -776,6 +843,91 @@ class CollectionWidgetProposalService:
             proposals = getattr(groups, group_name)
             proposals.sort(key=_page_structure_priority)
 
+    def _mark_existing_equivalent_proposals(
+        self,
+        groups: WidgetProposalGroups,
+        collection_name: str,
+    ) -> WidgetProposalGroups:
+        """Move proposals whose generated config already exists to configured."""
+
+        existing_signatures = self._existing_widget_signatures(collection_name)
+        if not existing_signatures.has_any:
+            return groups
+
+        next_groups = WidgetProposalGroups(
+            collection=groups.collection,
+            partial=groups.partial,
+            messages=list(groups.messages),
+        )
+        for proposal in groups.all_proposals():
+            marked = proposal
+            if (
+                proposal.status != "already_configured"
+                and self._proposal_is_already_configured(proposal, existing_signatures)
+            ):
+                marked = proposal.model_copy(
+                    update={
+                        "status": "already_configured",
+                        "applyability": "not_applicable",
+                    }
+                )
+            self._append_proposal(next_groups, marked)
+        return next_groups
+
+    def _existing_widget_signatures(
+        self,
+        collection_name: str,
+    ) -> _ExistingWidgetSignatures:
+        transform_signatures: set[str] = set()
+        export_signatures: set[str] = set()
+        for widget in self._existing_transform_widgets(collection_name).values():
+            if isinstance(widget, dict):
+                signature = self._transform_widget_signature(widget)
+                if signature:
+                    transform_signatures.add(signature)
+
+        for widget in self._existing_export_widgets(collection_name):
+            signature = self._export_widget_signature(widget)
+            if signature:
+                export_signatures.add(signature)
+        return _ExistingWidgetSignatures(
+            transform=transform_signatures,
+            export=export_signatures,
+        )
+
+    def _proposal_is_already_configured(
+        self,
+        proposal: WidgetProposal,
+        existing_signatures: _ExistingWidgetSignatures,
+    ) -> bool:
+        transform_widget, export_widget = self._config_for_proposal(proposal)
+        export_signature = (
+            self._export_widget_signature(export_widget) if export_widget else None
+        )
+        if transform_widget:
+            transform_signature = self._transform_widget_signature(transform_widget)
+            return bool(
+                transform_signature
+                and export_signature
+                and transform_signature in existing_signatures.transform
+                and export_signature in existing_signatures.export
+            )
+        return bool(export_signature and export_signature in existing_signatures.export)
+
+    def _transform_widget_signature(self, widget: dict[str, Any]) -> str | None:
+        plugin = widget.get("plugin")
+        if not plugin:
+            return None
+        params = widget.get("params") if isinstance(widget.get("params"), dict) else {}
+        return f"transform:{plugin}:{_stable_config_key(params)}"
+
+    def _export_widget_signature(self, widget: dict[str, Any]) -> str | None:
+        plugin = widget.get("plugin")
+        if not plugin:
+            return None
+        params = widget.get("params") if isinstance(widget.get("params"), dict) else {}
+        return f"export:{plugin}:{_stable_config_key(params)}"
+
     def _pick_identifier_column(
         self,
         columns: Sequence[str],
@@ -784,7 +936,7 @@ class CollectionWidgetProposalService:
     ) -> str:
         if preferred and preferred in columns:
             return preferred
-        for candidate in ("id", "taxons_id", "id_taxon", "id_plot", "gid"):
+        for candidate in ("id", "uuid", "identifier", "gid"):
             if candidate in columns:
                 return candidate
         return str(columns[0]) if columns else "id"
@@ -797,15 +949,7 @@ class CollectionWidgetProposalService:
     ) -> str:
         if preferred and preferred in columns:
             return preferred
-        for candidate in (
-            "full_name",
-            "name",
-            "label",
-            "taxaname",
-            "plot",
-            "nom",
-            "title",
-        ):
+        for candidate in ("full_name", "display_name", "name", "label", "title"):
             if candidate in columns and candidate != id_field:
                 return candidate
         for column in columns:
@@ -817,38 +961,78 @@ class CollectionWidgetProposalService:
         if self.db_path is None or not self.db_path.exists():
             return _SourceAnalysis([], [], [])
 
+        cache_key = _SourceAnalysisCacheKey(
+            db_path=str(self.db_path.resolve()),
+            source_name=source_name,
+            mtime_ns=self.db_path.stat().st_mtime_ns,
+        )
+        with _SOURCE_ANALYSIS_CACHE_LOCK:
+            cached = _SOURCE_ANALYSIS_CACHE.get(cache_key)
+            if cached is not None:
+                return cached
+
         db = Database(str(self.db_path), read_only=True)
+        analysis = _SourceAnalysis([], [], [])
         try:
             table_name = resolve_dataset_table(db, source_name)
-            if not table_name:
-                return _SourceAnalysis([], [], [])
-            query = f"SELECT * FROM {quote_identifier(db, table_name)} LIMIT 5000"
-            sample_df = pd.read_sql(query, db.engine)
-            if sample_df.empty:
-                return _SourceAnalysis([], [], [])
-            dataset_profile = DataProfiler().profile_dataframe(
-                sample_df,
-                Path(table_name),
-                total_count=len(sample_df),
-            )
-            analyzer = DataAnalyzer()
-            profiles = [
-                analyzer.enrich_profile(column_profile, sample_df[column_profile.name])
-                for column_profile in dataset_profile.columns
-                if column_profile.name in sample_df.columns
-            ]
-            return _SourceAnalysis(
-                profiles=profiles,
-                class_objects=self._class_objects_for_sample(sample_df),
-                multi_field_patterns=MultiFieldPatternDetector().suggest_for_selection(
-                    profiles, source_name
-                ),
-            )
+            if table_name:
+                sample_columns = self._sample_columns_for_table(db, table_name)
+                if sample_columns:
+                    select_list = ", ".join(
+                        quote_identifier(db, column_name)
+                        for column_name in sample_columns
+                    )
+                    query = f"SELECT {select_list} FROM {quote_identifier(db, table_name)} LIMIT 5000"
+                    sample_df = pd.read_sql(query, db.engine)
+                    if not sample_df.empty:
+                        dataset_profile = DataProfiler().profile_dataframe(
+                            sample_df,
+                            Path(table_name),
+                            total_count=len(sample_df),
+                        )
+                        analyzer = DataAnalyzer()
+                        profiles = [
+                            analyzer.enrich_profile(
+                                column_profile,
+                                sample_df[column_profile.name],
+                            )
+                            for column_profile in dataset_profile.columns
+                            if column_profile.name in sample_df.columns
+                        ]
+                        analysis = _SourceAnalysis(
+                            profiles=profiles,
+                            class_objects=self._class_objects_for_sample(sample_df),
+                            multi_field_patterns=MultiFieldPatternDetector().suggest_for_selection(
+                                profiles,
+                                source_name,
+                            ),
+                        )
         finally:
             db.close()
 
-    def _profiles_for_source(self, source_name: str) -> list[EnrichedColumnProfile]:
-        return self._analysis_for_source(source_name).profiles
+        with _SOURCE_ANALYSIS_CACHE_LOCK:
+            _SOURCE_ANALYSIS_CACHE[cache_key] = analysis
+        return analysis
+
+    def _sample_columns_for_table(self, db: Database, table_name: str) -> list[str]:
+        try:
+            describe_df = pd.read_sql(
+                f"DESCRIBE SELECT * FROM {quote_identifier(db, table_name)}",
+                db.engine,
+            )
+        except Exception:
+            return []
+
+        columns: list[str] = []
+        for row in describe_df.to_dict("records"):
+            column_name = row.get("column_name")
+            column_type = str(row.get("column_type") or "").upper()
+            if not column_name:
+                continue
+            if any(skipped in column_type for skipped in _SKIPPED_SAMPLE_COLUMN_TYPES):
+                continue
+            columns.append(str(column_name))
+        return columns
 
     def _class_objects_for_sample(
         self, sample_df: pd.DataFrame
@@ -997,6 +1181,16 @@ class CollectionWidgetProposalService:
 
     def _existing_export_widget_keys(self, collection_name: str) -> set[str]:
         keys: set[str] = set()
+        for widget in self._existing_export_widgets(collection_name):
+            data_source = widget.get("data_source")
+            if data_source:
+                keys.add(str(data_source))
+            elif widget.get("plugin") == "hierarchical_nav_widget":
+                keys.add(f"{collection_name}_hierarchical_nav_widget")
+        return keys
+
+    def _existing_export_widgets(self, collection_name: str) -> list[dict[str, Any]]:
+        widgets: list[dict[str, Any]] = []
         exports = (
             self.export_config.get("exports", [])
             if isinstance(self.export_config, dict)
@@ -1005,21 +1199,16 @@ class CollectionWidgetProposalService:
         for export in exports:
             if not isinstance(export, dict):
                 continue
-            for group in export.get("groups", []) or []:
+            for group in self._iter_export_groups(export):
                 if (
                     not isinstance(group, dict)
                     or group.get("group_by") != collection_name
                 ):
                     continue
                 for widget in group.get("widgets", []) or []:
-                    if not isinstance(widget, dict):
-                        continue
-                    data_source = widget.get("data_source")
-                    if data_source:
-                        keys.add(str(data_source))
-                    elif widget.get("plugin") == "hierarchical_nav_widget":
-                        keys.add(f"{collection_name}_hierarchical_nav_widget")
-        return keys
+                    if isinstance(widget, dict):
+                        widgets.append(widget)
+        return widgets
 
     def _existing_sources_for_collection(
         self,
@@ -1212,7 +1401,10 @@ class CollectionWidgetProposalService:
         updated = deepcopy(export_config) if isinstance(export_config, dict) else {}
         exports = updated.setdefault("exports", [])
         html_exporter = self._find_or_create_html_exporter(exports)
-        groups = html_exporter.setdefault("groups", [])
+        groups = self._export_group_container_for_collection(
+            html_exporter,
+            collection_name,
+        )
         group = self._find_or_create_export_group(groups, collection_name)
         widgets = group.setdefault("widgets", [])
         by_source = {
@@ -1273,6 +1465,50 @@ class CollectionWidgetProposalService:
         exports.append(export)
         return export
 
+    def _iter_export_groups(self, export: dict[str, Any]):
+        root_groups = export.get("groups", [])
+        if isinstance(root_groups, list):
+            yield from root_groups
+        params = export.get("params", {})
+        if isinstance(params, dict):
+            params_groups = params.get("groups", [])
+            if isinstance(params_groups, list):
+                yield from params_groups
+
+    def _export_group_container_for_collection(
+        self,
+        export: dict[str, Any],
+        collection_name: str,
+    ) -> list[dict[str, Any]]:
+        for container in self._export_group_containers(export):
+            if any(
+                isinstance(group, dict) and group.get("group_by") == collection_name
+                for group in container
+            ):
+                return container
+
+        groups = export.get("groups")
+        if isinstance(groups, list):
+            return groups
+        groups = []
+        export["groups"] = groups
+        return groups
+
+    def _export_group_containers(
+        self,
+        export: dict[str, Any],
+    ) -> list[list[dict[str, Any]]]:
+        containers: list[list[dict[str, Any]]] = []
+        root_groups = export.get("groups")
+        if isinstance(root_groups, list):
+            containers.append(root_groups)
+        params = export.get("params")
+        if isinstance(params, dict):
+            params_groups = params.get("groups")
+            if isinstance(params_groups, list):
+                containers.append(params_groups)
+        return containers
+
     def _find_or_create_export_group(
         self,
         groups: list[dict[str, Any]],
@@ -1282,10 +1518,11 @@ class CollectionWidgetProposalService:
             if isinstance(group, dict) and group.get("group_by") == collection_name:
                 return group
 
+        path_segment = _slug_key(collection_name)
         group = {
             "group_by": collection_name,
-            "output_pattern": f"{collection_name}/{{id}}.html",
-            "index_output_pattern": f"{collection_name}/index.html",
+            "output_pattern": f"{path_segment}/{{id}}.html",
+            "index_output_pattern": f"{path_segment}/index.html",
             "widgets": [],
         }
         groups.append(group)
@@ -1340,6 +1577,10 @@ def _slug_key(value: str) -> str:
     )
     slug = re.sub(r"[^a-zA-Z0-9]+", "_", ascii_value.lower()).strip("_")
     return slug or "value"
+
+
+def _stable_config_key(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
 
 def _page_structure_priority(proposal: WidgetProposal) -> int:

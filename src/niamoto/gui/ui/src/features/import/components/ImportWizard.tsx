@@ -49,8 +49,10 @@ import { useDatasets } from '@/features/import/hooks/useDatasets'
 import { useReferences } from '@/features/import/hooks/useReferences'
 import type { UploadedFileInfo } from '@/features/import/api/upload'
 import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
-import { importQueryKeys } from '@/features/import/queryKeys'
-import { buildCollectionsPath } from '@/features/collections/routing'
+import {
+  buildCollectionWidgetReviewPath,
+  refreshImportDependentQueries,
+} from './importWizardCache'
 
 type ImportPhase =
   | 'idle'
@@ -188,13 +190,7 @@ export function ImportWizard() {
   const handleImportComplete = useCallback(async () => {
     setPhase('complete')
 
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: importQueryKeys.all() }),
-      queryClient.invalidateQueries({ queryKey: ['pipeline-status'] }),
-    ])
-    queryClient.removeQueries({ queryKey: ['suggestions'] })
-    queryClient.removeQueries({ queryKey: ['configured-widgets'] })
-    queryClient.removeQueries({ queryKey: ['widget-config'] })
+    await refreshImportDependentQueries(queryClient)
     invalidateAllPreviews(queryClient)
 
     // Redirect to sources dashboard after short delay
@@ -419,9 +415,7 @@ export function ImportWizard() {
 
   const reviewCollectionWidgets = useCallback(
     (collection: string) => {
-      const path = buildCollectionsPath({ type: 'collection', name: collection }, 'content')
-      const separator = path.includes('?') ? '&' : '?'
-      navigate(`${path}${separator}panel=widget-proposals`)
+      navigate(buildCollectionWidgetReviewPath(collection))
     },
     [navigate]
   )

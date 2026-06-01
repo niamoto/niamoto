@@ -1,13 +1,20 @@
 import { apiFetch } from '@/shared/lib/api/fetch'
-import type {
-  ApplyabilityStatus,
-  WidgetProposal,
-  WidgetProposalApplyResponse,
-  WidgetProposalConfigChange,
-  WidgetProposalPreviewResponse,
-} from './widget-proposals'
 
 const API_BASE = '/api/collections'
+
+export type ApplyabilityStatus =
+  | 'applicable'
+  | 'review_only'
+  | 'not_applicable'
+  | 'stale'
+  | 'conflict'
+
+export type WidgetCandidateChangeAction =
+  | 'add'
+  | 'replace'
+  | 'conflict'
+  | 'skip'
+  | 'invalid'
 
 export type WidgetCandidateStatus =
   | 'recommended'
@@ -28,7 +35,6 @@ export type WidgetCandidateCategory =
 export interface WidgetCandidateRecommendation {
   reason: string
   score?: number | null
-  source_status?: string | null
 }
 
 export interface WidgetCandidateDetail {
@@ -48,7 +54,6 @@ export interface WidgetCandidate {
   origin: string
   category: WidgetCandidateCategory
   status: WidgetCandidateStatus
-  proposal_status?: WidgetProposal['status'] | null
   applyability: ApplyabilityStatus
   default_selected: boolean
   recommendation?: WidgetCandidateRecommendation | null
@@ -60,7 +65,6 @@ export interface WidgetCandidate {
   detail: WidgetCandidateDetail
   recipe_summary: Record<string, unknown>
   fingerprint?: string | null
-  proposal?: WidgetProposal | null
 }
 
 export interface WidgetCandidateGroups {
@@ -80,21 +84,34 @@ export interface WidgetCandidateSelection {
   replacement?: 'add' | 'replace' | 'skip'
 }
 
-export interface WidgetCandidateConfigChange extends WidgetProposalConfigChange {
+export interface WidgetCandidateConfigChange {
   candidate_id: string
+  widget_id: string
+  title: string
+  action: WidgetCandidateChangeAction
+  reason?: string | null
+  transform_widget?: Record<string, unknown> | null
+  export_widget?: Record<string, unknown> | null
 }
 
-export interface WidgetCandidatePreviewResponse
-  extends Omit<WidgetProposalPreviewResponse, 'changes' | 'conflicts' | 'invalid'> {
+export interface WidgetCandidatePreviewResponse {
+  collection: string
+  writes_files: boolean
+  preview_token: string
   changes: WidgetCandidateConfigChange[]
   conflicts: WidgetCandidateConfigChange[]
   invalid: WidgetCandidateConfigChange[]
 }
 
-export interface WidgetCandidateApplyResponse
-  extends Omit<WidgetProposalApplyResponse, 'applied' | 'skipped'> {
+export interface WidgetCandidateApplyResponse {
+  collection: string
+  success: boolean
   applied: WidgetCandidateConfigChange[]
   skipped: WidgetCandidateConfigChange[]
+  message: string
+  preview_token?: string | null
+  written_files: string[]
+  backup_files: string[]
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -134,14 +151,14 @@ export async function previewWidgetCandidates(
 export async function applyWidgetCandidates(
   collectionName: string,
   selections: WidgetCandidateSelection[],
-  previewToken?: string | null,
+  previewToken: string,
 ): Promise<WidgetCandidateApplyResponse> {
   const response = await apiFetch(
     `${API_BASE}/${encodeURIComponent(collectionName)}/widget-candidates/apply`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ selections, preview_token: previewToken ?? null }),
+      body: JSON.stringify({ selections, preview_token: previewToken }),
     },
   )
   return readJson<WidgetCandidateApplyResponse>(response)

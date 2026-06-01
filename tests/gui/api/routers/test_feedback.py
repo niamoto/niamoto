@@ -101,27 +101,16 @@ def test_submit_feedback_proxies_to_worker(monkeypatch):
     }
 
 
-def test_submit_feedback_uses_form_config_when_backend_env_is_missing(monkeypatch):
-    captured = {}
-    monkeypatch.setattr(
-        "niamoto.gui.api.url_security.socket.getaddrinfo",
-        lambda *args, **kwargs: [(None, None, None, None, ("93.184.216.34", 443))],
-    )
+def test_submit_feedback_ignores_form_config_when_backend_env_is_missing(monkeypatch):
     monkeypatch.delenv("NIAMOTO_FEEDBACK_WORKER_URL", raising=False)
     monkeypatch.delenv("NIAMOTO_FEEDBACK_API_KEY", raising=False)
     monkeypatch.delenv("VITE_FEEDBACK_WORKER_URL", raising=False)
     monkeypatch.delenv("VITE_FEEDBACK_API_KEY", raising=False)
+    forwarded = False
 
-    async def fake_forward_feedback(
-        worker_feedback_url: str,
-        api_key: str,
-        payload: str,
-        screenshot,
-    ):
-        captured["worker_feedback_url"] = worker_feedback_url
-        captured["api_key"] = api_key
-        captured["payload"] = payload
-        captured["filename"] = None if screenshot is None else screenshot.filename
+    async def fake_forward_feedback(*_args, **_kwargs):
+        nonlocal forwarded
+        forwarded = True
         return 201, {"success": True, "screenshot_uploaded": False}
 
     monkeypatch.setattr(
@@ -139,14 +128,9 @@ def test_submit_feedback_uses_form_config_when_backend_env_is_missing(monkeypatc
         },
     )
 
-    assert response.status_code == 201
-    assert response.json() == {"success": True, "screenshot_uploaded": False}
-    assert captured == {
-        "worker_feedback_url": "https://feedback.example.com/feedback",
-        "api_key": "client-build-secret",
-        "payload": '{"type":"suggestion","title":"Import wording"}',
-        "filename": None,
-    }
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Feedback API key not configured in this build."
+    assert forwarded is False
 
 
 def test_forward_feedback_revalidates_worker_dns_before_request(monkeypatch):

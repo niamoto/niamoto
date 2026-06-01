@@ -1561,67 +1561,7 @@
         "validate_standard_profile": "Validate profile"
       }
     },
-    "widgetProposals": {
-      "loading": "Loading proposals",
-      "analysisFailed": "Proposal analysis failed",
-      "reviewTitle": "Review proposed page",
-      "selectedWidgets_one": "{{count}} selected widget",
-      "selectedWidgets_other": "{{count}} selected widgets",
-      "refresh": "Refresh",
-      "refreshing": "Refreshing…",
-      "close": "Close",
-      "groups": {
-        "recommended": "Recommended",
-        "warnings": "Needs review",
-        "reviewOnly": "Review only",
-        "missingChart": "Missing chart",
-        "skipped": "Skipped",
-        "configured": "Already configured"
-      },
-      "status": {
-        "recommended": "Recommended",
-        "warning": "Needs review",
-        "review_only": "Review only",
-        "missing_chart": "Missing chart",
-        "skipped": "Skipped",
-        "already_configured": "Already configured"
-      },
-      "applyability": {
-        "applicable": "Applicable",
-        "review_only": "Review only",
-        "not_applicable": "Not applicable",
-        "stale": "Stale",
-        "conflict": "Conflict"
-      },
-      "detail": {
-        "empty": "Select a proposal to inspect it.",
-        "missing": "Missing",
-        "none": "None",
-        "title": "Selected widget",
-        "display": "Display",
-        "transformation": "Transformation",
-        "dataShape": "Data shape",
-        "sourceFields": "Source fields",
-        "whySuggested": "Why suggested",
-        "chartFit": "Chart fit: {{score}}%",
-        "reviewNotes": "Review notes",
-        "missingChart": "Missing chart",
-        "technicalDetails": "Technical details",
-        "internalScore": "Internal score",
-        "recipe": "Recipe"
-      },
-      "preview": {
-        "title": "Future page preview",
-        "description": "Click a widget card to include or remove it before writing the configuration.",
-        "empty": "Select at least one proposal to preview the future page.",
-        "available": "Available but not selected",
-        "add": "Add",
-        "remove": "Remove",
-        "selected": "Selected",
-        "unavailable": "Preview unavailable",
-        "addAria": "Add {{title}} to the future page",
-        "removeAria": "Remove {{title}} from the future page"
-      },
+    "widgetCandidates": {
       "applyDialog": {
         "title": "Review changes before adding widgets",
         "description": "Niamoto will add the selected widgets to the transform and export configuration. Nothing is written until you confirm.",
@@ -1629,6 +1569,14 @@
         "adding": "Adding widgets",
         "addWidgets": "Add widgets",
         "cancel": "Cancel",
+        "empty": "No changes to display.",
+        "replaceConflict": "Replace existing widget",
+        "skipConflict": "Skip this widget",
+        "sections": {
+          "changes": "Changes",
+          "conflicts": "Conflicts",
+          "invalid": "Invalid"
+        },
         "actions": {
           "add": "Add",
           "replace": "Replace",
@@ -1636,40 +1584,6 @@
           "skip": "Skip",
           "invalid": "Invalid"
         }
-      }
-    },
-    "widgetCandidates": {
-      "loading": "Loading widget candidates",
-      "analysisFailed": "Widget analysis failed",
-      "reviewTitle": "Add widgets",
-      "selectedWidgets_one": "{{count}} selected widget",
-      "selectedWidgets_other": "{{count}} selected widgets",
-      "refresh": "Refresh",
-      "refreshing": "Refreshing…",
-      "close": "Close",
-      "groups": {
-        "recommended": "Recommended",
-        "available": "Available",
-        "needsReview": "Needs review",
-        "missingChart": "Missing chart",
-        "skipped": "Skipped",
-        "configured": "Already configured"
-      },
-      "status": {
-        "recommended": "Recommended",
-        "available": "Available",
-        "needs_review": "Needs review",
-        "missing_chart": "Missing chart",
-        "skipped": "Skipped",
-        "configured": "Already configured"
-      },
-      "categories": {
-        "structure": "Page structure",
-        "map": "Map",
-        "metric": "Metric",
-        "chart": "Chart",
-        "table": "Table",
-        "unsupported": "Unsupported"
       }
     },
     "api": {

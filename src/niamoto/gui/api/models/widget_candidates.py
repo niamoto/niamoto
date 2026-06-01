@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from niamoto.core.collections.widget_candidate_models import WidgetCandidateGroups
-from niamoto.gui.api.models.widget_proposals import (
-    ProposalChangeAction,
-    ReplacementChoice,
-)
+
+ReplacementChoice = Literal["add", "replace", "skip"]
+WidgetCandidateChangeAction = Literal["add", "replace", "conflict", "skip", "invalid"]
 
 
 class WidgetCandidateSelection(BaseModel):
@@ -33,17 +32,16 @@ class WidgetCandidatePreviewRequest(BaseModel):
 class WidgetCandidateApplyRequest(WidgetCandidatePreviewRequest):
     """Apply request for selected widget candidates."""
 
-    preview_token: str | None = None
+    preview_token: str = Field(min_length=1)
 
 
 class WidgetCandidateConfigChange(BaseModel):
     """One proposed transform/export config change for a candidate."""
 
     candidate_id: str
-    proposal_id: str
     widget_id: str
     title: str
-    action: ProposalChangeAction
+    action: WidgetCandidateChangeAction
     reason: str | None = None
     transform_widget: dict[str, Any] | None = None
     export_widget: dict[str, Any] | None = None

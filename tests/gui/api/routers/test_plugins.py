@@ -119,6 +119,41 @@ def test_list_plugins_loads_project_plugin_cascade(monkeypatch, tmp_path):
         PluginRegistry.clear()
 
 
+def test_list_plugins_requires_desktop_auth_when_token_is_configured(monkeypatch):
+    called = False
+    monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+
+    def fake_load_all_plugins():
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(plugins_router, "load_all_plugins", fake_load_all_plugins)
+
+    response = TestClient(create_app()).get("/api/plugins/?type=widget")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid desktop auth token."
+    assert called is False
+
+
+def test_get_plugin_schema_accepts_desktop_auth_when_token_is_configured(monkeypatch):
+    monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+    monkeypatch.setattr(plugins_router, "load_all_plugins", lambda: None)
+    PluginRegistry.clear()
+    try:
+        PluginRegistry.register_plugin("dummy_widget", DummyWidget, PluginType.WIDGET)
+
+        response = TestClient(create_app()).get(
+            "/api/plugins/dummy_widget/schema",
+            headers={"x-niamoto-desktop-token": "desktop-secret"},
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["plugin_id"] == "dummy_widget"
+    finally:
+        PluginRegistry.clear()
+
+
 def test_load_all_plugins_restores_registry_when_cascade_loading_fails(monkeypatch):
     PluginRegistry.clear()
     PluginRegistry.register_plugin("existing_widget", DummyWidget, PluginType.WIDGET)

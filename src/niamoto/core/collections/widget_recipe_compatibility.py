@@ -471,16 +471,24 @@ class WidgetRecipeCompatibilityService:
         for export in self.export_config.get("exports", []) or []:
             if not isinstance(export, dict):
                 continue
-            for group in export.get("groups", []) or []:
-                if not isinstance(group, dict):
+            for groups in (
+                export.get("groups", []),
+                (export.get("params") or {}).get("groups", [])
+                if isinstance(export.get("params"), dict)
+                else [],
+            ):
+                if not isinstance(groups, list):
                     continue
-                for widget in group.get("widgets", []) or []:
-                    if not isinstance(widget, dict):
+                for group in groups:
+                    if not isinstance(group, dict):
                         continue
-                    data_source = widget.get("data_source")
-                    plugin = widget.get("plugin")
-                    if data_source and plugin:
-                        result[str(data_source)] = str(plugin)
+                    for widget in group.get("widgets", []) or []:
+                        if not isinstance(widget, dict):
+                            continue
+                        data_source = widget.get("data_source")
+                        plugin = widget.get("plugin")
+                        if data_source and plugin:
+                            result[str(data_source)] = str(plugin)
         return result
 
     def _schema_fingerprint(self, incoming_profile: IncomingDataProfile) -> str:

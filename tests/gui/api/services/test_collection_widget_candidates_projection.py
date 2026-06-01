@@ -1,14 +1,16 @@
-"""Tests for unified widget candidate projections."""
+"""Tests for GUI widget candidate projections."""
 
 from __future__ import annotations
 
-from niamoto.core.collections.widget_candidate_models import candidate_from_proposal
 from niamoto.core.collections.widget_proposal_models import (
     ChartFitResult,
     MissingChartOpportunity,
     TransformedShape,
     TransformationCandidate,
     WidgetProposal,
+)
+from niamoto.gui.api.services.collection_widget_candidates import (
+    candidate_from_proposal,
 )
 
 

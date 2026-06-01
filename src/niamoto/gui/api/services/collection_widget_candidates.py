@@ -7,16 +7,20 @@ from typing import Any, Sequence
 
 from niamoto.core.collections.widget_candidate_models import (
     WidgetCandidate,
+    WidgetCandidateCategory,
+    WidgetCandidateDetail,
     WidgetCandidateGroups,
-    candidate_from_proposal,
+    WidgetCandidateRecommendation,
+    WidgetCandidateStatus,
 )
+from niamoto.core.collections.widget_proposal_models import WidgetProposal
 from niamoto.gui.api.models.widget_candidates import (
     WidgetCandidateApplyResponse,
     WidgetCandidateConfigChange,
     WidgetCandidatePreviewResponse,
     WidgetCandidateSelection,
 )
-from niamoto.gui.api.models.widget_proposals import (
+from niamoto.gui.api.services.collection_widget_proposal_models import (
     WidgetProposalApplyResponse,
     WidgetProposalConfigChange,
     WidgetProposalPreviewResponse,
@@ -153,7 +157,6 @@ class CollectionWidgetCandidateService:
     ) -> WidgetCandidateConfigChange:
         return WidgetCandidateConfigChange(
             candidate_id=change.proposal_id,
-            proposal_id=change.proposal_id,
             widget_id=change.widget_id,
             title=change.title,
             action=change.action,
@@ -161,3 +164,108 @@ class CollectionWidgetCandidateService:
             transform_widget=change.transform_widget,
             export_widget=change.export_widget,
         )
+
+
+def candidate_from_proposal(proposal: WidgetProposal) -> WidgetCandidate:
+    """Project a transformation-first proposal into the unified GUI candidate contract."""
+
+    widget_plugin = proposal.primary_fit.widget if proposal.primary_fit else None
+    recipe_summary = {
+        "transformer": _plugin_summary(proposal.recipe.get("transformer")),
+        "widget": _plugin_summary(proposal.recipe.get("widget")),
+    }
+    recommendation = None
+    if proposal.status == "recommended":
+        recommendation = WidgetCandidateRecommendation(
+            reason=proposal.primary_fit.reason
+            if proposal.primary_fit
+            else proposal.candidate.intent,
+            score=proposal.primary_fit.score if proposal.primary_fit else None,
+        )
+    elif proposal.status == "already_configured":
+        recommendation = WidgetCandidateRecommendation(
+            reason="This candidate is already configured for the collection.",
+            score=proposal.primary_fit.score if proposal.primary_fit else None,
+        )
+
+    return WidgetCandidate(
+        id=proposal.id,
+        collection=proposal.collection,
+        title=proposal.title,
+        subtitle=proposal.candidate.intent,
+        origin=proposal.candidate.origin,
+        category=_candidate_category(proposal),
+        status=_candidate_status(proposal),
+        applyability=proposal.applyability,
+        default_selected=(
+            proposal.status == "recommended" and proposal.applyability == "applicable"
+        ),
+        recommendation=recommendation,
+        source_fields=list(proposal.candidate.field_names),
+        source_name=proposal.candidate.source_name,
+        transformer_plugin=proposal.candidate.transformer_plugin,
+        widget_plugin=widget_plugin,
+        detail=WidgetCandidateDetail(
+            shape=proposal.shape.model_dump(),
+            warnings=[warning.model_dump() for warning in proposal.warnings],
+            skip_reasons=[
+                skip_reason.model_dump() for skip_reason in proposal.skip_reasons
+            ],
+            score=proposal.score.model_dump(),
+            provenance=proposal.candidate.provenance.model_dump()
+            if proposal.candidate.provenance
+            else {},
+            recipe_summary=recipe_summary,
+        ),
+        recipe_summary=recipe_summary,
+        fingerprint=proposal.fingerprint,
+    )
+
+
+def _candidate_status(proposal: WidgetProposal) -> WidgetCandidateStatus:
+    if proposal.status == "recommended":
+        return "recommended"
+    if proposal.status == "warning":
+        return "needs_review"
+    if proposal.status == "review_only":
+        return "needs_review"
+    if proposal.status == "missing_chart":
+        return "missing_chart"
+    if proposal.status == "skipped":
+        return "skipped"
+    return "configured"
+
+
+def _candidate_category(proposal: WidgetProposal) -> WidgetCandidateCategory:
+    if proposal.primary_fit and proposal.primary_fit.widget in {
+        "hierarchical_nav_widget",
+        "info_grid",
+    }:
+        return "structure"
+
+    shape_kind = proposal.shape.kind
+    if shape_kind == "map_layer":
+        return "map"
+    if shape_kind in {"scalar_metric", "metric_group"}:
+        return "metric"
+    if shape_kind in {
+        "category_distribution",
+        "category_ranking",
+        "binned_numeric_distribution",
+        "boolean_split",
+        "time_series",
+        "numeric_pair",
+    }:
+        return "chart"
+    if shape_kind == "table":
+        return "table"
+    return "unsupported"
+
+
+def _plugin_summary(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        "plugin": value.get("plugin"),
+        "params": value.get("params") or {},
+    }

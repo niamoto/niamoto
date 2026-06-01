@@ -70,6 +70,7 @@ import { PreviewTile } from '@/components/preview'
 import { PreviewPane } from '@/components/preview'
 import type { PreviewDescriptor } from '@/lib/preview/types'
 import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
+import { shouldUseCandidateApplyPath } from './addWidgetApplyMode'
 import {
   type WidgetCandidate,
   type WidgetCandidateApplyResponse,
@@ -77,7 +78,9 @@ import {
   type WidgetCandidateSelection,
 } from '@/features/collections/api/widget-candidates'
 import { useWidgetCandidates } from '@/features/collections/hooks/useWidgetCandidates'
-import { WidgetProposalApplyDialog } from '@/features/collections/components/blocks/WidgetProposalApplyDialog'
+import { WidgetCandidateApplyDialog } from '@/features/collections/components/blocks/WidgetCandidateApplyDialog'
+import { candidatePreviewFromApplyResponse } from '@/features/collections/components/blocks/widgetCandidateApplyState'
+import { apiFetch } from '@/shared/lib/api/fetch'
 
 // Category icons
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -528,7 +531,17 @@ export function AddWidgetModal({
   const [candidateApplyResult, setCandidateApplyResult] = useState<WidgetCandidateApplyResponse | null>(null)
   const [candidateApplyInFlight, setCandidateApplyInFlight] = useState(false)
   const candidatePreviewRequestId = useRef(0)
+  const modalRequestContextRef = useRef({ open, referenceName: reference.name })
   const [customizations, setCustomizations] = useState<Record<string, Customization>>({})
+  const customizedSuggestionIds = useMemo(
+    () =>
+      new Set(
+        Object.entries(customizations)
+          .filter(([, customization]) => Object.keys(customization).length > 0)
+          .map(([suggestionId]) => suggestionId),
+      ),
+    [customizations],
+  )
   const [searchQuery, setSearchQuery] = useState('')
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
@@ -610,9 +623,6 @@ export function AddWidgetModal({
     [recommendedSuggestionCandidates],
   )
 
-  const selectedCandidateCount = selectedSuggestions.filter((suggestionId) =>
-    recommendedSuggestionCandidates.has(suggestionId),
-  ).length
   const candidateBusy =
     candidateQuery.previewState.isPending ||
     candidateQuery.applyState.isPending ||
@@ -647,6 +657,7 @@ export function AddWidgetModal({
   }, [combinedSuggestions, selectedCombinedKey])
 
   const resetModalState = useCallback(() => {
+    candidatePreviewRequestId.current += 1
     setActiveTab(defaultTab)
     setSelectedSuggestions([])
     setFocusedSuggestion(null)
@@ -670,14 +681,33 @@ export function AddWidgetModal({
 
   // Reset state when modal opens/closes
   useEffect(() => {
+    modalRequestContextRef.current = { open, referenceName: reference.name }
     if (open) {
       const frameId = window.requestAnimationFrame(resetModalState)
       return () => window.cancelAnimationFrame(frameId)
     } else {
+      candidatePreviewRequestId.current += 1
       // Annuler les previews en attente quand la modale se ferme
       void queryClient.cancelQueries({ queryKey: ['preview'] })
     }
-  }, [open, queryClient, resetModalState])
+  }, [open, queryClient, reference.name, resetModalState])
+
+  useEffect(() => {
+    modalRequestContextRef.current = { open, referenceName: reference.name }
+    candidatePreviewRequestId.current += 1
+    if (!open) {
+      setCandidateApplyInFlight(false)
+    }
+  }, [open, reference.name])
+
+  const isCurrentCandidateRequest = useCallback((requestId: number, referenceName: string) => {
+    const context = modalRequestContextRef.current
+    return (
+      candidatePreviewRequestId.current === requestId &&
+      context.open &&
+      context.referenceName === referenceName
+    )
+  }, [])
 
   useEffect(() => {
     if (!open || activeTab !== 'suggestions' || !recommendedSuggestionKey) {
@@ -726,7 +756,7 @@ export function AddWidgetModal({
     const controller = new AbortController()
     let cancelled = false
 
-    fetch(`/api/plugins/${pluginId}/schema`, { signal: controller.signal })
+    apiFetch(`/api/plugins/${pluginId}/schema`, { signal: controller.signal })
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return
@@ -1004,6 +1034,11 @@ export function AddWidgetModal({
     preview: WidgetCandidatePreviewResponse,
     selections: WidgetCandidateSelection[],
   ) => {
+    const requestId = candidatePreviewRequestId.current
+    const requestReferenceName = reference.name
+    if (!isCurrentCandidateRequest(requestId, requestReferenceName)) {
+      return
+    }
     setCandidateApplyResult(null)
     setCandidateApplyInFlight(true)
     try {
@@ -1011,40 +1046,73 @@ export function AddWidgetModal({
         selections,
         previewToken: preview.preview_token,
       })
+      if (!isCurrentCandidateRequest(requestId, requestReferenceName)) {
+        return
+      }
       setCandidateApplyResult(response)
       if (response.success) {
-        const regularSuggestionIds = selectedSuggestions.filter(
-          (suggestionId) => !recommendedSuggestionCandidates.has(suggestionId),
-        )
-        if (regularSuggestionIds.length > 0) {
-          await handleAddSuggestions(regularSuggestionIds)
-        } else {
-          onWidgetAdded()
-        }
+        onWidgetAdded()
         setCandidateDialogOpen(false)
         setCandidatePreview(null)
         setCandidatePreviewSelections([])
+        return
       }
+      setCandidatePreview(candidatePreviewFromApplyResponse(preview, response))
+      setCandidatePreviewSelections(selections)
+      setCandidateDialogOpen(true)
     } catch {
+      if (!isCurrentCandidateRequest(requestId, requestReferenceName)) {
+        return
+      }
       setCandidatePreview(preview)
       setCandidatePreviewSelections(selections)
       setCandidateDialogOpen(true)
     } finally {
-      setCandidateApplyInFlight(false)
+      if (isCurrentCandidateRequest(requestId, requestReferenceName)) {
+        setCandidateApplyInFlight(false)
+      }
     }
   }, [
     candidateQuery,
-    handleAddSuggestions,
+    isCurrentCandidateRequest,
     onWidgetAdded,
-    recommendedSuggestionCandidates,
-    selectedSuggestions,
+    reference.name,
   ])
+
+  const handleCandidateReplacementChange = useCallback(async (
+    candidateId: string,
+    replacement: NonNullable<WidgetCandidateSelection['replacement']>,
+  ) => {
+    const nextSelections = candidatePreviewSelections.map((selection) =>
+      selection.candidate_id === candidateId
+        ? { ...selection, replacement }
+        : selection,
+    )
+    const requestId = candidatePreviewRequestId.current + 1
+    candidatePreviewRequestId.current = requestId
+    const requestReferenceName = reference.name
+    setCandidateApplyResult(null)
+    setCandidatePreviewSelections(nextSelections)
+    try {
+      const nextPreview = await candidateQuery.preview(nextSelections)
+      if (!isCurrentCandidateRequest(requestId, requestReferenceName)) {
+        return
+      }
+      setCandidatePreview(nextPreview)
+      setCandidateDialogOpen(true)
+    } catch {
+      if (isCurrentCandidateRequest(requestId, requestReferenceName)) {
+        setCandidateDialogOpen(true)
+      }
+    }
+  }, [candidatePreviewSelections, candidateQuery, isCurrentCandidateRequest, reference.name])
 
   const openCandidatePreview = useCallback(async () => {
     const nextSelections = candidateSelections()
     if (nextSelections.length === 0) return
     const requestId = candidatePreviewRequestId.current + 1
     candidatePreviewRequestId.current = requestId
+    const requestReferenceName = reference.name
     setCandidateApplyResult(null)
     setCandidateApplyInFlight(false)
     setCandidatePreview(null)
@@ -1054,12 +1122,12 @@ export function AddWidgetModal({
     try {
       response = await candidateQuery.preview(nextSelections)
     } catch {
-      if (candidatePreviewRequestId.current === requestId) {
+      if (isCurrentCandidateRequest(requestId, requestReferenceName)) {
         setCandidateDialogOpen(true)
       }
       return
     }
-    if (candidatePreviewRequestId.current !== requestId) {
+    if (!isCurrentCandidateRequest(requestId, requestReferenceName)) {
       return
     }
 
@@ -1071,7 +1139,13 @@ export function AddWidgetModal({
 
     setCandidateDialogOpen(false)
     await applyCandidatePreviewResponse(response, nextSelections)
-  }, [applyCandidatePreviewResponse, candidateQuery, candidateSelections])
+  }, [
+    applyCandidatePreviewResponse,
+    candidateQuery,
+    candidateSelections,
+    isCurrentCandidateRequest,
+    reference.name,
+  ])
 
   const applyCandidatePreview = useCallback(async () => {
     if (!candidatePreview || candidateApplyInFlight) return
@@ -1084,12 +1158,24 @@ export function AddWidgetModal({
   ])
 
   const handleAddUnifiedSuggestions = useCallback(async () => {
-    if (selectedCandidateCount > 0) {
+    if (
+      shouldUseCandidateApplyPath(
+        selectedSuggestions,
+        recommendedSuggestionIds,
+        customizedSuggestionIds,
+      )
+    ) {
       await openCandidatePreview()
       return
     }
     await handleAddSuggestions()
-  }, [handleAddSuggestions, openCandidatePreview, selectedCandidateCount])
+  }, [
+    handleAddSuggestions,
+    openCandidatePreview,
+    customizedSuggestionIds,
+    recommendedSuggestionIds,
+    selectedSuggestions,
+  ])
 
   // Handle adding a combined widget (via generateConfig + saveConfig like suggestions)
   const handleAddCombined = useCallback(async () => {
@@ -1138,6 +1224,10 @@ export function AddWidgetModal({
     <Dialog
       open={open}
       onOpenChange={(isOpen) => {
+        if (candidateApplyInFlight && !isOpen) return
+        if (!isOpen) {
+          candidatePreviewRequestId.current += 1
+        }
         onOpenChange(isOpen)
         if (!isOpen) {
           setFocusedSuggestion((current) => current === null ? current : null)
@@ -1151,8 +1241,7 @@ export function AddWidgetModal({
             {t('actions.addWidget')}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Ajouter un ou plusieurs widgets a partir des suggestions, des combinaisons
-            ou d&apos;une configuration personnalisee.
+            {t('modal.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -1171,7 +1260,7 @@ export function AddWidgetModal({
                 className="text-sm px-4 py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg"
               >
                 <Sparkles className="h-4 w-4 mr-2" />
-                Suggestions
+                {t('modal.suggestions')}
                 <Badge variant="secondary" className="ml-2 text-xs">
                   {visibleSuggestions.length}
                 </Badge>
@@ -1181,7 +1270,7 @@ export function AddWidgetModal({
                 className="text-sm px-4 py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg"
               >
                 <Combine className="h-4 w-4 mr-2" />
-                Combines
+                {t('modal.combined')}
                 {semanticGroups.length > 0 && (
                   <Badge className="ml-2 text-xs bg-amber-500">{semanticGroups.length}</Badge>
                 )}
@@ -1191,7 +1280,7 @@ export function AddWidgetModal({
                 className="text-sm px-4 py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg"
               >
                 <Wand2 className="h-4 w-4 mr-2" />
-                Personnalise
+                {t('modal.custom')}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -1477,7 +1566,9 @@ export function AddWidgetModal({
                                         return next
                                       })}
                                     >
-                                      +{hiddenCount} more...
+                                      {t('modal.showMoreSuggestions', {
+                                        count: hiddenCount,
+                                      })}
                                     </button>
                                   )}
                                 </div>
@@ -1951,7 +2042,14 @@ export function AddWidgetModal({
             )}
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                candidatePreviewRequestId.current += 1
+                onOpenChange(false)
+              }}
+              disabled={candidateApplyInFlight || candidateQuery.applyState.isPending}
+            >
               {t('common:actions.cancel')}
             </Button>
             {activeTab === 'suggestions' && (
@@ -1979,7 +2077,7 @@ export function AddWidgetModal({
             )}
           </div>
         </div>
-        <WidgetProposalApplyDialog
+        <WidgetCandidateApplyDialog
           open={candidateDialogOpen}
           preview={candidatePreview}
           loading={candidateQuery.previewState.isPending}
@@ -1993,6 +2091,7 @@ export function AddWidgetModal({
             if (candidateApplyInFlight && !nextOpen) return
             setCandidateDialogOpen(nextOpen)
           }}
+          onReplacementChange={handleCandidateReplacementChange}
           onApply={applyCandidatePreview}
         />
       </DialogContent>

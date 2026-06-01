@@ -1,8 +1,6 @@
 import { FeedbackError, type FeedbackPayload, type FeedbackResponse } from '../types'
 import { apiFetch } from '@/shared/lib/api/fetch'
 
-const WORKER_URL = import.meta.env.VITE_FEEDBACK_WORKER_URL || ''
-const API_KEY = import.meta.env.VITE_FEEDBACK_API_KEY || ''
 const FEEDBACK_PROXY_URL = '/api/feedback/submit'
 
 interface FeedbackSubmission {
@@ -11,21 +9,8 @@ interface FeedbackSubmission {
 }
 
 export async function sendFeedback({ payload, screenshot }: FeedbackSubmission): Promise<FeedbackResponse> {
-  const workerUrl = WORKER_URL.trim()
-  const apiKey = API_KEY.trim()
-
-  if (!workerUrl) {
-    throw new Error("Feedback endpoint not configured in this build.")
-  }
-
-  if (!apiKey) {
-    throw new Error("Feedback API key not configured in this build.")
-  }
-
   const formData = new FormData()
   formData.append('payload', JSON.stringify(payload))
-  formData.append('worker_url', workerUrl)
-  formData.append('api_key', apiKey)
   if (screenshot) {
     formData.append('screenshot', screenshot, 'feedback.jpg')
   }

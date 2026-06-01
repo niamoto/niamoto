@@ -131,27 +131,15 @@ async def _read_upload_limited(upload: UploadFile) -> bytes:
 @router.post("/submit")
 async def submit_feedback(
     payload: str = Form(...),
-    worker_url: str | None = Form(None),
-    api_key: str | None = Form(None),
     screenshot: UploadFile | None = File(None),
 ):
-    configured_api_key = (
-        os.getenv("NIAMOTO_FEEDBACK_API_KEY")
-        or os.getenv("VITE_FEEDBACK_API_KEY")
-        or api_key
-        or ""
-    ).strip()
+    configured_api_key = (os.getenv("NIAMOTO_FEEDBACK_API_KEY") or "").strip()
     if not configured_api_key:
         raise HTTPException(
             status_code=400, detail="Feedback API key not configured in this build."
         )
 
-    configured_worker_url = (
-        os.getenv("NIAMOTO_FEEDBACK_WORKER_URL")
-        or os.getenv("VITE_FEEDBACK_WORKER_URL")
-        or worker_url
-        or ""
-    )
+    configured_worker_url = os.getenv("NIAMOTO_FEEDBACK_WORKER_URL") or ""
     worker_feedback_url = _normalize_worker_feedback_url(configured_worker_url)
     status_code, body = await _forward_feedback(
         worker_feedback_url=worker_feedback_url,

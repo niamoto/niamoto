@@ -561,46 +561,6 @@ class WidgetProposalService:
             )
         return proposals
 
-    def _skipped_combined_pattern(
-        self,
-        collection: str,
-        source_name: str,
-        pattern: MultiFieldPattern,
-    ) -> WidgetProposal:
-        reason = ProposalSkipReason(
-            code="combined_candidate_limit",
-            message="Combined candidate skipped because the collection limit was reached.",
-            details={"limit": self.max_combined_candidates},
-        )
-        candidate = TransformationCandidate(
-            id=self._candidate_id(
-                collection,
-                "combined_fields",
-                source_name,
-                pattern.fields,
-                pattern.transformer_plugin,
-                f"skipped:{pattern.pattern_type.value}",
-            ),
-            collection=collection,
-            origin="combined_fields",
-            source_name=source_name,
-            field_names=list(pattern.fields),
-            transformer_plugin=pattern.transformer_plugin,
-            intent=pattern.description,
-            shape=TransformedShape(
-                kind="unsupported",
-                columns=list(pattern.fields),
-                unsupported_reason=reason.message,
-            ),
-            reconstructability="evidence_only",
-            skip_reasons=[reason],
-        )
-        return self._proposal_from_candidate(
-            candidate,
-            existing_keys=set(),
-            score_dimensions={"utility": 0.4, "evidence": pattern.confidence},
-        )
-
     def _proposal_from_candidate(
         self,
         candidate: TransformationCandidate,

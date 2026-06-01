@@ -1561,67 +1561,7 @@
         "validate_standard_profile": "Valider le profil"
       }
     },
-    "widgetProposals": {
-      "loading": "Chargement des propositions",
-      "analysisFailed": "L’analyse des propositions a échoué",
-      "reviewTitle": "Vérifier la page proposée",
-      "selectedWidgets_one": "{{count}} widget sélectionné",
-      "selectedWidgets_other": "{{count}} widgets sélectionnés",
-      "refresh": "Actualiser",
-      "refreshing": "Actualisation…",
-      "close": "Fermer",
-      "groups": {
-        "recommended": "Recommandées",
-        "warnings": "À vérifier",
-        "reviewOnly": "À examiner",
-        "missingChart": "Graphique manquant",
-        "skipped": "Ignorées",
-        "configured": "Déjà configurées"
-      },
-      "status": {
-        "recommended": "Recommandée",
-        "warning": "À vérifier",
-        "review_only": "À examiner",
-        "missing_chart": "Graphique manquant",
-        "skipped": "Ignorée",
-        "already_configured": "Déjà configurée"
-      },
-      "applyability": {
-        "applicable": "Applicable",
-        "review_only": "À examiner",
-        "not_applicable": "Non applicable",
-        "stale": "Périmée",
-        "conflict": "Conflit"
-      },
-      "detail": {
-        "empty": "Sélectionnez une proposition pour l’inspecter.",
-        "missing": "Manquant",
-        "none": "Aucun",
-        "title": "Widget sélectionné",
-        "display": "Affichage",
-        "transformation": "Transformation",
-        "dataShape": "Forme des données",
-        "sourceFields": "Champs source",
-        "whySuggested": "Pourquoi cette proposition",
-        "chartFit": "Adéquation du graphique : {{score}} %",
-        "reviewNotes": "Notes de revue",
-        "missingChart": "Graphique manquant",
-        "technicalDetails": "Détails techniques",
-        "internalScore": "Score interne",
-        "recipe": "Recette"
-      },
-      "preview": {
-        "title": "Aperçu de la future page",
-        "description": "Cliquez sur une carte de widget pour l’inclure ou la retirer avant d’écrire la configuration.",
-        "empty": "Sélectionnez au moins une proposition pour prévisualiser la future page.",
-        "available": "Disponibles mais non sélectionnées",
-        "add": "Ajouter",
-        "remove": "Retirer",
-        "selected": "Sélectionnée",
-        "unavailable": "Aperçu indisponible",
-        "addAria": "Ajouter {{title}} à la future page",
-        "removeAria": "Retirer {{title}} de la future page"
-      },
+    "widgetCandidates": {
       "applyDialog": {
         "title": "Vérifier les changements avant d’ajouter les widgets",
         "description": "Niamoto ajoutera les widgets sélectionnés à la configuration de transformation et d’export. Rien n’est écrit avant votre confirmation.",
@@ -1629,6 +1569,14 @@
         "adding": "Ajout des widgets",
         "addWidgets": "Ajouter les widgets",
         "cancel": "Annuler",
+        "empty": "Aucun changement à afficher.",
+        "replaceConflict": "Remplacer le widget existant",
+        "skipConflict": "Ignorer ce widget",
+        "sections": {
+          "changes": "Changements",
+          "conflicts": "Conflits",
+          "invalid": "Invalides"
+        },
         "actions": {
           "add": "Ajouter",
           "replace": "Remplacer",
@@ -1636,40 +1584,6 @@
           "skip": "Ignorer",
           "invalid": "Invalide"
         }
-      }
-    },
-    "widgetCandidates": {
-      "loading": "Chargement des candidats",
-      "analysisFailed": "L’analyse des widgets a échoué",
-      "reviewTitle": "Ajouter des widgets",
-      "selectedWidgets_one": "{{count}} widget sélectionné",
-      "selectedWidgets_other": "{{count}} widgets sélectionnés",
-      "refresh": "Actualiser",
-      "refreshing": "Actualisation…",
-      "close": "Fermer",
-      "groups": {
-        "recommended": "Recommandés",
-        "available": "Disponibles",
-        "needsReview": "À vérifier",
-        "missingChart": "Graphique manquant",
-        "skipped": "Ignorés",
-        "configured": "Déjà configurés"
-      },
-      "status": {
-        "recommended": "Recommandé",
-        "available": "Disponible",
-        "needs_review": "À vérifier",
-        "missing_chart": "Graphique manquant",
-        "skipped": "Ignoré",
-        "configured": "Déjà configuré"
-      },
-      "categories": {
-        "structure": "Structure de page",
-        "map": "Carte",
-        "metric": "Métrique",
-        "chart": "Graphique",
-        "table": "Tableau",
-        "unsupported": "Non pris en charge"
       }
     },
     "api": {

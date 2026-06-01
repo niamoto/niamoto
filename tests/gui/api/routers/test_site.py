@@ -2306,6 +2306,7 @@ class TestSiteGroups:
             not in template
         )
         assert 'return `<a href="${finalUrl}" class="${cssClass}"' not in template
+        assert "String(itemId).replace(/[\\\\/]/g, '_')" in template
 
     def test_preview_group_index_does_not_read_database_from_other_project(
         self, monkeypatch: pytest.MonkeyPatch

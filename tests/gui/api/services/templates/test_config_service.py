@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
+import yaml
 
 from niamoto.gui.api.services.templates import config_service
 
@@ -103,6 +104,253 @@ def test_create_backup_file_preserves_rapid_successive_backups(monkeypatch, tmp_
     assert len(backups) == 2
     assert backups[0].read_text(encoding="utf-8") == "first\n"
     assert backups[1].read_text(encoding="utf-8") == "second\n"
+
+
+def test_save_transform_and_export_configs_rolls_back_both_files_on_write_failure(
+    monkeypatch, tmp_path
+):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    transform_path = config_dir / "transform.yml"
+    export_path = config_dir / "export.yml"
+    transform_path.write_text(
+        "- group_by: old\n  sources: []\n  widgets_data: {}\n",
+        encoding="utf-8",
+    )
+    export_path.write_text("exports: []\n", encoding="utf-8")
+    original_write = config_service._write_yaml_atomic
+
+    def fail_export_write(path, payload):
+        if path.name == "export.yml":
+            raise RuntimeError("export boom")
+        original_write(path, payload)
+
+    monkeypatch.setattr(config_service, "_write_yaml_atomic", fail_export_write)
+
+    with pytest.raises(RuntimeError, match="export boom"):
+        config_service.save_transform_and_export_configs(
+            tmp_path,
+            [{"group_by": "new", "sources": [], "widgets_data": {}}],
+            {"exports": [{"name": "web_pages", "exporter": "html_page_exporter"}]},
+            create_backup=True,
+        )
+
+    assert transform_path.read_text(encoding="utf-8") == (
+        "- group_by: old\n  sources: []\n  widgets_data: {}\n"
+    )
+    assert export_path.read_text(encoding="utf-8") == "exports: []\n"
+    assert not (config_dir / ".transform_export_write_pending.yml").exists()
+
+
+def test_recover_pending_transaction_rejects_paths_outside_project(tmp_path):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    outside_file = tmp_path.parent / "outside-config.yml"
+    outside_file.write_text("keep me\n", encoding="utf-8")
+    outside_dir = tmp_path.parent / "outside-transaction"
+    outside_dir.mkdir(exist_ok=True)
+    (outside_dir / "snapshot.yml").write_text("snapshot\n", encoding="utf-8")
+
+    (config_dir / config_service.TRANSFORM_EXPORT_TRANSACTION_MARKER).write_text(
+        yaml.safe_dump(
+            {
+                "operation": "transform_export_write",
+                "transaction_dir": str(outside_dir),
+                "targets": [
+                    {
+                        "path": str(outside_file),
+                        "existed": False,
+                        "rollback_path": str(outside_dir / "snapshot.yml"),
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    config_service.recover_pending_config_transaction(tmp_path)
+
+    assert outside_file.read_text(encoding="utf-8") == "keep me\n"
+    assert outside_dir.exists()
+    assert not (
+        config_dir / config_service.TRANSFORM_EXPORT_TRANSACTION_MARKER
+    ).exists()
+
+
+def test_recover_pending_transaction_preserves_marker_when_restore_fails(
+    monkeypatch, tmp_path
+):
+    config_dir = tmp_path / "config"
+    transaction_dir = config_dir / ".transactions" / "transform_export_interrupted"
+    transaction_dir.mkdir(parents=True)
+    transform_path = config_dir / "transform.yml"
+    transform_snapshot = transaction_dir / "transform.yml.rollback"
+    transform_path.write_text(
+        "- group_by: partial\n  sources: []\n  widgets_data: {}\n",
+        encoding="utf-8",
+    )
+    transform_snapshot.write_text(
+        "- group_by: old\n  sources: []\n  widgets_data: {}\n",
+        encoding="utf-8",
+    )
+    marker_path = config_dir / config_service.TRANSFORM_EXPORT_TRANSACTION_MARKER
+    marker_path.write_text(
+        yaml.safe_dump(
+            {
+                "operation": "transform_export_write",
+                "transaction_dir": "config/.transactions/transform_export_interrupted",
+                "targets": [
+                    {
+                        "path": "config/transform.yml",
+                        "existed": True,
+                        "rollback_path": (
+                            "config/.transactions/transform_export_interrupted/"
+                            "transform.yml.rollback"
+                        ),
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    def fail_restore(_source, _target):
+        raise RuntimeError("restore boom")
+
+    monkeypatch.setattr(config_service, "_copy_file_atomic", fail_restore)
+
+    with pytest.raises(RuntimeError, match="restore boom"):
+        config_service.recover_pending_config_transaction(tmp_path)
+
+    assert marker_path.exists()
+    assert transaction_dir.exists()
+    assert transform_path.read_text(encoding="utf-8") == (
+        "- group_by: partial\n  sources: []\n  widgets_data: {}\n"
+    )
+
+
+def test_load_transform_config_recovers_interrupted_transform_export_write(tmp_path):
+    config_dir = tmp_path / "config"
+    transaction_dir = config_dir / ".transactions" / "transform_export_interrupted"
+    transaction_dir.mkdir(parents=True)
+    transform_path = config_dir / "transform.yml"
+    export_path = config_dir / "export.yml"
+    transform_snapshot = transaction_dir / "transform.yml.rollback"
+    export_snapshot = transaction_dir / "export.yml.rollback"
+    transform_snapshot.write_text(
+        "- group_by: old\n  sources: []\n  widgets_data: {}\n",
+        encoding="utf-8",
+    )
+    export_snapshot.write_text("exports: []\n", encoding="utf-8")
+    transform_path.write_text(
+        "- group_by: new\n  sources: []\n  widgets_data: {}\n",
+        encoding="utf-8",
+    )
+    export_path.write_text(
+        "exports:\n- name: partial\n  exporter: html_page_exporter\n",
+        encoding="utf-8",
+    )
+    (config_dir / config_service.TRANSFORM_EXPORT_TRANSACTION_MARKER).write_text(
+        yaml.safe_dump(
+            {
+                "operation": "transform_export_write",
+                "transaction_dir": "config/.transactions/transform_export_interrupted",
+                "targets": [
+                    {
+                        "path": "config/transform.yml",
+                        "existed": True,
+                        "rollback_path": (
+                            "config/.transactions/transform_export_interrupted/"
+                            "transform.yml.rollback"
+                        ),
+                    },
+                    {
+                        "path": "config/export.yml",
+                        "existed": True,
+                        "rollback_path": (
+                            "config/.transactions/transform_export_interrupted/"
+                            "export.yml.rollback"
+                        ),
+                    },
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = config_service.load_transform_config(tmp_path)
+
+    assert loaded == [{"group_by": "old", "sources": [], "widgets_data": {}}]
+    assert export_path.read_text(encoding="utf-8") == "exports: []\n"
+    assert not (
+        config_dir / config_service.TRANSFORM_EXPORT_TRANSACTION_MARKER
+    ).exists()
+    assert not transaction_dir.exists()
+
+
+def test_load_export_config_recovers_interrupted_transform_export_write(tmp_path):
+    config_dir = tmp_path / "config"
+    transaction_dir = config_dir / ".transactions" / "transform_export_interrupted"
+    transaction_dir.mkdir(parents=True)
+    transform_path = config_dir / "transform.yml"
+    export_path = config_dir / "export.yml"
+    transform_snapshot = transaction_dir / "transform.yml.rollback"
+    export_snapshot = transaction_dir / "export.yml.rollback"
+    transform_snapshot.write_text(
+        "- group_by: old\n  sources: []\n  widgets_data: {}\n",
+        encoding="utf-8",
+    )
+    export_snapshot.write_text("exports: []\n", encoding="utf-8")
+    transform_path.write_text(
+        "- group_by: partial\n  sources: []\n  widgets_data: {}\n",
+        encoding="utf-8",
+    )
+    export_path.write_text(
+        "exports:\n- name: partial\n  exporter: html_page_exporter\n",
+        encoding="utf-8",
+    )
+    (config_dir / config_service.TRANSFORM_EXPORT_TRANSACTION_MARKER).write_text(
+        yaml.safe_dump(
+            {
+                "operation": "transform_export_write",
+                "transaction_dir": "config/.transactions/transform_export_interrupted",
+                "targets": [
+                    {
+                        "path": "config/transform.yml",
+                        "existed": True,
+                        "rollback_path": (
+                            "config/.transactions/transform_export_interrupted/"
+                            "transform.yml.rollback"
+                        ),
+                    },
+                    {
+                        "path": "config/export.yml",
+                        "existed": True,
+                        "rollback_path": (
+                            "config/.transactions/transform_export_interrupted/"
+                            "export.yml.rollback"
+                        ),
+                    },
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = config_service.load_export_config(tmp_path)
+
+    assert loaded == {"exports": []}
+    assert transform_path.read_text(encoding="utf-8") == (
+        "- group_by: old\n  sources: []\n  widgets_data: {}\n"
+    )
+    assert not (
+        config_dir / config_service.TRANSFORM_EXPORT_TRANSACTION_MARKER
+    ).exists()
+    assert not transaction_dir.exists()
 
 
 def test_load_import_config_defaults_missing_entities(tmp_path):

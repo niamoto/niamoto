@@ -1,7 +1,7 @@
 """Plugin registry API endpoints using the real Niamoto plugin system."""
 
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 # Import the real plugin system
@@ -9,6 +9,7 @@ from niamoto.core.plugins.base import PluginType
 from niamoto.core.plugins.plugin_loader import PluginLoader
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.gui.api.context import get_optional_working_directory
+from niamoto.gui.api.desktop_auth import require_desktop_mutation_auth
 
 router = APIRouter()
 
@@ -118,6 +119,11 @@ def load_all_plugins() -> None:
     except Exception:
         _restore_plugin_registry(snapshot)
         raise
+
+
+def _require_plugin_registry_auth(request: Request) -> None:
+    """Require desktop auth before routes that import project plugin code."""
+    require_desktop_mutation_auth(request)
 
 
 def get_plugin_info_from_class(
@@ -258,6 +264,7 @@ def get_plugin_info_from_class(
 
 @router.get("/", response_model=List[PluginInfo])
 async def list_plugins(
+    request: Request,
     type: Optional[str] = Query(None, description="Filter by plugin type"),
     category: Optional[str] = Query(None, description="Filter by category"),
     compatible_with: Optional[str] = Query(
@@ -275,6 +282,7 @@ async def list_plugins(
     Returns:
         List of plugins matching the filters
     """
+    _require_plugin_registry_auth(request)
     try:
         # Ensure all plugins are loaded
         load_all_plugins()
@@ -321,19 +329,20 @@ async def list_plugins(
 
 
 @router.get("/{plugin_id}/schema", include_in_schema=False)
-async def get_plugin_json_schema_priority_route(plugin_id: str):
+async def get_plugin_json_schema_priority_route(plugin_id: str, request: Request):
     """Keep plugin schema lookup ahead of the generic plugin detail route."""
-    return await get_plugin_json_schema(plugin_id)
+    return await get_plugin_json_schema(plugin_id, request)
 
 
 @router.get("/categories/list")
-async def list_categories():
+async def list_categories(request: Request):
     """
     Get list of all plugin categories.
 
     Returns:
         List of unique categories across all plugins
     """
+    _require_plugin_registry_auth(request)
     try:
         # Ensure all plugins are loaded
         load_all_plugins()
@@ -451,7 +460,7 @@ async def check_compatibility(check: CompatibilityCheck):
 
 
 @router.get("/{plugin_id}", response_model=PluginInfo)
-async def get_plugin(plugin_id: str):
+async def get_plugin(plugin_id: str, request: Request):
     """
     Get detailed information about a specific plugin.
 
@@ -461,6 +470,7 @@ async def get_plugin(plugin_id: str):
     Returns:
         Detailed plugin information
     """
+    _require_plugin_registry_auth(request)
     try:
         # Ensure all plugins are loaded
         load_all_plugins()
@@ -482,7 +492,7 @@ async def get_plugin(plugin_id: str):
 
 
 @router.get("/{plugin_id}/schema")
-async def get_plugin_json_schema(plugin_id: str):
+async def get_plugin_json_schema(plugin_id: str, request: Request):
     """
     Get the full JSON schema for a plugin's parameters.
 
@@ -495,6 +505,7 @@ async def get_plugin_json_schema(plugin_id: str):
     Returns:
         Complete JSON schema for the plugin parameters
     """
+    _require_plugin_registry_auth(request)
     try:
         # Ensure all plugins are loaded
         load_all_plugins()

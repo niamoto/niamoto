@@ -6,7 +6,7 @@
  * - Widget selected: Shows widget detail panel (preview + params + YAML)
  */
 
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { useState, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { PanelLeft, Plus } from 'lucide-react'
@@ -51,10 +51,10 @@ interface ContentTabProps {
 export function ContentTab({ reference }: ContentTabProps) {
   const { t } = useTranslation(['widgets', 'common'])
   const location = useLocation()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const requestedPanel = searchParams.get('panel')
-  const routeRequestsAutoSuggestions = requestedPanel === 'widget-proposals'
-  const routeAutoSuggestionsRequestKey = routeRequestsAutoSuggestions
+  const routeRequestsAddWidget = requestedPanel === 'add-widget'
+  const routeAddWidgetRequestKey = routeRequestsAddWidget
     ? `${reference.name}:${location.key}:${searchParams.toString()}`
     : null
   // Selection state is scoped to the current reference to avoid resetting it in an effect.
@@ -71,7 +71,13 @@ export function ContentTab({ reference }: ContentTabProps) {
       : null
 
   const [addModalOpen, setAddModalOpen] = useState(false)
-  const [dismissedRouteAutoSuggestionsKey, setDismissedRouteAutoSuggestionsKey] = useState<string | null>(null)
+  const [dismissedRouteAddWidgetKey, setDismissedRouteAddWidgetKey] = useState<
+    string | null
+  >(null)
+  const routeAddWidgetOpen =
+    routeAddWidgetRequestKey !== null &&
+    dismissedRouteAddWidgetKey !== routeAddWidgetRequestKey
+  const addModalVisible = addModalOpen || routeAddWidgetOpen
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
@@ -97,7 +103,7 @@ export function ContentTab({ reference }: ContentTabProps) {
   const { suggestions, loading: suggestionsLoading } = useSuggestions(
     reference.name,
     undefined,
-    addModalOpen,
+    addModalVisible,
   )
 
   const availableFields = useMemo(() => {
@@ -212,11 +218,21 @@ export function ContentTab({ reference }: ContentTabProps) {
     setAddModalOpen(true)
   }, [])
 
+  const clearRouteAddWidgetPanel = useCallback(() => {
+    if (!routeAddWidgetRequestKey || searchParams.get('panel') !== 'add-widget') {
+      return
+    }
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('panel')
+    setSearchParams(nextSearchParams, { replace: true })
+  }, [routeAddWidgetRequestKey, searchParams, setSearchParams])
+
   const handleWidgetAdded = useCallback(() => {
     refetchWidgets()
     setAddModalOpen(false)
-    if (routeAutoSuggestionsRequestKey) {
-      setDismissedRouteAutoSuggestionsKey(routeAutoSuggestionsRequestKey)
+    if (routeAddWidgetRequestKey) {
+      setDismissedRouteAddWidgetKey(routeAddWidgetRequestKey)
+      clearRouteAddWidgetPanel()
     }
     setSelectedWidgetState((current) => {
       if (current.referenceName === reference.name && current.widgetId === null) {
@@ -228,23 +244,20 @@ export function ContentTab({ reference }: ContentTabProps) {
         widgetId: null,
       }
     })
-  }, [reference.name, refetchWidgets, routeAutoSuggestionsRequestKey])
+  }, [
+    clearRouteAddWidgetPanel,
+    reference.name,
+    refetchWidgets,
+    routeAddWidgetRequestKey,
+  ])
 
   const handleAddModalOpenChange = useCallback((isOpen: boolean) => {
     setAddModalOpen(isOpen)
-    if (!isOpen && routeAutoSuggestionsRequestKey) {
-      setDismissedRouteAutoSuggestionsKey(routeAutoSuggestionsRequestKey)
+    if (!isOpen && routeAddWidgetRequestKey) {
+      setDismissedRouteAddWidgetKey(routeAddWidgetRequestKey)
+      clearRouteAddWidgetPanel()
     }
-  }, [routeAutoSuggestionsRequestKey])
-
-  useEffect(() => {
-    if (
-      routeAutoSuggestionsRequestKey &&
-      dismissedRouteAutoSuggestionsKey !== routeAutoSuggestionsRequestKey
-    ) {
-      setAddModalOpen(true)
-    }
-  }, [dismissedRouteAutoSuggestionsKey, routeAutoSuggestionsRequestKey])
+  }, [clearRouteAddWidgetPanel, routeAddWidgetRequestKey])
 
   const leftPanelRef = useRef<PanelImperativeHandle>(null)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -295,7 +308,13 @@ export function ContentTab({ reference }: ContentTabProps) {
                   <Plus className="h-4 w-4" />
                   {t('widgets:actions.addWidget')}
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 ml-auto" onClick={togglePanel} title="Hide widget list">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 ml-auto"
+                  onClick={togglePanel}
+                  title={t('widgets:layout.hideWidgetList')}
+                >
                   <PanelLeft className="h-4 w-4" />
                 </Button>
               </div>
@@ -341,7 +360,13 @@ export function ContentTab({ reference }: ContentTabProps) {
               {/* Collapsed toolbar: toggle + add widget */}
               {isCollapsed && (
                 <div className="flex items-center gap-1 border-b px-2 py-1 shrink-0">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={togglePanel} title="Show widget list">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={togglePanel}
+                    title={t('widgets:layout.showWidgetList')}
+                  >
                     <PanelLeft className="h-4 w-4" />
                   </Button>
                   <Button
@@ -379,9 +404,9 @@ export function ContentTab({ reference }: ContentTabProps) {
           </ResizablePanel>
       </ResizablePanelGroup>
 
-      {addModalOpen ? (
+      {addModalVisible ? (
         <AddWidgetModal
-          open={addModalOpen}
+          open={addModalVisible}
           onOpenChange={handleAddModalOpenChange}
           defaultTab="suggestions"
           reference={reference}

@@ -19,20 +19,6 @@ class WidgetProposalSelection(BaseModel):
     replacement: ReplacementChoice = "add"
 
 
-class WidgetProposalPreviewRequest(BaseModel):
-    """Preview request for selected widget proposals."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    selections: list[WidgetProposalSelection] = Field(default_factory=list)
-
-
-class WidgetProposalApplyRequest(WidgetProposalPreviewRequest):
-    """Apply request for selected widget proposals."""
-
-    preview_token: str | None = None
-
-
 class WidgetProposalConfigChange(BaseModel):
     """One proposed transform/export config change."""
 

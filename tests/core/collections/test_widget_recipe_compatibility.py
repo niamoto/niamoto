@@ -317,3 +317,47 @@ def test_top_ranking_readability_uses_ranked_field_not_aggregate_field():
 
     assert report.impacts[0].status == "degraded"
     assert "cardinality is high" in report.impacts[0].detail
+
+
+def test_widget_recipe_compatibility_reads_export_widgets_from_params_groups():
+    export_config = {
+        "exports": [
+            {
+                "exporter": "html_page_exporter",
+                "params": {
+                    "groups": [
+                        {
+                            "group_by": "taxons",
+                            "widgets": [
+                                {
+                                    "data_source": "family_chart",
+                                    "plugin": "donut_chart",
+                                }
+                            ],
+                        }
+                    ]
+                },
+            }
+        ]
+    }
+    profile = IncomingDataProfile(
+        columns={
+            "family": IncomingColumnProfile(
+                name="family",
+                type="string",
+                cardinality=42,
+                coverage=1.0,
+                label_max_length=18,
+            )
+        }
+    )
+    service = WidgetRecipeCompatibilityService(
+        transform_config=TRANSFORM_CONFIG,
+        export_config=export_config,
+    )
+
+    report = service.classify("occurrences", profile)
+    by_widget = {impact.widget_id: impact for impact in report.impacts}
+
+    assert by_widget["family_chart"].widget_plugin == "donut_chart"
+    assert by_widget["family_chart"].status == "degraded"

@@ -403,7 +403,8 @@
         if (itemId === null || itemId === undefined || itemId === '') {
             return '#';
         }
-        return `${encodeURIComponent(String(itemId))}.html`;
+        const normalizedId = String(itemId).replace(/[\\/]/g, '_');
+        return `${encodeURIComponent(normalizedId)}.html`;
     }
 
     // Initialisation
