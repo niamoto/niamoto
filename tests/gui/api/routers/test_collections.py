@@ -749,6 +749,111 @@ def test_get_collection_widget_proposals_lists_page_structure_widgets_first(
     ]
 
 
+def test_get_collection_widget_candidates_returns_default_selected_recommendations(
+    gui_duckdb_client, gui_duckdb_context
+):
+    response = gui_duckdb_client.get("/api/collections/taxons/widget-candidates")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["collection"] == "taxons"
+    assert payload["recommended"]
+    assert all(
+        candidate["default_selected"] is True
+        for candidate in payload["recommended"]
+        if candidate["applyability"] == "applicable"
+    )
+    assert all(
+        candidate["status"] == "configured" for candidate in payload["configured"]
+    )
+
+
+def test_preview_collection_widget_candidates_does_not_write_configs(
+    gui_duckdb_client, gui_duckdb_context
+):
+    candidate_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-candidates"
+    ).json()
+    candidate = next(
+        item
+        for item in [
+            *candidate_payload["recommended"],
+            *candidate_payload["available"],
+            *candidate_payload["needs_review"],
+        ]
+        if item["applyability"] == "applicable"
+    )
+    transform_path = gui_duckdb_context / "config" / "transform.yml"
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    before_transform = (
+        transform_path.read_text(encoding="utf-8") if transform_path.exists() else None
+    )
+    before_export = (
+        export_path.read_text(encoding="utf-8") if export_path.exists() else None
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/collections/taxons/widget-candidates/preview",
+        json={"selections": [{"candidate_id": candidate["id"]}]},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["writes_files"] is False
+    assert payload["preview_token"]
+    assert payload["changes"][0]["candidate_id"] == candidate["id"]
+    after_transform = (
+        transform_path.read_text(encoding="utf-8") if transform_path.exists() else None
+    )
+    after_export = (
+        export_path.read_text(encoding="utf-8") if export_path.exists() else None
+    )
+    assert after_transform == before_transform
+    assert after_export == before_export
+
+
+def test_apply_collection_widget_candidates_writes_transform_and_export_configs(
+    gui_duckdb_client, gui_duckdb_context
+):
+    candidate_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-candidates"
+    ).json()
+    candidate = next(
+        item
+        for item in [
+            *candidate_payload["recommended"],
+            *candidate_payload["available"],
+            *candidate_payload["needs_review"],
+        ]
+        if item["applyability"] == "applicable"
+        and item.get("recipe_summary", {}).get("transformer")
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/collections/taxons/widget-candidates/apply",
+        json={"selections": [{"candidate_id": candidate["id"]}]},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["applied"][0]["candidate_id"] == candidate["id"]
+    assert payload["written_files"] == ["config/transform.yml", "config/export.yml"]
+
+    transform_config = yaml.safe_load(
+        (gui_duckdb_context / "config" / "transform.yml").read_text(encoding="utf-8")
+    )
+    export_config = yaml.safe_load(
+        (gui_duckdb_context / "config" / "export.yml").read_text(encoding="utf-8")
+    )
+    taxon_group = next(
+        group for group in transform_config if group["group_by"] == "taxons"
+    )
+    assert candidate["id"] in taxon_group["widgets_data"]
+    export_group = export_config["exports"][0]["groups"][0]
+    assert export_group["widgets"][0]["data_source"] == candidate["id"]
+
+
 def test_preview_collection_widget_proposals_does_not_write_configs(
     gui_duckdb_client, gui_duckdb_context
 ):

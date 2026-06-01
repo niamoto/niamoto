@@ -1569,7 +1569,6 @@
       "selectedWidgets_other": "{{count}} selected widgets",
       "refresh": "Refresh",
       "refreshing": "Refreshing…",
-      "reviewAndAdd": "Review and add",
       "close": "Close",
       "groups": {
         "recommended": "Recommended",
@@ -1637,6 +1636,40 @@
           "skip": "Skip",
           "invalid": "Invalid"
         }
+      }
+    },
+    "widgetCandidates": {
+      "loading": "Loading widget candidates",
+      "analysisFailed": "Widget analysis failed",
+      "reviewTitle": "Add widgets",
+      "selectedWidgets_one": "{{count}} selected widget",
+      "selectedWidgets_other": "{{count}} selected widgets",
+      "refresh": "Refresh",
+      "refreshing": "Refreshing…",
+      "close": "Close",
+      "groups": {
+        "recommended": "Recommended",
+        "available": "Available",
+        "needsReview": "Needs review",
+        "missingChart": "Missing chart",
+        "skipped": "Skipped",
+        "configured": "Already configured"
+      },
+      "status": {
+        "recommended": "Recommended",
+        "available": "Available",
+        "needs_review": "Needs review",
+        "missing_chart": "Missing chart",
+        "skipped": "Skipped",
+        "configured": "Already configured"
+      },
+      "categories": {
+        "structure": "Page structure",
+        "map": "Map",
+        "metric": "Metric",
+        "chart": "Chart",
+        "table": "Table",
+        "unsupported": "Unsupported"
       }
     },
     "api": {

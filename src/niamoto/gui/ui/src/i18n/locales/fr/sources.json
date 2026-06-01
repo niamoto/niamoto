@@ -1569,7 +1569,6 @@
       "selectedWidgets_other": "{{count}} widgets sélectionnés",
       "refresh": "Actualiser",
       "refreshing": "Actualisation…",
-      "reviewAndAdd": "Vérifier et ajouter",
       "close": "Fermer",
       "groups": {
         "recommended": "Recommandées",
@@ -1637,6 +1636,40 @@
           "skip": "Ignorer",
           "invalid": "Invalide"
         }
+      }
+    },
+    "widgetCandidates": {
+      "loading": "Chargement des candidats",
+      "analysisFailed": "L’analyse des widgets a échoué",
+      "reviewTitle": "Ajouter des widgets",
+      "selectedWidgets_one": "{{count}} widget sélectionné",
+      "selectedWidgets_other": "{{count}} widgets sélectionnés",
+      "refresh": "Actualiser",
+      "refreshing": "Actualisation…",
+      "close": "Fermer",
+      "groups": {
+        "recommended": "Recommandés",
+        "available": "Disponibles",
+        "needsReview": "À vérifier",
+        "missingChart": "Graphique manquant",
+        "skipped": "Ignorés",
+        "configured": "Déjà configurés"
+      },
+      "status": {
+        "recommended": "Recommandé",
+        "available": "Disponible",
+        "needs_review": "À vérifier",
+        "missing_chart": "Graphique manquant",
+        "skipped": "Ignoré",
+        "configured": "Déjà configuré"
+      },
+      "categories": {
+        "structure": "Structure de page",
+        "map": "Carte",
+        "metric": "Métrique",
+        "chart": "Graphique",
+        "table": "Tableau",
+        "unsupported": "Non pris en charge"
       }
     },
     "api": {

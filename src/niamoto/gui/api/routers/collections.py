@@ -16,8 +16,15 @@ from niamoto.core.collections.models import (
     CollectionSourceType,
 )
 from niamoto.core.collections.widget_proposal_models import WidgetProposalGroups
+from niamoto.core.collections.widget_candidate_models import WidgetCandidateGroups
 from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.gui.api.desktop_auth import require_desktop_mutation_auth
+from niamoto.gui.api.models.widget_candidates import (
+    WidgetCandidateApplyRequest,
+    WidgetCandidateApplyResponse,
+    WidgetCandidatePreviewRequest,
+    WidgetCandidatePreviewResponse,
+)
 from niamoto.gui.api.models.widget_proposals import (
     WidgetProposalApplyRequest,
     WidgetProposalApplyResponse,
@@ -30,6 +37,9 @@ from niamoto.gui.api.services.collection_data_options import (
 )
 from niamoto.gui.api.services.collection_widget_proposals import (
     CollectionWidgetProposalService,
+)
+from niamoto.gui.api.services.collection_widget_candidates import (
+    CollectionWidgetCandidateService,
 )
 from niamoto.gui.api.services.templates.config_service import (
     load_export_config,
@@ -106,6 +116,17 @@ def _widget_proposal_service() -> CollectionWidgetProposalService:
     )
 
 
+def _widget_candidate_service() -> CollectionWidgetCandidateService:
+    work_dir = get_working_directory()
+    return CollectionWidgetCandidateService(
+        work_dir=work_dir,
+        db_path=get_database_path(),
+        import_config=load_import_config(work_dir),
+        transform_config=load_transform_config(work_dir),
+        export_config=load_export_config(work_dir),
+    )
+
+
 def _save_service_config(service: CollectionCatalogService) -> None:
     save_import_config(
         get_working_directory(), service.import_config, create_backup=True
@@ -145,6 +166,67 @@ async def get_collection_data_options(
         except KeyError as exc:
             message = str(exc.args[0]) if exc.args else str(exc)
             raise HTTPException(status_code=404, detail=message) from exc
+
+
+@router.get(
+    "/{collection_name}/widget-candidates",
+    response_model=WidgetCandidateGroups,
+)
+async def get_collection_widget_candidates(
+    collection_name: str,
+) -> WidgetCandidateGroups:
+    """Return unified widget candidates for a collection."""
+    with COLLECTION_CONFIG_LOCK:
+        try:
+            return _widget_candidate_service().get_candidates(collection_name)
+        except KeyError as exc:
+            message = str(exc.args[0]) if exc.args else str(exc)
+            raise HTTPException(status_code=404, detail=message) from exc
+
+
+@router.post(
+    "/{collection_name}/widget-candidates/preview",
+    response_model=WidgetCandidatePreviewResponse,
+)
+async def preview_collection_widget_candidates(
+    collection_name: str,
+    request: WidgetCandidatePreviewRequest,
+) -> WidgetCandidatePreviewResponse:
+    """Preview selected widget candidate config changes without writing files."""
+    with COLLECTION_CONFIG_LOCK:
+        try:
+            return _widget_candidate_service().preview_apply(
+                collection_name,
+                request.selections,
+            )
+        except KeyError as exc:
+            message = str(exc.args[0]) if exc.args else str(exc)
+            raise HTTPException(status_code=404, detail=message) from exc
+
+
+@router.post(
+    "/{collection_name}/widget-candidates/apply",
+    response_model=WidgetCandidateApplyResponse,
+)
+async def apply_collection_widget_candidates(
+    collection_name: str,
+    request: WidgetCandidateApplyRequest,
+    http_request: Request,
+) -> WidgetCandidateApplyResponse:
+    """Apply selected widget candidates to transform.yml and export.yml."""
+    require_desktop_mutation_auth(http_request)
+    try:
+        with COLLECTION_CONFIG_LOCK:
+            return _widget_candidate_service().apply(
+                collection_name,
+                request.selections,
+                preview_token=request.preview_token,
+            )
+    except KeyError as exc:
+        message = str(exc.args[0]) if exc.args else str(exc)
+        raise HTTPException(status_code=404, detail=message) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get(

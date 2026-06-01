@@ -1,15 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
-  applyWidgetProposals,
-  fetchWidgetProposals,
-  previewWidgetProposals,
-  type WidgetProposalSelection,
-} from '@/features/collections/api/widget-proposals'
+  applyWidgetCandidates,
+  fetchWidgetCandidates,
+  previewWidgetCandidates,
+  type WidgetCandidateSelection,
+} from '@/features/collections/api/widget-candidates'
 
-export const widgetProposalsQueryKey = ['collection-widget-proposals'] as const
+export const widgetCandidatesQueryKey = ['collection-widget-candidates'] as const
 
-export function useWidgetProposals(
+export function useWidgetCandidates(
   collectionName?: string | null,
   options: { enabled?: boolean } = {},
 ) {
@@ -17,15 +17,15 @@ export function useWidgetProposals(
   const enabled = Boolean(collectionName) && (options.enabled ?? true)
 
   const query = useQuery({
-    queryKey: [...widgetProposalsQueryKey, collectionName],
-    queryFn: () => fetchWidgetProposals(collectionName || ''),
+    queryKey: [...widgetCandidatesQueryKey, collectionName],
+    queryFn: () => fetchWidgetCandidates(collectionName || ''),
     enabled,
     staleTime: 30000,
   })
 
   const previewMutation = useMutation({
-    mutationFn: (selections: WidgetProposalSelection[]) =>
-      previewWidgetProposals(collectionName || '', selections),
+    mutationFn: (selections: WidgetCandidateSelection[]) =>
+      previewWidgetCandidates(collectionName || '', selections),
   })
 
   const applyMutation = useMutation({
@@ -33,13 +33,14 @@ export function useWidgetProposals(
       selections,
       previewToken,
     }: {
-      selections: WidgetProposalSelection[]
+      selections: WidgetCandidateSelection[]
       previewToken?: string | null
-    }) => applyWidgetProposals(collectionName || '', selections, previewToken),
+    }) => applyWidgetCandidates(collectionName || '', selections, previewToken),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: [...widgetProposalsQueryKey, collectionName],
+        queryKey: [...widgetCandidatesQueryKey, collectionName],
       })
+      queryClient.invalidateQueries({ queryKey: ['collection-widget-proposals', collectionName] })
       queryClient.invalidateQueries({ queryKey: ['widget-config'] })
       queryClient.invalidateQueries({ queryKey: ['configured-widgets'] })
     },

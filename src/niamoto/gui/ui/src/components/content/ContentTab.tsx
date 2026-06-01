@@ -6,7 +6,7 @@
  * - Widget selected: Shows widget detail panel (preview + params + YAML)
  */
 
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { PanelLeft, Plus } from 'lucide-react'
@@ -19,12 +19,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
   useConfiguredWidgets,
   useWidgetConfig,
   useSuggestions,
@@ -34,7 +28,6 @@ import type { LocalizedString } from '@/components/ui/localized-input'
 import { WidgetListPanel } from './WidgetListPanel'
 import { ContentRightPanel } from './ContentRightPanel'
 import { AddWidgetModal } from '@/components/widgets/AddWidgetModal'
-import { WidgetProposalWorkspace } from '@/features/collections/components/blocks/WidgetProposalWorkspace'
 import type { ReferenceInfo } from '@/hooks/useReferences'
 import {
   readStoredCollectionsPreviewPreference,
@@ -60,8 +53,8 @@ export function ContentTab({ reference }: ContentTabProps) {
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const requestedPanel = searchParams.get('panel')
-  const routeRequestsProposalWorkspace = requestedPanel === 'widget-proposals'
-  const routeProposalRequestKey = routeRequestsProposalWorkspace
+  const routeRequestsAutoSuggestions = requestedPanel === 'widget-proposals'
+  const routeAutoSuggestionsRequestKey = routeRequestsAutoSuggestions
     ? `${reference.name}:${location.key}:${searchParams.toString()}`
     : null
   // Selection state is scoped to the current reference to avoid resetting it in an effect.
@@ -77,25 +70,8 @@ export function ContentTab({ reference }: ContentTabProps) {
       ? selectedWidgetState.widgetId
       : null
 
-  // Modal state
   const [addModalOpen, setAddModalOpen] = useState(false)
-  const [addModalTab, setAddModalTab] = useState<'suggestions' | 'combined' | 'custom'>('suggestions')
-  const [proposalWorkspaceState, setProposalWorkspaceState] = useState<{
-    referenceName: string
-    open: boolean
-    dismissedRouteRequestKey: string | null
-  }>(() => ({
-    referenceName: reference.name,
-    open: false,
-    dismissedRouteRequestKey: null,
-  }))
-  const manualProposalWorkspaceOpen =
-    proposalWorkspaceState.referenceName === reference.name && proposalWorkspaceState.open
-  const routeProposalWorkspaceOpen =
-    routeProposalRequestKey !== null &&
-    proposalWorkspaceState.dismissedRouteRequestKey !== routeProposalRequestKey
-  const proposalWorkspaceOpen =
-    manualProposalWorkspaceOpen || routeProposalWorkspaceOpen
+  const [dismissedRouteAutoSuggestionsKey, setDismissedRouteAutoSuggestionsKey] = useState<string | null>(null)
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
@@ -118,18 +94,16 @@ export function ContentTab({ reference }: ContentTabProps) {
     refetch: refetchWidgets,
   } = useWidgetConfig(reference.name, true)
 
-  // Fetch suggestions only when the add-widget modal is opened
   const { suggestions, loading: suggestionsLoading } = useSuggestions(
     reference.name,
     undefined,
-    addModalOpen
+    addModalOpen,
   )
 
-  // Extract available fields from suggestions (for field-select widgets)
   const availableFields = useMemo(() => {
     const fields = new Set<string>()
-    suggestions.forEach((s) => {
-      if (s.matched_column) fields.add(s.matched_column)
+    suggestions.forEach((suggestion) => {
+      if (suggestion.matched_column) fields.add(suggestion.matched_column)
     })
     return Array.from(fields).sort()
   }, [suggestions])
@@ -234,33 +208,16 @@ export function ContentTab({ reference }: ContentTabProps) {
     return await reorderWidgets(widgetIds)
   }, [reorderWidgets])
 
-  // Handle open add modal with specific tab — invalidate cache to force fresh fetch
-  const handleOpenAddModal = useCallback((tab: 'suggestions' | 'combined' | 'custom') => {
-    setAddModalTab(tab)
+  const handleOpenAddModal = useCallback(() => {
     setAddModalOpen(true)
   }, [])
 
-  const handleOpenProposalWorkspace = useCallback(() => {
-    setProposalWorkspaceState({
-      referenceName: reference.name,
-      open: true,
-      dismissedRouteRequestKey: null,
-    })
-    handleBackToLayout()
-  }, [handleBackToLayout, reference.name])
-
-  const handleCloseProposalWorkspace = useCallback(() => {
-    setProposalWorkspaceState({
-      referenceName: reference.name,
-      open: false,
-      dismissedRouteRequestKey: routeProposalRequestKey,
-    })
-  }, [reference.name, routeProposalRequestKey])
-
-  // Handle widget added from modal
   const handleWidgetAdded = useCallback(() => {
     refetchWidgets()
     setAddModalOpen(false)
+    if (routeAutoSuggestionsRequestKey) {
+      setDismissedRouteAutoSuggestionsKey(routeAutoSuggestionsRequestKey)
+    }
     setSelectedWidgetState((current) => {
       if (current.referenceName === reference.name && current.widgetId === null) {
         return current
@@ -271,20 +228,23 @@ export function ContentTab({ reference }: ContentTabProps) {
         widgetId: null,
       }
     })
-  }, [reference.name, refetchWidgets])
+  }, [reference.name, refetchWidgets, routeAutoSuggestionsRequestKey])
 
-  const handleWidgetProposalsApplied = useCallback(async () => {
-    try {
-      await refetchWidgets()
-    } finally {
-      handleBackToLayout()
-      setProposalWorkspaceState({
-        referenceName: reference.name,
-        open: false,
-        dismissedRouteRequestKey: routeProposalRequestKey,
-      })
+  const handleAddModalOpenChange = useCallback((isOpen: boolean) => {
+    setAddModalOpen(isOpen)
+    if (!isOpen && routeAutoSuggestionsRequestKey) {
+      setDismissedRouteAutoSuggestionsKey(routeAutoSuggestionsRequestKey)
     }
-  }, [handleBackToLayout, reference.name, refetchWidgets, routeProposalRequestKey])
+  }, [routeAutoSuggestionsRequestKey])
+
+  useEffect(() => {
+    if (
+      routeAutoSuggestionsRequestKey &&
+      dismissedRouteAutoSuggestionsKey !== routeAutoSuggestionsRequestKey
+    ) {
+      setAddModalOpen(true)
+    }
+  }, [dismissedRouteAutoSuggestionsKey, routeAutoSuggestionsRequestKey])
 
   const leftPanelRef = useRef<PanelImperativeHandle>(null)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -316,16 +276,7 @@ export function ContentTab({ reference }: ContentTabProps) {
 
   return (
     <div className="h-full flex flex-col">
-      {proposalWorkspaceOpen ? (
-        <div className="min-h-0 flex-1">
-          <WidgetProposalWorkspace
-            collectionName={reference.name}
-            onClose={handleCloseProposalWorkspace}
-            onApplied={handleWidgetProposalsApplied}
-          />
-        </div>
-      ) : (
-        <ResizablePanelGroup direction="horizontal" className="flex-1">
+      <ResizablePanelGroup direction="horizontal" className="flex-1">
           {/* Left Panel - Widget List */}
           <ResizablePanel
             panelRef={leftPanelRef}
@@ -340,28 +291,10 @@ export function ContentTab({ reference }: ContentTabProps) {
             <div className="absolute inset-0 flex flex-col">
               {/* Header with Add button + collapse toggle */}
               <div className="px-2 py-1.5 border-b flex items-center gap-1">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" className="gap-1">
-                      <Plus className="h-4 w-4" />
-                      {t('widgets:actions.addWidget')}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    <DropdownMenuItem onClick={handleOpenProposalWorkspace}>
-                      {t('widgets:actions.reviewProposals')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleOpenAddModal('suggestions')}>
-                      {t('widgets:actions.addFromSuggestions')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleOpenAddModal('combined')}>
-                      {t('widgets:actions.addCombinedWidget')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleOpenAddModal('custom')}>
-                      {t('widgets:modal.custom')}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Button size="sm" className="gap-1" onClick={handleOpenAddModal}>
+                  <Plus className="h-4 w-4" />
+                  {t('widgets:actions.addWidget')}
+                </Button>
                 <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 ml-auto" onClick={togglePanel} title="Hide widget list">
                   <PanelLeft className="h-4 w-4" />
                 </Button>
@@ -411,27 +344,15 @@ export function ContentTab({ reference }: ContentTabProps) {
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={togglePanel} title="Show widget list">
                     <PanelLeft className="h-4 w-4" />
                   </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuItem onClick={handleOpenProposalWorkspace}>
-                        {t('widgets:actions.reviewProposals')}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleOpenAddModal('suggestions')}>
-                        {t('widgets:actions.addFromSuggestions')}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleOpenAddModal('combined')}>
-                        {t('widgets:actions.addCombinedWidget')}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleOpenAddModal('custom')}>
-                        {t('widgets:modal.custom')}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={handleOpenAddModal}
+                    aria-label={t('widgets:actions.addWidget')}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
                   <span className="text-xs text-muted-foreground ml-1">
                     {t('widgets:layout.widgetsConfigured', { count: configuredWidgets.length })}
                   </span>
@@ -456,15 +377,13 @@ export function ContentTab({ reference }: ContentTabProps) {
             </div>
             </div>
           </ResizablePanel>
-        </ResizablePanelGroup>
-      )}
+      </ResizablePanelGroup>
 
-      {/* Add Widget Modal */}
       {addModalOpen ? (
         <AddWidgetModal
           open={addModalOpen}
-          onOpenChange={setAddModalOpen}
-          defaultTab={addModalTab}
+          onOpenChange={handleAddModalOpenChange}
+          defaultTab="suggestions"
           reference={reference}
           suggestions={suggestions}
           suggestionsLoading={suggestionsLoading}

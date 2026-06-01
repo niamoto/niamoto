@@ -34,23 +34,6 @@ vi.mock('@/components/widgets', () => ({
   useSuggestions: () => ({ suggestions: [], loading: false }),
 }))
 
-vi.mock('@/features/collections/components/blocks/WidgetProposalWorkspace', () => ({
-  WidgetProposalWorkspace: ({
-    collectionName,
-    onApplied,
-  }: {
-    collectionName: string
-    onApplied: () => void | Promise<void>
-  }) => (
-    <div data-testid="widget-proposal-workspace">
-      {collectionName}
-      <button type="button" onClick={() => { void onApplied() }}>
-        apply proposals
-      </button>
-    </div>
-  ),
-}))
-
 vi.mock('./WidgetListPanel', () => ({
   WidgetListPanel: () => <div data-testid="widget-list" />,
 }))
@@ -60,7 +43,25 @@ vi.mock('./ContentRightPanel', () => ({
 }))
 
 vi.mock('@/components/widgets/AddWidgetModal', () => ({
-  AddWidgetModal: () => <div />,
+  AddWidgetModal: ({
+    defaultTab,
+    onOpenChange,
+    onWidgetAdded,
+  }: {
+    defaultTab?: string
+    onOpenChange: (open: boolean) => void
+    onWidgetAdded: () => void
+  }) => (
+    <div data-testid="add-widget-modal">
+      {defaultTab}
+      <button type="button" onClick={() => onOpenChange(false)}>
+        close modal
+      </button>
+      <button type="button" onClick={onWidgetAdded}>
+        add widget from modal
+      </button>
+    </div>
+  ),
 }))
 
 vi.mock('@/shared/performance/devRenderMetrics', () => ({
@@ -72,14 +73,6 @@ const reference: ReferenceInfo = {
   table_name: 'entity_taxons',
   kind: 'hierarchical',
   schema_fields: [],
-}
-
-function deferred<T = void>() {
-  let resolve: (value: T | PromiseLike<T>) => void = () => undefined
-  const promise = new Promise<T>((nextResolve) => {
-    resolve = nextResolve
-  })
-  return { promise, resolve }
 }
 
 function ContentTabRouteHarness({
@@ -109,7 +102,7 @@ describe('ContentTab', () => {
     widgetConfigState.refetch.mockClear()
   })
 
-  it('opens widget proposals when requested by the route panel marker', async () => {
+  it('opens the add widget modal when requested by the route panel marker', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -122,11 +115,11 @@ describe('ContentTab', () => {
       )
     })
 
-    expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeTruthy()
-    expect(container.textContent).toContain('taxons')
+    expect(container.querySelector('[data-testid="add-widget-modal"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="add-widget-modal"]')?.textContent).toContain('suggestions')
   })
 
-  it('hides the normal widget list while reviewing automatic proposals', async () => {
+  it('keeps the normal widget layout visible behind route-opened suggestions', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -139,12 +132,12 @@ describe('ContentTab', () => {
       )
     })
 
-    expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeTruthy()
-    expect(container.querySelector('[data-testid="widget-list"]')).toBeNull()
-    expect(container.querySelector('[data-testid="content-right-panel"]')).toBeNull()
+    expect(container.querySelector('[data-testid="add-widget-modal"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="widget-list"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="content-right-panel"]')).toBeTruthy()
   })
 
-  it('opens widget proposals when the route panel marker is added after mount', async () => {
+  it('opens the add widget modal when the route panel marker is added after mount', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -163,17 +156,17 @@ describe('ContentTab', () => {
     })
 
     expect(container.querySelector('[data-testid="content-right-panel"]')).toBeTruthy()
-    expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeNull()
+    expect(container.querySelector('[data-testid="add-widget-modal"]')).toBeNull()
 
     await act(async () => {
       navigateToPanel?.()
     })
 
-    expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeTruthy()
-    expect(container.textContent).toContain('taxons')
+    expect(container.querySelector('[data-testid="add-widget-modal"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="content-right-panel"]')).toBeTruthy()
   })
 
-  it('returns to the normal blocks preview after widget proposals are applied', async () => {
+  it('dismisses a route-opened add widget modal without reopening it immediately', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -186,25 +179,22 @@ describe('ContentTab', () => {
       )
     })
 
-    expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="add-widget-modal"]')).toBeTruthy()
 
-    const applyButton = [...container.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('apply proposals'),
+    const closeButton = [...container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('close modal'),
     )
-    expect(applyButton).toBeDefined()
+    expect(closeButton).toBeDefined()
 
     await act(async () => {
-      applyButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      closeButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
-    expect(widgetConfigState.refetch).toHaveBeenCalledTimes(1)
-    expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeNull()
+    expect(container.querySelector('[data-testid="add-widget-modal"]')).toBeNull()
     expect(container.querySelector('[data-testid="content-right-panel"]')).toBeTruthy()
   })
 
-  it('keeps widget proposals visible until the refreshed blocks data is ready', async () => {
-    const pendingRefresh = deferred()
-    widgetConfigState.refetch.mockReturnValueOnce(pendingRefresh.promise)
+  it('refreshes widgets and closes the route-opened modal after a widget is added', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -217,25 +207,46 @@ describe('ContentTab', () => {
       )
     })
 
-    const applyButton = [...container.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('apply proposals'),
+    const addFromModalButton = [...container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('add widget from modal'),
     )
-    expect(applyButton).toBeDefined()
+    expect(addFromModalButton).toBeDefined()
 
     await act(async () => {
-      applyButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      addFromModalButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
     expect(widgetConfigState.refetch).toHaveBeenCalledTimes(1)
-    expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeTruthy()
-    expect(container.querySelector('[data-testid="content-right-panel"]')).toBeNull()
+    expect(container.querySelector('[data-testid="add-widget-modal"]')).toBeNull()
+    expect(container.querySelector('[data-testid="content-right-panel"]')).toBeTruthy()
+  })
+
+  it('opens the add widget modal directly from the add button', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
 
     await act(async () => {
-      pendingRefresh.resolve()
-      await pendingRefresh.promise
+      root?.render(
+        <MemoryRouter initialEntries={['/groups/taxons']}>
+          <ContentTab reference={reference} />
+        </MemoryRouter>,
+      )
     })
 
-    expect(container.querySelector('[data-testid="widget-proposal-workspace"]')).toBeNull()
-    expect(container.querySelector('[data-testid="content-right-panel"]')).toBeTruthy()
+    const addButton = [...container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Ajouter un widget') ||
+      button.textContent?.includes('Add widget') ||
+      button.textContent?.includes('actions.addWidget'),
+    )
+    expect(addButton).toBeDefined()
+    expect(container.textContent).not.toContain('Auto proposals')
+    expect(container.textContent).not.toContain('From suggestions')
+
+    await act(async () => {
+      addButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(container.querySelector('[data-testid="add-widget-modal"]')).toBeTruthy()
   })
 })
