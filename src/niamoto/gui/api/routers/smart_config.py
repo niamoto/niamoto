@@ -11,7 +11,7 @@ import tempfile
 import threading
 import time
 import uuid
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Dict, List, Literal, Optional
 import shutil
 import zipfile
@@ -278,19 +278,28 @@ def _validate_import_file_paths(work_dir: Path, files: List[str]) -> None:
     """Ensure auto-config input files stay under the project imports directory."""
     imports_dir = (work_dir / "imports").resolve()
     for file_path in files:
-        requested_path = Path(file_path)
-        if requested_path.is_absolute() or any(
-            part in {"", ".", ".."} for part in requested_path.parts
+        normalized_file_path = file_path.replace("\\", "/")
+        requested_path = Path(normalized_file_path)
+        windows_path = PureWindowsPath(file_path)
+        if (
+            requested_path.is_absolute()
+            or any(part in {"", ".", ".."} for part in requested_path.parts)
+            or windows_path.is_absolute()
         ):
             raise HTTPException(
                 status_code=400,
                 detail="File path outside project imports directory",
             )
 
-        resolved_path = (work_dir / file_path).resolve()
+        resolved_path = (work_dir / normalized_file_path).resolve()
         try:
             resolved_path.relative_to(imports_dir)
         except ValueError as exc:
+            if (
+                not resolved_path.exists()
+                and len(PurePosixPath(normalized_file_path).parts) == 1
+            ):
+                continue
             raise HTTPException(
                 status_code=400,
                 detail="File path outside project imports directory",
@@ -302,8 +311,14 @@ def _validate_bulk_config_paths(value: Any) -> None:
     if isinstance(value, dict):
         for key, child in value.items():
             if key in {"source", "data", "path", "file"} and isinstance(child, str):
-                requested_path = Path(child)
-                if requested_path.is_absolute() or ".." in requested_path.parts:
+                normalized_child = child.replace("\\", "/")
+                requested_path = Path(normalized_child)
+                windows_path = PureWindowsPath(child)
+                if (
+                    requested_path.is_absolute()
+                    or ".." in requested_path.parts
+                    or windows_path.is_absolute()
+                ):
                     raise HTTPException(
                         status_code=400,
                         detail="Source paths must be relative project paths",
@@ -593,10 +608,20 @@ async def _handle_zip_upload(
             # Create subdirectory for shapefile components
             shapefile_name = Path(filename).stem
             shapefile_dir = target_dir / shapefile_name
+            if shapefile_dir.is_symlink():
+                raise ValueError(f"Archive destination is a symlink: {shapefile_name}")
             shapefile_dir.mkdir(exist_ok=True)
 
             # Copy extracted files
+            target_dir_resolved = target_dir.resolve()
             shapefile_dir_resolved = shapefile_dir.resolve()
+            try:
+                shapefile_dir_resolved.relative_to(target_dir_resolved)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Archive destination escapes imports directory: {shapefile_name}"
+                ) from exc
+
             for extracted_file in extracted_files:
                 dest = shapefile_dir / extracted_file.name
                 try:
@@ -683,6 +708,7 @@ async def analyze_file_smart(request: FileInfo) -> Dict[str, Any]:
         if not work_dir:
             raise HTTPException(status_code=400, detail="Working directory not set")
 
+        _validate_import_file_paths(Path(work_dir), [request.filepath])
         service = AutoConfigService(Path(work_dir))
         analysis = await asyncio.to_thread(
             service.analyze_file,

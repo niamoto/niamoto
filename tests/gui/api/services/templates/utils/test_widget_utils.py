@@ -140,6 +140,21 @@ def test_generate_widget_params_handles_gauge_and_navigation_defaults():
     }
 
 
+def test_generate_widget_params_for_interactive_map_uses_plotly_map_defaults():
+    params = widget_utils.generate_widget_params(
+        "interactive_map",
+        "geospatial_extractor",
+        {},
+    )
+
+    assert params == {
+        "geojson_field": "features",
+        "map_type": "scatter_map",
+        "map_style": "carto-positron",
+        "auto_zoom": True,
+    }
+
+
 def test_is_class_object_template_and_invalid_dynamic_ids():
     assert widget_utils.is_class_object_template("series_extractor") is True
     assert widget_utils.is_class_object_template("top_ranking") is False

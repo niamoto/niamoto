@@ -6,6 +6,7 @@ and serve as regression tests during refactoring.
 """
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import pytest
 from unittest.mock import patch
 import os
@@ -18,6 +19,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from niamoto.gui.api.app import create_app
+from niamoto.gui.api.routers import templates as templates_router
 
 
 class FakePreviewEngine:
@@ -425,6 +427,32 @@ class TestTemplatesEndpoints:
             "Combined template config requires object transformer and widget sections"
         )
 
+    def test_generate_config_rejects_combined_config_without_widget_plugin(
+        self, client
+    ):
+        response = client.post(
+            "/api/templates/generate-config",
+            json={
+                "templates": [
+                    {
+                        "template_id": "combined_widget",
+                        "plugin": "field_aggregator",
+                        "config": {
+                            "transformer": {"params": {"field": "height"}},
+                            "widget": {"params": {}},
+                        },
+                    }
+                ],
+                "group_by": "taxons",
+                "reference_kind": "hierarchical",
+            },
+        )
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == (
+            "Combined template widget section requires a non-empty plugin"
+        )
+
     def test_generate_config_uses_import_relation_and_dataset(
         self, client, test_work_dir
     ):
@@ -646,6 +674,31 @@ class TestTemplatesEndpoints:
 
         assert response.status_code == 401
 
+    def test_save_config_waits_for_export_config_write_lock(self, client):
+        templates_router.EXPORT_CONFIG_WRITE_LOCK.acquire()
+        try:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    client.post,
+                    "/api/templates/save-config",
+                    json={
+                        "group_by": "taxons",
+                        "sources": [],
+                        "widgets_data": {},
+                        "mode": "merge",
+                    },
+                )
+                with pytest.raises(TimeoutError):
+                    future.result(timeout=0.1)
+
+                templates_router.EXPORT_CONFIG_WRITE_LOCK.release()
+                response = future.result(timeout=5)
+        finally:
+            if templates_router.EXPORT_CONFIG_WRITE_LOCK._is_owned():
+                templates_router.EXPORT_CONFIG_WRITE_LOCK.release()
+
+        assert response.status_code == 200, response.text
+
     def test_save_config_does_not_update_export_when_transform_is_invalid(
         self, client, test_work_dir
     ):
@@ -707,6 +760,63 @@ class TestTemplatesEndpoints:
         assert response.status_code == 500
         assert transform_path.read_text(encoding="utf-8") == original_transform
         assert export_path.read_text(encoding="utf-8") == original_export
+
+    def test_save_config_rejects_invalid_export_override_without_writing(
+        self, client, test_work_dir
+    ):
+        config_dir = Path(test_work_dir) / "config"
+        transform_path = config_dir / "transform.yml"
+        export_path = config_dir / "export.yml"
+        original_transform = transform_path.read_text(encoding="utf-8")
+        original_export = {
+            "exports": [
+                {
+                    "name": "web_pages",
+                    "enabled": True,
+                    "exporter": "html_page_exporter",
+                    "params": {
+                        "template_dir": "templates/",
+                        "output_dir": "exports/web",
+                    },
+                    "static_pages": [],
+                    "groups": [
+                        {
+                            "group_by": "taxons",
+                            "widgets": [],
+                        }
+                    ],
+                }
+            ]
+        }
+        export_path.write_text(
+            yaml.safe_dump(original_export, sort_keys=False),
+            encoding="utf-8",
+        )
+        original_export_text = export_path.read_text(encoding="utf-8")
+
+        response = client.post(
+            "/api/templates/save-config",
+            json={
+                "group_by": "taxons",
+                "sources": [],
+                "widgets_data": {
+                    "summary": {
+                        "plugin": "field_aggregator",
+                        "params": {"field": "dbh"},
+                        "export_override": {
+                            "plugin": "bar_plot",
+                            "title": ["not", "a", "localized", "string"],
+                        },
+                    }
+                },
+                "mode": "replace",
+            },
+        )
+
+        assert response.status_code == 400, response.text
+        assert "Invalid export configuration" in response.json()["detail"]
+        assert transform_path.read_text(encoding="utf-8") == original_transform
+        assert export_path.read_text(encoding="utf-8") == original_export_text
 
     def test_save_config_rolls_back_transform_when_export_replace_fails(
         self, client, test_work_dir

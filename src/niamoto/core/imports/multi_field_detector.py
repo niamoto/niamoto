@@ -58,10 +58,18 @@ PHENOLOGY_KEYWORDS = {
     # Avoid generic words like "leaf" which could match "leaf_area"
     "states": [
         "flower",
+        "flowering",
         "fruit",
+        "fruiting",
+        "fructification",
         "fleur",
+        "floraison",
         "fertile",
         "sterile",
+        "phenology",
+        "phenologie",
+        "phénologie",
+        "reproductive",
     ],
 }
 
@@ -87,6 +95,59 @@ TRAIT_KEYWORDS = [
     "wood_density",
     "bark_thickness",
 ]
+
+STATIC_TRAIT_KEYWORDS = [*DIMENSION_KEYWORDS, *TRAIT_KEYWORDS]
+
+TEMPORAL_MEASUREMENT_KEYWORDS = [
+    "abundance",
+    "count",
+    "counts",
+    "effectif",
+    "frequency",
+    "frequence",
+    "fréquence",
+    "index",
+    "nombre",
+    "number",
+    "observation",
+    "observations",
+    "observed",
+    "presence",
+    "rate",
+    "ratio",
+    "score",
+    "cover",
+    "coverage",
+]
+
+
+def _field_name(profile: EnrichedColumnProfile) -> str:
+    """Normalize a field name for keyword-based semantic matching."""
+    return profile.name.lower().replace("-", "_").replace(" ", "_")
+
+
+def _has_field_keyword(profile: EnrichedColumnProfile, keywords: List[str]) -> bool:
+    """Return whether a normalized field name contains one of the given signals."""
+    name = _field_name(profile)
+    return any(keyword in name for keyword in keywords)
+
+
+def _is_phenology_state_field(profile: EnrichedColumnProfile) -> bool:
+    """Identify phenology state fields without treating every boolean as phenology."""
+    return profile.data_category in {
+        DataCategory.BOOLEAN,
+        DataCategory.CATEGORICAL,
+    } and _has_field_keyword(profile, PHENOLOGY_KEYWORDS["states"])
+
+
+def _is_static_trait_measurement(profile: EnrichedColumnProfile) -> bool:
+    """Identify measurements that describe static traits rather than time evolution."""
+    return _has_field_keyword(profile, STATIC_TRAIT_KEYWORDS)
+
+
+def _is_temporal_measurement_field(profile: EnrichedColumnProfile) -> bool:
+    """Identify numeric measurements that read as temporal counts or rates."""
+    return _has_field_keyword(profile, TEMPORAL_MEASUREMENT_KEYWORDS)
 
 
 class MultiFieldPatternDetector:
@@ -144,12 +205,31 @@ class MultiFieldPatternDetector:
 
         # Sort by confidence (highest first)
         suggestions.sort(key=lambda p: -p.confidence)
+        suggestions = self._deduplicate_equivalent_patterns(suggestions)
 
         # Mark the best one as recommended
         if suggestions:
             suggestions[0].is_recommended = True
 
         return suggestions
+
+    def _deduplicate_equivalent_patterns(
+        self,
+        suggestions: List[MultiFieldPattern],
+    ) -> List[MultiFieldPattern]:
+        """Keep the strongest pattern when detectors describe the same recipe."""
+
+        by_signature: Dict[tuple[str, tuple[str, ...], str], MultiFieldPattern] = {}
+        for suggestion in suggestions:
+            signature = (
+                suggestion.transformer_plugin,
+                tuple(sorted(suggestion.fields)),
+                suggestion.widget_plugin,
+            )
+            if signature not in by_signature:
+                by_signature[signature] = suggestion
+
+        return list(by_signature.values())
 
     def detect_semantic_groups(
         self,
@@ -204,18 +284,14 @@ class MultiFieldPatternDetector:
             p
             for p in profiles
             if p.data_category == DataCategory.TEMPORAL
-            or any(kw in p.name.lower() for kw in PHENOLOGY_KEYWORDS["temporal"])
+            or _has_field_keyword(p, PHENOLOGY_KEYWORDS["temporal"])
         ]
 
-        # Find phenology state fields (boolean or categorical with phenology keywords)
+        # Find phenology state fields by semantic signal, not by boolean type alone.
         state_fields = [
             p
             for p in profiles
-            if (
-                p.data_category == DataCategory.BOOLEAN
-                or any(kw in p.name.lower() for kw in PHENOLOGY_KEYWORDS["states"])
-            )
-            and p not in temporal_fields
+            if _is_phenology_state_field(p) and p not in temporal_fields
         ]
 
         if not temporal_fields or len(state_fields) < 1:
@@ -235,7 +311,7 @@ class MultiFieldPatternDetector:
 
         return MultiFieldPattern(
             pattern_type=MultiFieldPatternType.PHENOLOGY,
-            name="Phenology",
+            name="Phénologie",
             description=f"Distribution temporelle de {', '.join(s.name for s in states)} par {temporal.name}",
             fields=[temporal.name] + [s.name for s in states],
             field_roles={
@@ -265,23 +341,23 @@ class MultiFieldPatternDetector:
             },
             widget_plugin="bar_plot",
             widget_params={
-                "title": "Phenology",
-                "description": f"Temporal distribution by {temporal.name}",
+                "title": "Phénologie",
+                "description": f"Distribution temporelle par {temporal.name}",
                 "transform": "monthly_data",
                 "transform_params": {
-                    "data_field": "month_data",
                     "labels_field": "labels",
+                    "data_field": "month_data",
                     "melt": True,
                 },
                 "x_axis": "labels",
                 "y_axis": "value",
                 "color_field": "series",
                 "barmode": "group",
-                "orientation": "v",
+                "text_auto": ".2f",
                 "labels": {
-                    "x_axis": "Month",
-                    "y_axis": "Frequency",
-                    "color_field": "State",
+                    "labels": "Mois",
+                    "value": "Présence (%)",
+                    "series": "Série",
                 },
                 "color_discrete_map": color_map,
             },
@@ -332,11 +408,11 @@ class MultiFieldPatternDetector:
             widget_params={
                 "title": f"{x_field.name} vs {y_field.name}",
                 "description": "Allometric relationship",
-                "x_axis": x_field.name,
-                "y_axis": y_field.name,
+                "x_axis": "x",
+                "y_axis": "y",
                 "labels": {
-                    "x_axis": x_field.name.upper(),
-                    "y_axis": y_field.name.capitalize(),
+                    "x": x_field.name.replace("_", " ").title(),
+                    "y": y_field.name.replace("_", " ").title(),
                 },
             },
         )
@@ -437,7 +513,7 @@ class MultiFieldPatternDetector:
             p
             for p in profiles
             if p.data_category == DataCategory.TEMPORAL
-            or any(kw in p.name.lower() for kw in ["date", "time", "year", "month"])
+            or _has_field_keyword(p, ["date", "time", "year", "month"])
         ]
 
         numeric_fields = [
@@ -447,6 +523,8 @@ class MultiFieldPatternDetector:
             in (DataCategory.NUMERIC_CONTINUOUS, DataCategory.NUMERIC_DISCRETE)
             and p.field_purpose == FieldPurpose.MEASUREMENT
             and p not in temporal_fields
+            and _is_temporal_measurement_field(p)
+            and not _is_static_trait_measurement(p)
         ]
 
         if not temporal_fields or not numeric_fields:
@@ -469,14 +547,18 @@ class MultiFieldPatternDetector:
             transformer_params={
                 "source": source_name,
                 "time_field": temporal.name,
-                "value_fields": [m.name for m in measurements],
+                "fields": {m.name: m.name for m in measurements},
             },
-            widget_plugin="bar_plot",
+            widget_plugin="line_plot",
             widget_params={
                 "title": "Temporal evolution",
-                "x_axis": temporal.name,
-                "y_axis": "value",
-                "barmode": "group",
+                "x_axis": "labels",
+                "y_axis": [m.name for m in measurements],
+                "markers": True,
+                "labels": {
+                    "labels": temporal.name.replace("_", " ").title(),
+                    **{m.name: m.name.replace("_", " ").title() for m in measurements},
+                },
             },
         )
 
@@ -565,8 +647,12 @@ class MultiFieldPatternDetector:
             widget_plugin="scatter_plot",
             widget_params={
                 "title": f"Corrélation {x_field.name} - {y_field.name}",
-                "x_axis": x_field.name,
-                "y_axis": y_field.name,
+                "x_axis": "x",
+                "y_axis": "y",
+                "labels": {
+                    "x": x_field.name.replace("_", " ").title(),
+                    "y": y_field.name.replace("_", " ").title(),
+                },
             },
         )
 
@@ -583,9 +669,9 @@ class MultiFieldPatternDetector:
         states = []
 
         for p in profiles:
-            if any(kw in p.name.lower() for kw in PHENOLOGY_KEYWORDS["temporal"]):
+            if _has_field_keyword(p, PHENOLOGY_KEYWORDS["temporal"]):
                 temporal = p
-            elif any(kw in p.name.lower() for kw in PHENOLOGY_KEYWORDS["states"]):
+            elif _is_phenology_state_field(p):
                 states.append(p)
 
         if temporal and len(states) >= 2:

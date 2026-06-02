@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict
 from niamoto.core.plugins.base import TransformerPlugin, PluginType, register
 from niamoto.core.plugins.models import PluginConfig, BasePluginParams
 from niamoto.common.exceptions import DataValidationError
+from niamoto.common.table_resolver import quote_identifier
 
 
 SAFE_COMPUTED_FUNCTIONS = {
@@ -342,8 +343,11 @@ class DatabaseAggregatorPlugin(TransformerPlugin):
         if required_tables:
             with self.db.get_session() as session:
                 for table in required_tables:
+                    quoted_table = quote_identifier(self.db, table)
                     try:
-                        result = session.execute(text(f"SELECT 1 FROM {table} LIMIT 1"))
+                        result = session.execute(
+                            text(f"SELECT 1 FROM {quoted_table} LIMIT 1")
+                        )
                         result.fetchone()
                     except SQLAlchemyError:
                         raise DataValidationError(

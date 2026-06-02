@@ -1369,6 +1369,9 @@ def get_entity_map_suggestions(reference_name: str) -> List[Dict[str, Any]]:
                     "widget_plugin": "interactive_map",
                     "widget_params": {
                         "geojson_field": "features",
+                        "map_type": "scatter_map",
+                        "map_style": "carto-positron",
+                        "auto_zoom": True,
                     },
                     "category": "map",
                     "icon": icon_single,

@@ -352,7 +352,6 @@
   },
   "actions": {
     "addWidget": "Ajouter un widget",
-    "addFromSuggestions": "Depuis les suggestions",
     "addCombinedWidget": "Widget combiné",
     "duplicateWidget": "Dupliquer le widget",
     "addField": "+ Ajouter un champ",
@@ -393,6 +392,8 @@
     "noWidgetsHint": "Ajoutez d'abord des widgets dans l'onglet \"Widgets\" pour pouvoir configurer leur mise en page.",
     "noWidgetsHintAdd": "Ajoutez des widgets en utilisant le bouton \"Ajouter un widget\" dans le panneau de gauche.",
     "widgetsConfigured": "{{count}} widgets configurés",
+    "hideWidgetList": "Masquer la liste des widgets",
+    "showWidgetList": "Afficher la liste des widgets",
     "clickToEdit": "Cliquez pour modifier",
     "unsavedChanges": "Modifications non sauvegardées",
     "previews": "Aperçus",
@@ -462,6 +463,7 @@
     "widget": "Widget"
   },
   "modal": {
+    "description": "Ajouter un ou plusieurs widgets à partir des suggestions, des combinaisons ou d’une configuration personnalisée.",
     "suggestions": "Suggestions",
     "combined": "Combinés",
     "custom": "Personnalisé",
@@ -474,6 +476,7 @@
     "autoDetectedPatterns": "Patterns détectés automatiquement",
     "manualCombine": "Combiner manuellement",
     "proposedWidgets": "Widgets proposés",
+    "showMoreSuggestions": "+{{count}} de plus",
     "recommended": "Recommandé",
     "creationSteps": "Étapes de création",
     "stepIdentifier": "Identifiant",

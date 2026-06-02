@@ -62,7 +62,6 @@ DEFAULT_CORS_ORIGINS = [
     "http://127.0.0.1",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "null",
     "tauri://localhost",
     "http://tauri.localhost",
 ]
@@ -126,7 +125,7 @@ def _is_allowed_cors_origin(origin: str) -> bool:
     if origin == "*" or origin.startswith("*."):
         return False
     if origin == "null":
-        return True
+        return False
 
     parsed = urlparse(origin)
     if parsed.scheme not in ALLOWED_CORS_SCHEMES:

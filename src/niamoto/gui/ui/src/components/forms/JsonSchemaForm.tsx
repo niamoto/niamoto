@@ -43,6 +43,7 @@ import {
   isSelectOptionValue,
   isStringArray,
 } from './formSchemaTypes';
+import { apiFetch } from '@/shared/lib/api/fetch';
 
 interface TransformParamDef {
   type: string;
@@ -113,7 +114,7 @@ async function loadPluginSchema(pluginId: string): Promise<PluginSchemaResponse>
     return inFlightRequest;
   }
 
-  const request = fetch(`/api/plugins/${pluginId}/schema`, {
+  const request = apiFetch(`/api/plugins/${pluginId}/schema`, {
     cache: 'no-store',
   })
     .then(async (response) => {

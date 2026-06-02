@@ -362,6 +362,44 @@ class TestConfigRefCollector:
         assert "class_value" in refs
         assert "class_name" not in refs
 
+    def test_collects_class_object_refs_with_top_level_source(self):
+        transform_cfg = [
+            {
+                "group_by": "shapes",
+                "sources": [
+                    {
+                        "name": "shape_stats",
+                        "data": "imports/raw_shape_stats.csv",
+                        "grouping": "shapes",
+                        "relation": {"plugin": "stats_loader", "key": "id"},
+                    }
+                ],
+                "widgets_data": {
+                    "forest_series": {
+                        "plugin": "class_object_series_extractor",
+                        "source": "shape_stats",
+                        "params": {
+                            "class_object": "forest_cover",
+                            "size_field": {"input": "class_name", "output": "tops"},
+                            "value_field": {"input": "class_value", "output": "counts"},
+                        },
+                    }
+                },
+            }
+        ]
+
+        refs = self.collector.collect(
+            "shape_stats", SAMPLE_IMPORT_CONFIG, transform_cfg
+        )
+
+        assert "class_object" in refs
+        assert "class_name" in refs
+        assert "class_value" in refs
+        assert any("params.size_field.input" in path for path, _ in refs["class_name"])
+        assert any(
+            "params.value_field.input" in path for path, _ in refs["class_value"]
+        )
+
     def test_collects_class_object_axis_refs_for_transform_source(self):
         transform_cfg = [
             {
@@ -426,6 +464,11 @@ class TestConfigRefCollector:
                         "plugin": "geospatial_extractor",
                         "params": {"source": "occurrences", "field": "geo_pt"},
                     },
+                    "dbh_summary": {
+                        "plugin": "statistical_summary",
+                        "source": "occurrences",
+                        "field": "dbh_top_level",
+                    },
                 },
             }
         ]
@@ -436,6 +479,11 @@ class TestConfigRefCollector:
         assert any("params.field" in path for path, _ in refs["dbh"])
         assert "geo_pt" in refs
         assert any("params.field" in path for path, _ in refs["geo_pt"])
+        assert "dbh_top_level" in refs
+        assert any(
+            path.endswith("widgets_data > dbh_summary > field")
+            for path, _ in refs["dbh_top_level"]
+        )
 
     def test_collects_time_series_refs_for_source_entity(self):
         transform_cfg = [
@@ -457,7 +505,13 @@ class TestConfigRefCollector:
                             "fields": {"flower": "flower", "fruit": "fruit"},
                             "time_field": "month_obs",
                         },
-                    }
+                    },
+                    "phenology_direct": {
+                        "plugin": "time_series_analysis",
+                        "source": "occurrences",
+                        "field": "flower_top",
+                        "time_field": "month_top",
+                    },
                 },
             }
         ]
@@ -472,6 +526,16 @@ class TestConfigRefCollector:
         assert any("params.time_field" in path for path, _ in refs["month_obs"])
         assert any("params.fields.flower" in path for path, _ in refs["flower"])
         assert any("params.fields.fruit" in path for path, _ in refs["fruit"])
+        assert "flower_top" in refs
+        assert "month_top" in refs
+        assert any(
+            path.endswith("widgets_data > phenology_direct > field")
+            for path, _ in refs["flower_top"]
+        )
+        assert any(
+            path.endswith("widgets_data > phenology_direct > time_field")
+            for path, _ in refs["month_top"]
+        )
 
     def test_collects_widget_refs_for_grouping_entity_without_source_entry(self):
         transform_cfg = [
@@ -1347,6 +1411,97 @@ class TestCompatibilityService:
             i for i in report.impacts if i.level == ImpactLevel.BREAKS_TRANSFORM
         ]
         assert {item.column for item in breaking} == {"class_object"}
+
+    def test_check_compatibility_includes_widget_recipe_impacts(self, tmp_path):
+        rows = [
+            {"id": index, "family": f"family_{index}", "dbh_cm": float(index)}
+            for index in range(12)
+        ]
+        csv = tmp_path / "imports" / "occurrences.csv"
+        service = self._make_service(
+            tmp_path,
+            import_cfg={
+                "entities": {
+                    "datasets": {
+                        "occurrences": {
+                            "connector": {
+                                "type": "file",
+                                "path": "imports/occurrences.csv",
+                            }
+                        }
+                    },
+                    "references": {},
+                }
+            },
+            transform_cfg=[
+                {
+                    "group_by": "taxons",
+                    "sources": [
+                        {
+                            "name": "occurrences",
+                            "data": "occurrences",
+                            "grouping": "taxons",
+                            "relation": {
+                                "plugin": "direct_reference",
+                                "key": "taxon_id",
+                                "ref_key": "id",
+                            },
+                        }
+                    ],
+                    "widgets_data": {
+                        "family_chart": {
+                            "plugin": "categorical_distribution",
+                            "params": {
+                                "source": "occurrences",
+                                "field": "family",
+                            },
+                        },
+                        "missing_chart": {
+                            "plugin": "top_ranking",
+                            "params": {
+                                "source": "occurrences",
+                                "field": "status",
+                            },
+                        },
+                    },
+                }
+            ],
+        )
+        (tmp_path / "config" / "export.yml").write_text(
+            yaml.dump(
+                {
+                    "exports": [
+                        {
+                            "exporter": "html_page_exporter",
+                            "groups": [
+                                {
+                                    "group_by": "taxons",
+                                    "widgets": [
+                                        {
+                                            "data_source": "family_chart",
+                                            "plugin": "donut_chart",
+                                        },
+                                        {
+                                            "data_source": "missing_chart",
+                                            "plugin": "bar_plot",
+                                        },
+                                    ],
+                                }
+                            ],
+                        }
+                    ]
+                }
+            )
+        )
+        pd.DataFrame(rows).to_csv(csv, index=False)
+
+        report = service.check_compatibility("occurrences", "imports/occurrences.csv")
+        impacts = {impact.widget_id: impact for impact in report.widget_impacts}
+
+        assert impacts["family_chart"].status == "degraded"
+        assert impacts["missing_chart"].status == "broken"
+        assert report.widget_impact_summary["degraded"] == 1
+        assert report.widget_repair_context["collections"] == ["taxons"]
 
     def test_missing_transform_source_registry_table_is_quiet(self, tmp_path):
         config_dir = tmp_path / "config"

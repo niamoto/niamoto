@@ -13,6 +13,7 @@ import { useEffect, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useReferences } from '@/hooks/useReferences'
+import { StablePanelSkeleton } from '@/components/loading/StableLoadingState'
 import { useNavigationStore } from '@/stores/navigationStore'
 import type { CollectionsSelection } from './CollectionsTree'
 import { CollectionPanel } from './CollectionPanel'
@@ -39,8 +40,14 @@ export function CollectionsModule() {
 
   const { data: referencesData, isLoading } = useReferences()
   const { data: catalogData, isLoading: catalogLoading } = useCollectionsCatalog()
-  const references = referencesData?.references ?? []
-  const catalogCollections = catalogData?.collections ?? []
+  const references = useMemo(
+    () => referencesData?.references ?? [],
+    [referencesData],
+  )
+  const catalogCollections = useMemo(
+    () => catalogData?.collections ?? [],
+    [catalogData],
+  )
   const collectionItems = useMemo(
     () => buildCollectionDisplayItems(references, catalogCollections),
     [catalogCollections, references],
@@ -93,13 +100,7 @@ export function CollectionsModule() {
   const renderContent = () => {
     // Loading state
     if (isInitialLoading) {
-      return (
-        <div className="flex h-full items-center justify-center">
-          <div className="animate-pulse text-muted-foreground">
-            {t('common:status.loading')}
-          </div>
-        </div>
-      )
+      return <StablePanelSkeleton rows={6} />
     }
 
     // API settings — always accessible regardless of collections

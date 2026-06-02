@@ -69,7 +69,6 @@ export function usePipelineStatus(enabled = true) {
     enabled: enabled && hasProjectInfo,
     refetchInterval: (query) => (query.state.data?.running_job ? 1_000 : 30_000),
     staleTime: 10_000,       // Consider fresh for 10s
-    refetchOnMount: 'always',
     retry: 1,
   })
 }

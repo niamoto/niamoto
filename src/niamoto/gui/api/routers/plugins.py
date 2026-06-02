@@ -1,16 +1,19 @@
 """Plugin registry API endpoints using the real Niamoto plugin system."""
 
+import threading
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
-import importlib
-import pkgutil
 
 # Import the real plugin system
-from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.core.plugins.base import PluginType
+from niamoto.core.plugins.plugin_loader import PluginLoader
+from niamoto.core.plugins.registry import PluginRegistry
+from niamoto.gui.api.context import get_optional_working_directory
+from niamoto.gui.api.desktop_auth import require_desktop_mutation_auth
 
 router = APIRouter()
+_plugin_registry_reload_lock = threading.RLock()
 
 
 class ParameterSchema(BaseModel):
@@ -74,40 +77,56 @@ def _validate_plugin_config(
     return None
 
 
-def load_all_plugins():
-    """
-    Load all plugins from the plugin directories to populate the registry.
-    This ensures all available plugins are registered.
-    """
-    # Import paths for plugin modules
-    plugin_paths = [
-        "niamoto.core.plugins.loaders",
-        "niamoto.core.plugins.transformers",
-        "niamoto.core.plugins.exporters",
-        "niamoto.core.plugins.widgets",
-    ]
+def _snapshot_plugin_registry() -> tuple[
+    dict[PluginType, dict], dict[PluginType, dict]
+]:
+    """Return a copy of the plugin registry so failed reloads can be rolled back."""
+    return (
+        {
+            plugin_type: dict(plugins)
+            for plugin_type, plugins in PluginRegistry._plugins.items()
+        },
+        {
+            plugin_type: dict(metadata)
+            for plugin_type, metadata in PluginRegistry._metadata.items()
+        },
+    )
 
-    for base_path in plugin_paths:
+
+def _restore_plugin_registry(
+    snapshot: tuple[dict[PluginType, dict], dict[PluginType, dict]],
+) -> None:
+    """Restore a registry snapshot captured before a plugin reload attempt."""
+    plugins_snapshot, metadata_snapshot = snapshot
+    PluginRegistry.clear()
+    for plugin_type, plugins in plugins_snapshot.items():
+        PluginRegistry._plugins[plugin_type].update(plugins)
+    for plugin_type, metadata in metadata_snapshot.items():
+        PluginRegistry._metadata[plugin_type].update(metadata)
+
+
+def load_all_plugins() -> None:
+    """
+    Load available plugins through the configured project/user/system cascade.
+
+    The registry is rebuilt from the cascade so project-local plugins can
+    override lower-priority plugins. If discovery fails, keep the previous
+    registry intact for in-flight API requests.
+    """
+    with _plugin_registry_reload_lock:
+        snapshot = _snapshot_plugin_registry()
+        project_path = get_optional_working_directory()
         try:
-            # Import the base module
-            base_module = importlib.import_module(base_path)
-
-            # If it has submodules, iterate through them
-            if hasattr(base_module, "__path__"):
-                for importer, modname, ispkg in pkgutil.walk_packages(
-                    path=base_module.__path__,
-                    prefix=base_module.__name__ + ".",
-                    onerror=lambda x: None,
-                ):
-                    try:
-                        # Import each submodule to trigger plugin registration
-                        importlib.import_module(modname)
-                    except Exception:
-                        # Skip modules that fail to import
-                        pass
+            PluginRegistry.clear()
+            PluginLoader().load_plugins_with_cascade(project_path)
         except Exception:
-            # Skip if base module doesn't exist
-            pass
+            _restore_plugin_registry(snapshot)
+            raise
+
+
+def _require_plugin_registry_auth(request: Request) -> None:
+    """Require desktop auth before routes that import project plugin code."""
+    require_desktop_mutation_auth(request)
 
 
 def get_plugin_info_from_class(
@@ -248,6 +267,7 @@ def get_plugin_info_from_class(
 
 @router.get("/", response_model=List[PluginInfo])
 async def list_plugins(
+    request: Request,
     type: Optional[str] = Query(None, description="Filter by plugin type"),
     category: Optional[str] = Query(None, description="Filter by category"),
     compatible_with: Optional[str] = Query(
@@ -265,6 +285,7 @@ async def list_plugins(
     Returns:
         List of plugins matching the filters
     """
+    _require_plugin_registry_auth(request)
     try:
         # Ensure all plugins are loaded
         load_all_plugins()
@@ -311,19 +332,20 @@ async def list_plugins(
 
 
 @router.get("/{plugin_id}/schema", include_in_schema=False)
-async def get_plugin_json_schema_priority_route(plugin_id: str):
+async def get_plugin_json_schema_priority_route(plugin_id: str, request: Request):
     """Keep plugin schema lookup ahead of the generic plugin detail route."""
-    return await get_plugin_json_schema(plugin_id)
+    return await get_plugin_json_schema(plugin_id, request)
 
 
 @router.get("/categories/list")
-async def list_categories():
+async def list_categories(request: Request):
     """
     Get list of all plugin categories.
 
     Returns:
         List of unique categories across all plugins
     """
+    _require_plugin_registry_auth(request)
     try:
         # Ensure all plugins are loaded
         load_all_plugins()
@@ -366,7 +388,7 @@ async def list_plugin_types():
 
 
 @router.post("/check-compatibility", response_model=CompatibilityResult)
-async def check_compatibility(check: CompatibilityCheck):
+async def check_compatibility(check: CompatibilityCheck, request: Request):
     """
     Check if a plugin is compatible with given source data.
 
@@ -376,6 +398,7 @@ async def check_compatibility(check: CompatibilityCheck):
     Returns:
         Compatibility result with explanation
     """
+    _require_plugin_registry_auth(request)
     try:
         load_all_plugins()
 
@@ -441,7 +464,7 @@ async def check_compatibility(check: CompatibilityCheck):
 
 
 @router.get("/{plugin_id}", response_model=PluginInfo)
-async def get_plugin(plugin_id: str):
+async def get_plugin(plugin_id: str, request: Request):
     """
     Get detailed information about a specific plugin.
 
@@ -451,6 +474,7 @@ async def get_plugin(plugin_id: str):
     Returns:
         Detailed plugin information
     """
+    _require_plugin_registry_auth(request)
     try:
         # Ensure all plugins are loaded
         load_all_plugins()
@@ -472,7 +496,7 @@ async def get_plugin(plugin_id: str):
 
 
 @router.get("/{plugin_id}/schema")
-async def get_plugin_json_schema(plugin_id: str):
+async def get_plugin_json_schema(plugin_id: str, request: Request):
     """
     Get the full JSON schema for a plugin's parameters.
 
@@ -485,6 +509,7 @@ async def get_plugin_json_schema(plugin_id: str):
     Returns:
         Complete JSON schema for the plugin parameters
     """
+    _require_plugin_registry_auth(request)
     try:
         # Ensure all plugins are loaded
         load_all_plugins()

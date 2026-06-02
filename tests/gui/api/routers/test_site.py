@@ -1033,7 +1033,7 @@ class TestSiteGroups:
                 app = create_app()
                 client = TestClient(app)
 
-                site_router.SITE_CONFIG_WRITE_LOCK.acquire()
+                site_router.EXPORT_CONFIG_WRITE_LOCK.acquire()
                 try:
                     with ThreadPoolExecutor(max_workers=1) as executor:
                         future = executor.submit(
@@ -1042,11 +1042,11 @@ class TestSiteGroups:
                         with pytest.raises(TimeoutError):
                             future.result(timeout=0.1)
 
-                        site_router.SITE_CONFIG_WRITE_LOCK.release()
+                        site_router.EXPORT_CONFIG_WRITE_LOCK.release()
                         response = future.result(timeout=5)
                 finally:
-                    if site_router.SITE_CONFIG_WRITE_LOCK._is_owned():
-                        site_router.SITE_CONFIG_WRITE_LOCK.release()
+                    if site_router.EXPORT_CONFIG_WRITE_LOCK._is_owned():
+                        site_router.EXPORT_CONFIG_WRITE_LOCK.release()
 
             assert response.status_code == 200, response.text
             assert not list(config_dir.glob("*.tmp"))
@@ -2290,6 +2290,23 @@ class TestSiteGroups:
             assert "Actual selected title" in html
             assert "Plot 1" not in html
             assert "Aperçu avec données fictives" not in html
+
+    def test_group_index_template_escapes_dynamic_client_rendering(self):
+        template = Path("src/niamoto/publish/templates/_group_index.html").read_text(
+            encoding="utf-8"
+        )
+
+        assert "function escapeHtml" in template
+        assert "function safeUrl" in template
+        assert "function sanitizeInlineStyle" in template
+        assert "function sanitizeCssClass" in template
+        assert "style=\"background-image: url('${imageUrl}')\"" not in template
+        assert (
+            '<a href="${item[indexConfig.id_column]}.html">${itemName}</a>'
+            not in template
+        )
+        assert 'return `<a href="${finalUrl}" class="${cssClass}"' not in template
+        assert "String(itemId).replace(/[\\\\/]/g, '_')" in template
 
     def test_preview_group_index_does_not_read_database_from_other_project(
         self, monkeypatch: pytest.MonkeyPatch

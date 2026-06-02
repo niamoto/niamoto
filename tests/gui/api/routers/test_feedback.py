@@ -101,6 +101,38 @@ def test_submit_feedback_proxies_to_worker(monkeypatch):
     }
 
 
+def test_submit_feedback_ignores_form_config_when_backend_env_is_missing(monkeypatch):
+    monkeypatch.delenv("NIAMOTO_FEEDBACK_WORKER_URL", raising=False)
+    monkeypatch.delenv("NIAMOTO_FEEDBACK_API_KEY", raising=False)
+    monkeypatch.delenv("VITE_FEEDBACK_WORKER_URL", raising=False)
+    monkeypatch.delenv("VITE_FEEDBACK_API_KEY", raising=False)
+    forwarded = False
+
+    async def fake_forward_feedback(*_args, **_kwargs):
+        nonlocal forwarded
+        forwarded = True
+        return 201, {"success": True, "screenshot_uploaded": False}
+
+    monkeypatch.setattr(
+        "niamoto.gui.api.routers.feedback._forward_feedback",
+        fake_forward_feedback,
+    )
+
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/feedback/submit",
+        data={
+            "payload": '{"type":"suggestion","title":"Import wording"}',
+            "worker_url": "https://feedback.example.com",
+            "api_key": "client-build-secret",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Feedback API key not configured in this build."
+    assert forwarded is False
+
+
 def test_forward_feedback_revalidates_worker_dns_before_request(monkeypatch):
     monkeypatch.setattr(
         "niamoto.gui.api.url_security.socket.getaddrinfo",

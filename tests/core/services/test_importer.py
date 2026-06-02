@@ -7,7 +7,7 @@ from unittest import mock
 import pandas as pd
 import pytest
 
-from niamoto.common.exceptions import ValidationError, FileReadError
+from niamoto.common.exceptions import ValidationError, FileReadError, DataImportError
 from niamoto.common.database import Database
 from niamoto.core.services.importer import ImporterService
 from niamoto.core.imports.engine import ImportResult, GenericImporter
@@ -32,6 +32,9 @@ def mock_database():
         # Use spec= to ensure only valid Database methods can be called
         db_instance = mock.Mock(spec=Database)
         db_instance.engine = mock.Mock()
+        db_instance.engine.dialect.identifier_preparer.quote.side_effect = (
+            lambda name: f'"{name}"'
+        )
         db_instance.has_table = mock.Mock(return_value=False)
         db_cls.return_value = db_instance
         yield db_cls
@@ -114,7 +117,7 @@ def test_import_dataset(service, mock_engine, tmp_path):
 
 
 def test_import_reference_with_reset_table(service, mock_engine, tmp_path):
-    """Test importing a reference with table reset."""
+    """reset_table should delegate replacement to the importer, not pre-drop."""
     csv_path = tmp_path / "sites.csv"
     pd.DataFrame({"site_id": [1], "site_name": ["Site A"]}).to_csv(
         csv_path, index=False
@@ -135,9 +138,84 @@ def test_import_reference_with_reset_table(service, mock_engine, tmp_path):
 
     msg = service.import_reference("sites", config, reset_table=True)
 
-    # Verify table was dropped
-    service.db.execute_sql.assert_called_once_with("DROP TABLE IF EXISTS entity_sites")
+    sql_calls = [call.args[0] for call in service.db.execute_sql.call_args_list]
+    assert sql_calls[0].startswith('CREATE TABLE "__niamoto_reset_entity_sites')
+    assert 'AS SELECT * FROM "entity_sites"' in sql_calls[0]
+    assert sql_calls[1].startswith('DROP TABLE IF EXISTS "__niamoto_reset_entity_sites')
+    assert 'DROP TABLE IF EXISTS "entity_sites"' not in sql_calls
     assert "Imported 1 records" in msg
+
+
+def test_import_dataset_reset_table_does_not_drop_when_importer_fails(
+    service, mock_engine, tmp_path
+):
+    """reset_table must not delete existing data before replacement import succeeds."""
+    csv_path = tmp_path / "observations.csv"
+    pd.DataFrame({"occurrence_id": [1]}).to_csv(csv_path, index=False)
+    service.db.has_table = mock.Mock(return_value=True)
+    service.db.execute_sql = mock.Mock()
+    mock_engine.import_from_csv.side_effect = RuntimeError("boom")
+
+    config = DatasetEntityConfig(
+        connector=ConnectorConfig(type=ConnectorType.FILE, path=str(csv_path)),
+        schema=EntitySchema(id_field="occurrence_id", fields=[]),
+    )
+
+    with pytest.raises(Exception):
+        service.import_dataset("observations", config, reset_table=True)
+
+    sql_calls = [call.args[0] for call in service.db.execute_sql.call_args_list]
+    assert sql_calls[0].startswith('CREATE TABLE "__niamoto_reset_dataset_obser')
+    assert any(
+        sql == 'DROP TABLE IF EXISTS "dataset_observations"' for sql in sql_calls
+    )
+    assert any(
+        sql.startswith(
+            'CREATE TABLE "dataset_observations" AS SELECT * FROM "__niamoto_reset_dataset_obser'
+        )
+        for sql in sql_calls
+    )
+
+
+def test_import_dataset_reset_table_restores_existing_table_on_late_failure(
+    monkeypatch, tmp_path
+):
+    """reset_table keeps old rows when a fully staged replacement fails late."""
+    project_dir = tmp_path / "project"
+    db_dir = project_dir / "db"
+    db_dir.mkdir(parents=True)
+    service = ImporterService(str(db_dir / "niamoto.db"))
+
+    try:
+        service.db.execute_sql("CREATE TABLE dataset_observations (value TEXT)")
+        service.db.execute_sql("INSERT INTO dataset_observations VALUES ('old')")
+
+        csv_path = tmp_path / "observations.csv"
+        csv_path.write_text("value\nnew\n", encoding="utf-8")
+        monkeypatch.setattr(
+            service.engine,
+            "_analyze_for_transformers",
+            mock.Mock(return_value=None),
+        )
+        monkeypatch.setattr(
+            service.registry,
+            "register_entity",
+            mock.Mock(side_effect=RuntimeError("registry failed")),
+        )
+
+        config = DatasetEntityConfig(
+            connector=ConnectorConfig(type=ConnectorType.FILE, path=str(csv_path)),
+        )
+
+        with pytest.raises(DataImportError):
+            service.import_dataset("observations", config, reset_table=True)
+
+        row = service.db.execute_sql(
+            "SELECT value FROM dataset_observations", fetch=True
+        )
+        assert row[0] == "old"
+    finally:
+        service.close()
 
 
 def test_import_reference_missing_file(service, mock_engine, tmp_path):

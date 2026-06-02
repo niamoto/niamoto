@@ -141,6 +141,18 @@ class TestWidgetGeneratorByCategory:
         assert len(suggestions) >= 1
         transformers = {s.transformer_plugin for s in suggestions}
         assert "geospatial_extractor" in transformers
+        map_suggestion = next(
+            suggestion
+            for suggestion in suggestions
+            if suggestion.transformer_plugin == "geospatial_extractor"
+            and suggestion.widget_plugin == "interactive_map"
+        )
+        assert map_suggestion.transformer_config["format"] == "geojson"
+        assert map_suggestion.transformer_config["group_by_coordinates"] is True
+        assert map_suggestion.widget_params["geojson_field"] == "features"
+        assert map_suggestion.widget_params["map_type"] == "scatter_map"
+        assert map_suggestion.widget_params["map_style"] == "carto-positron"
+        assert map_suggestion.widget_params["auto_zoom"] is True
 
     def test_identifier_produces_no_suggestions(self, gen):
         """IDENTIFIER → no suggestions (intentionally skipped)."""

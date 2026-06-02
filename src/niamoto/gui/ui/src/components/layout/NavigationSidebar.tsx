@@ -49,9 +49,18 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
 
   const collectionsRouteActive =
     location.pathname === '/groups' || location.pathname.startsWith('/groups/')
-  const { data: referencesData } = useReferences()
-  const references = referencesData?.references ?? []
-  const { data: catalogData } = useCollectionsCatalog({
+  const {
+    data: referencesData,
+    isLoading: referencesLoading,
+  } = useReferences()
+  const references = useMemo(
+    () => referencesData?.references ?? [],
+    [referencesData],
+  )
+  const {
+    data: catalogData,
+    isLoading: catalogLoading,
+  } = useCollectionsCatalog({
     enabled: collectionsRouteActive,
   })
   const { data: pipelineStatus } = usePipelineStatus(collectionsRouteActive)
@@ -61,10 +70,23 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
     currentGroup: string | null
     completedGroups: string[]
   }>({ jobId: null, currentGroup: null, completedGroups: [] })
-  const collections = buildCollectionDisplayItems(
-    references,
-    catalogData?.collections ?? [],
+  const catalogCollections = useMemo(
+    () => catalogData?.collections ?? [],
+    [catalogData],
   )
+  const collections = useMemo(
+    () => buildCollectionDisplayItems(
+      references,
+      catalogCollections,
+    ),
+    [catalogCollections, references],
+  )
+  const collectionsNavLoading =
+    collectionsRouteActive
+    && (
+      (referencesLoading && !referencesData)
+      || (catalogLoading && !catalogData)
+    )
   const runningTransformJob = pipelineStatus?.running_job?.type === 'transform'
     ? pipelineStatus.running_job
     : null
@@ -253,7 +275,10 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
             const Icon = item.icon
             const active = isActive(item.matchPrefix)
             const showCollectionsChildren =
-              item.id === 'groups' && collectionsRouteActive && !isCompact && collections.length > 0
+              item.id === 'groups'
+              && collectionsRouteActive
+              && !isCompact
+              && (collectionsNavLoading || collections.length > 0)
 
             return (
               <div key={item.id}>
@@ -277,64 +302,73 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
 
                 {showCollectionsChildren && (
                   <ul className="mt-1 ml-4 border-l border-border/60 pl-2 space-y-0.5">
-                    {collections.map((ref) => {
-                      const isCurrent = ref.name === activeCollectionName
-                      const activity = transformActivityByGroup.get(ref.name)
-                      const status = collectionStatusByName.get(ref.name)
-                      return (
-                        <li key={ref.name}>
-                          <NavLink
-                            to={buildCollectionsPath(
-                              { type: 'collection', name: ref.name },
-                              defaultCollectionTab(ref),
-                            )}
-                            className={cn(
-                              'relative flex min-w-0 items-center gap-2 overflow-hidden rounded-theme-sm px-2 py-1.5 text-[11px] transition-theme-fast',
-                              'hover:bg-background/80 hover:text-foreground',
-                              activity?.state === 'running' && 'bg-primary/5',
-                              isCurrent
-                                ? 'bg-background/90 text-foreground font-medium'
-                                : activity
-                                  ? 'text-foreground'
-                                  : 'text-muted-foreground'
-                            )}
-                            title={ref.name}
-                          >
-                            <span
-                              className={cn(
-                                'h-1.5 w-1.5 rounded-full shrink-0',
-                                activity?.state === 'running'
-                                  ? 'animate-pulse bg-primary ring-2 ring-primary/15'
-                                  : activity?.state === 'completed'
-                                    ? 'bg-green-500'
-                                    : status === 'fresh'
-                                      ? 'bg-green-500'
-                                      : status === 'stale' || status === 'pending'
-                                        ? 'bg-amber-500'
-                                        : isCurrent
-                                          ? 'bg-primary'
-                                          : 'bg-muted-foreground/40'
-                              )}
-                            />
-                            <span className="truncate">{ref.displayName}</span>
-                            {activity && (
-                              <span
-                                aria-hidden="true"
-                                className="pointer-events-none absolute inset-x-1 bottom-0.5 h-px overflow-hidden rounded-full bg-primary/10"
-                              >
-                                <span
-                                  className={cn(
-                                    'block h-full rounded-full transition-[width] duration-500 ease-out',
-                                    activity.state === 'completed' ? 'bg-green-500' : 'bg-primary'
-                                  )}
-                                  style={{ width: `${getSidebarActivityProgress(activity)}%` }}
-                                />
-                              </span>
-                            )}
-                          </NavLink>
+                    {collectionsNavLoading
+                      ? Array.from({ length: 3 }).map((_, index) => (
+                        <li key={`collection-loading-${index}`}>
+                          <div className="flex min-w-0 items-center gap-2 rounded-theme-sm px-2 py-1.5">
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/30" />
+                            <span className="h-3 flex-1 rounded bg-muted/70" />
+                          </div>
                         </li>
-                      )
-                    })}
+                      ))
+                      : collections.map((ref) => {
+                        const isCurrent = ref.name === activeCollectionName
+                        const activity = transformActivityByGroup.get(ref.name)
+                        const status = collectionStatusByName.get(ref.name)
+                        return (
+                          <li key={ref.name}>
+                            <NavLink
+                              to={buildCollectionsPath(
+                                { type: 'collection', name: ref.name },
+                                defaultCollectionTab(ref),
+                              )}
+                              title={ref.name}
+                              className={cn(
+                                'relative flex min-w-0 items-center gap-2 overflow-hidden rounded-theme-sm px-2 py-1.5 text-[11px] transition-theme-fast',
+                                'hover:bg-background/80 hover:text-foreground',
+                                activity?.state === 'running' && 'bg-primary/5',
+                                isCurrent
+                                  ? 'bg-background/90 text-foreground font-medium'
+                                  : activity
+                                    ? 'text-foreground'
+                                    : 'text-muted-foreground'
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  'h-1.5 w-1.5 rounded-full shrink-0',
+                                  activity?.state === 'running'
+                                    ? 'animate-pulse bg-primary ring-2 ring-primary/15'
+                                    : activity?.state === 'completed'
+                                      ? 'bg-green-500'
+                                      : status === 'fresh'
+                                        ? 'bg-green-500'
+                                        : status === 'stale' || status === 'pending'
+                                          ? 'bg-amber-500'
+                                          : isCurrent
+                                            ? 'bg-primary'
+                                            : 'bg-muted-foreground/40'
+                                )}
+                              />
+                              <span className="truncate">{ref.displayName}</span>
+                              {activity && (
+                                <span
+                                  aria-hidden="true"
+                                  className="pointer-events-none absolute inset-x-1 bottom-0.5 h-px overflow-hidden rounded-full bg-primary/10"
+                                >
+                                  <span
+                                    className={cn(
+                                      'block h-full rounded-full transition-[width] duration-500 ease-out',
+                                      activity.state === 'completed' ? 'bg-green-500' : 'bg-primary'
+                                    )}
+                                    style={{ width: `${getSidebarActivityProgress(activity)}%` }}
+                                  />
+                                </span>
+                              )}
+                            </NavLink>
+                          </li>
+                        )
+                      })}
                   </ul>
                 )}
               </div>

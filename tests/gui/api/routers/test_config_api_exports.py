@@ -58,6 +58,47 @@ def test_list_export_widgets_reads_groups_under_params(
     ]
 
 
+def test_list_export_widgets_skips_non_web_export_group_shadow(
+    gui_duckdb_client, gui_duckdb_context
+):
+    export_path = gui_duckdb_context / "config" / "export.yml"
+    export_path.write_text(
+        yaml.safe_dump(
+            {
+                "exports": [
+                    {
+                        "name": "json_api",
+                        "exporter": "json_api_exporter",
+                        "groups": [{"group_by": "taxons", "fields": ["id"]}],
+                    },
+                    {
+                        "name": "web_pages",
+                        "exporter": "html_page_exporter",
+                        "groups": [
+                            {
+                                "group_by": "taxons",
+                                "widgets": [
+                                    {
+                                        "plugin": "info_grid",
+                                        "data_source": "general_info",
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                ]
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.get("/api/config/export/taxons/widgets")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == [{"plugin": "info_grid", "data_source": "general_info"}]
+
+
 def test_get_index_generator_reads_groups_under_params(
     gui_duckdb_client, gui_duckdb_context
 ):
@@ -1530,6 +1571,39 @@ def test_api_export_preview_get_route_uses_saved_group_config(monkeypatch):
     assert payload["metadata"]["source_record_id"] == 7
 
 
+def test_api_export_preview_get_route_rejects_unsaved_group(monkeypatch):
+    monkeypatch.setattr(
+        config_router,
+        "_load_export_config",
+        lambda: {
+            "exports": [
+                {
+                    "name": "json_api",
+                    "exporter": "json_api_exporter",
+                    "params": {"output_dir": "exports/json_api"},
+                    "groups": [],
+                }
+            ]
+        },
+    )
+
+    def fail_load_preview_item(*_args, **_kwargs):
+        raise AssertionError("preview should not read tables for unsaved groups")
+
+    monkeypatch.setattr(
+        config_router, "_load_api_export_preview_item", fail_load_preview_item
+    )
+
+    response = TestClient(create_app()).get(
+        "/api/config/export/api-targets/json_api/groups/internal_table/preview"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == (
+        "API export group 'internal_table' is not saved"
+    )
+
+
 def test_api_export_preview_route_applies_dwc_transformer_for_detail(monkeypatch):
     monkeypatch.setattr(
         config_router,
@@ -1800,6 +1874,7 @@ def test_load_api_export_preview_items_uses_data_source_and_sorts(
     db_path = tmp_path / "db" / "niamoto.duckdb"
     db_path.parent.mkdir()
     db_path.touch()
+    created_databases = []
 
     class FakeRows:
         def all(self):
@@ -1823,11 +1898,15 @@ def test_load_api_export_preview_items_uses_data_source_and_sorts(
             assert read_only is True
             self.session = FakeSession()
             self.closed = False
+            created_databases.append(self)
 
         def has_table(self, table_name):
             return table_name == "plot_stats"
 
         def close_db_session(self):
+            raise AssertionError("preview helpers must dispose the Database wrapper")
+
+        def close(self):
             self.closed = True
 
     monkeypatch.setattr(config_router, "get_working_directory", lambda: tmp_path)
@@ -1843,6 +1922,7 @@ def test_load_api_export_preview_items_uses_data_source_and_sorts(
 
     assert [item["plots_id"] for item in items] == [2, 1]
     assert items[0]["general_info"]["name"]["value"] == "Plot B"
+    assert [db.closed for db in created_databases] == [True]
 
 
 def test_load_api_export_preview_items_falls_back_to_legacy_data_table(
@@ -1879,6 +1959,9 @@ def test_load_api_export_preview_items_falls_back_to_legacy_data_table(
         def close_db_session(self):
             pass
 
+        def close(self):
+            pass
+
     monkeypatch.setattr(config_router, "get_working_directory", lambda: tmp_path)
     monkeypatch.setattr("niamoto.common.database.Database", FakeDatabase)
     monkeypatch.setattr(
@@ -1910,14 +1993,20 @@ def test_apply_api_export_preview_transformer_uses_first_populated_result(
     db_path = tmp_path / "db" / "niamoto.duckdb"
     db_path.parent.mkdir()
     db_path.touch()
+    created_databases = []
 
     class FakeDatabase:
         def __init__(self, path, read_only=False):
             assert path == str(db_path)
             assert read_only is True
+            self.closed = False
+            created_databases.append(self)
 
         def close_db_session(self):
-            pass
+            raise AssertionError("preview helpers must dispose the Database wrapper")
+
+        def close(self):
+            self.closed = True
 
     class FakeExporter:
         def __init__(self, db):
@@ -1951,6 +2040,7 @@ def test_apply_api_export_preview_transformer_uses_first_populated_result(
 
     assert item == {"id": 2}
     assert preview == [{"occurrenceID": "taxon-2"}]
+    assert [db.closed for db in created_databases] == [True]
 
 
 def test_build_api_export_preview_maps_curated_detail(monkeypatch):

@@ -23,6 +23,7 @@ GITHUB_API_SAFE_FILE_LIMIT = 400
 GITHUB_API_WRITE_DELAY_SECONDS = 1.0
 DEFAULT_GIT_AUTHOR_NAME = "Niamoto Deploy"
 DEFAULT_GIT_AUTHOR_EMAIL = "deploy@niamoto.local"
+PROTECTED_DEPLOY_BRANCHES = frozenset({"main", "master", "trunk", "develop", "dev"})
 
 
 @register("github")
@@ -54,7 +55,25 @@ class GitHubDeployer(DeployerPlugin):
             return
 
         owner, repo = repo_slug.split("/", 1)
-        branch = str(config.branch or config.extra.get("branch") or "gh-pages")
+        branch = self._normalize_branch_name(
+            str(config.branch or config.extra.get("branch") or "gh-pages")
+        )
+        if self._is_protected_deploy_branch(config, branch):
+            yield self.sse_error(f"Refusing to deploy to protected branch '{branch}'.")
+            yield self.sse_done()
+            return
+        (
+            default_branch,
+            default_branch_error,
+        ) = await self._get_repository_default_branch(owner, repo, token)
+        if default_branch_error:
+            yield self.sse_error(default_branch_error)
+            yield self.sse_done()
+            return
+        if self._is_protected_deploy_branch(config, branch, default_branch):
+            yield self.sse_error(f"Refusing to deploy to protected branch '{branch}'.")
+            yield self.sse_done()
+            return
 
         yield self.sse_log(f"Deploying to {owner}/{repo} (branch: {branch})")
 
@@ -409,7 +428,25 @@ class GitHubDeployer(DeployerPlugin):
             return
 
         owner, repo = repo_slug.split("/", 1)
-        branch = str(config.branch or config.extra.get("branch") or "gh-pages")
+        branch = self._normalize_branch_name(
+            str(config.branch or config.extra.get("branch") or "gh-pages")
+        )
+        if self._is_protected_deploy_branch(config, branch):
+            yield self.sse_error(f"Refusing to delete protected branch '{branch}'.")
+            yield self.sse_done()
+            return
+        (
+            default_branch,
+            default_branch_error,
+        ) = await self._get_repository_default_branch(owner, repo, token)
+        if default_branch_error:
+            yield self.sse_error(default_branch_error)
+            yield self.sse_done()
+            return
+        if self._is_protected_deploy_branch(config, branch, default_branch):
+            yield self.sse_error(f"Refusing to delete protected branch '{branch}'.")
+            yield self.sse_done()
+            return
 
         yield self.sse_log(f"Deleting branch '{branch}' from {owner}/{repo}...")
 
@@ -463,6 +500,57 @@ class GitHubDeployer(DeployerPlugin):
     def _get_git_author_email(config: DeployConfig) -> str:
         """Return the local git author email for deployment commits."""
         return str(config.extra.get("git_user_email") or DEFAULT_GIT_AUTHOR_EMAIL)
+
+    @staticmethod
+    def _normalize_branch_name(branch: str) -> str:
+        """Return a plain branch name from common ref spellings."""
+        normalized = branch.strip()
+        if normalized.startswith("refs/heads/"):
+            normalized = normalized.removeprefix("refs/heads/")
+        return normalized
+
+    @staticmethod
+    def _is_protected_deploy_branch(
+        config: DeployConfig, branch: str, default_branch: str | None = None
+    ) -> bool:
+        """Return whether a deploy branch is too likely to be source code."""
+        if config.extra.get("allow_protected_branch_deploy") is True:
+            return False
+        normalized = GitHubDeployer._normalize_branch_name(branch).lower()
+        if normalized in PROTECTED_DEPLOY_BRANCHES:
+            return True
+        if default_branch:
+            return (
+                normalized
+                == GitHubDeployer._normalize_branch_name(default_branch).lower()
+            )
+        return False
+
+    @staticmethod
+    async def _get_repository_default_branch(
+        owner: str, repo: str, token: str
+    ) -> tuple[str | None, str | None]:
+        """Fetch the repository default branch for destructive branch checks."""
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "User-Agent": "Niamoto-Deploy",
+            "Accept": "application/vnd.github+json",
+        }
+        try:
+            async with httpx.AsyncClient(
+                base_url=BASE_URL, headers=headers, timeout=30.0
+            ) as client:
+                resp = await client.get(f"/repos/{owner}/{repo}")
+        except httpx.HTTPError as exc:
+            return None, f"GitHub API request failed: {exc}"
+
+        if resp.status_code == 404:
+            return None, f"Repository '{owner}/{repo}' not found (404)."
+        if resp.status_code >= 400:
+            return None, f"Failed to inspect repository: HTTP {resp.status_code}"
+
+        default_branch = resp.json().get("default_branch")
+        return str(default_branch) if default_branch else None, None
 
     @staticmethod
     def _get_git_remote_url(owner: str, repo: str) -> str:

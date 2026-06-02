@@ -139,8 +139,8 @@ export function ImportContextPanel({
                   {t('cockpit.context.details')}
                 </div>
                 <div className="space-y-1.5">
-                  {item.details.slice(0, 8).map((detail) => (
-                    <div key={`${detail.label}:${detail.value}`} className="rounded-md bg-background/70 px-2 py-1.5">
+                  {item.details.slice(0, 8).map((detail, detailIndex) => (
+                    <div key={`${detail.label}:${detail.value}:${detailIndex}`} className="rounded-md bg-background/70 px-2 py-1.5">
                       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
                         {t(`cockpit.detailLabels.${detail.label}`, { defaultValue: detail.label })}
                       </div>

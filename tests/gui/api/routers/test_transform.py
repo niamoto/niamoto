@@ -18,6 +18,7 @@ class _DummyJobStore:
         self.completed_result = None
         self.failed_error = None
         self.status = "running"
+        self.cancelled_message = None
 
     def update_progress(self, job_id: str, progress: int, message: str) -> None:
         return None
@@ -29,6 +30,11 @@ class _DummyJobStore:
     def fail_job(self, job_id: str, error: str) -> None:
         self.failed_error = error
         self.status = "failed"
+
+    def cancel_job(self, job_id: str, message: str = "Job cancelled") -> dict:
+        self.cancelled_message = message
+        self.status = "cancelled"
+        return {"id": job_id, "status": self.status, "message": message}
 
     def get_job(self, job_id: str) -> dict:
         return {"id": job_id, "status": self.status}
@@ -67,6 +73,19 @@ class _StatusJobStore:
             "status": "cancelled",
             "message": message,
             "completed_at": "2026-04-12T09:02:00",
+        }
+        return self.job
+
+    def request_cancellation(
+        self, job_id: str, message: str = "Cancellation requested"
+    ) -> dict | None:
+        if not self.job or self.job["id"] != job_id or self.job["status"] != "running":
+            return None
+        self.job = {
+            **self.job,
+            "status": "cancelling",
+            "message": message,
+            "completed_at": None,
         }
         return self.job
 
@@ -142,6 +161,54 @@ def test_execute_transform_rejects_unsandboxed_config_path_before_job_creation(
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid transform config path"
     assert job_store_called is False
+
+
+def test_execute_transform_queues_captured_project_paths(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    """Background transform jobs must use the project captured at queue time."""
+    project = tmp_path / "project-a"
+    config_dir = project / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "transform.yml").write_text("transforms: []\n", encoding="utf-8")
+    db_path = project / "db" / "niamoto.duckdb"
+    captured = {}
+
+    class CapturingBackgroundTasks:
+        def add_task(self, func, *args, **kwargs):
+            captured["func"] = func
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+
+    class DummyJobStore:
+        def get_running_job(self):
+            return None
+
+        def create_job(self, job_type, group_by=None, group_bys=None):
+            return {
+                "id": "job-1",
+                "started_at": "2026-04-12T09:00:00",
+            }
+
+    monkeypatch.setattr(transform_router, "get_working_directory", lambda: project)
+    monkeypatch.setattr(transform_router, "get_database_path", lambda: db_path)
+    monkeypatch.setattr(
+        transform_router, "_get_job_store", lambda _request: DummyJobStore()
+    )
+
+    request = transform_router.TransformRequest(config_path="config/transform.yml")
+    response = asyncio.run(
+        transform_router.execute_transform(
+            request,
+            CapturingBackgroundTasks(),
+            SimpleNamespace(app=SimpleNamespace()),
+        )
+    )
+
+    assert response.job_id == "job-1"
+    assert captured["func"] is transform_router.execute_transform_background
+    assert captured["args"][6] == str(project.resolve())
+    assert captured["args"][7] == str(db_path)
 
 
 @pytest.mark.anyio
@@ -298,6 +365,50 @@ async def test_execute_transform_background_observes_cancelled_status(
     )
 
     assert job_store.completed_result is None
+    assert job_store.failed_error is None
+
+
+@pytest.mark.anyio
+async def test_execute_transform_background_finalizes_cancelling_status(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class DummyTransformerService:
+        def __init__(self, db_path: str, config, enable_cli_integration: bool = False):
+            self.transforms_config = []
+            self.config = type("DummyConfig", (), {"transforms": []})()
+
+        def transform_data(self, group_by, csv_file, recreate_table, progress_callback):
+            progress_callback({"processed": 0, "total": 1, "group": "taxons"})
+            raise AssertionError("cancelling progress should stop transform_data")
+
+    transform_config = [
+        {"group_by": "taxons", "widgets_data": {"widget_a": {"plugin": "foo"}}}
+    ]
+
+    monkeypatch.setattr(
+        transform_router, "get_transform_config", lambda path: transform_config
+    )
+    monkeypatch.setattr(
+        transform_router, "get_database_path", lambda: tmp_path / "db.duckdb"
+    )
+    monkeypatch.setattr(transform_router, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        transform_router, "Config", lambda config_dir, create_default=False: object()
+    )
+    monkeypatch.setattr(transform_router, "TransformerService", DummyTransformerService)
+
+    job_store = _DummyJobStore()
+    job_store.status = "cancelling"
+
+    await transform_router.execute_transform_background(
+        "job-1",
+        job_store,
+        "config/transform.yml",
+    )
+
+    assert job_store.status == "cancelled"
+    assert job_store.cancelled_message == "Transform job cancelled"
     assert job_store.failed_error is None
 
 
@@ -908,8 +1019,8 @@ async def test_cancel_transform_job_marks_running_transform_cancelled(
     )
 
     assert status["job_id"] == "job-1"
-    assert status["status"] == "cancelled"
-    assert status["message"] == "Transform job cancelled"
+    assert status["status"] == "cancelling"
+    assert status["message"] == "Transform job cancellation requested"
 
 
 @pytest.mark.anyio

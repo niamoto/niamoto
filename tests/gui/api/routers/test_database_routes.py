@@ -17,6 +17,10 @@ def test_table_stats_route_is_sync_for_threadpool_execution():
     assert not inspect.iscoroutinefunction(database_router.get_table_stats)
 
 
+def test_database_schema_route_is_sync_for_threadpool_execution():
+    assert not inspect.iscoroutinefunction(database_router.get_database_schema)
+
+
 def test_database_router_path_expands_configured_home_path(tmp_path, monkeypatch):
     """Router-local database lookup should expand ~/ paths from config.yml."""
     home_dir = tmp_path / "home"

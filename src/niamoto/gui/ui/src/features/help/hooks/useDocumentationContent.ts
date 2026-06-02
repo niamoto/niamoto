@@ -9,9 +9,7 @@ export function useHelpManifest() {
   return useQuery({
     queryKey: ['help', 'manifest'],
     queryFn: fetchHelpManifest,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+    staleTime: 5 * 60_000,
   })
 }
 
@@ -19,9 +17,7 @@ export function useHelpSearchIndex(enabled = true) {
   return useQuery({
     queryKey: ['help', 'search-index'],
     queryFn: fetchHelpSearchIndex,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+    staleTime: 5 * 60_000,
     enabled,
   })
 }
@@ -31,9 +27,7 @@ export function useHelpPage(slug: string | null | undefined) {
     queryKey: ['help', 'page', slug],
     queryFn: () => fetchHelpPage(slug as string),
     placeholderData: keepPreviousData,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+    staleTime: 5 * 60_000,
     enabled: Boolean(slug),
   })
 }

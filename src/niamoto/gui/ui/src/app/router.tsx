@@ -24,10 +24,15 @@ function lazyNamed<TModule extends Record<string, unknown>>(
   }
 }
 
+const routeHydrationFallback = (
+  <div aria-hidden="true" className="min-h-screen bg-background" />
+)
+
 const appRouter = createBrowserRouter([
   {
     path: '/',
     Component: MainLayout,
+    hydrateFallbackElement: routeHydrationFallback,
     children: [
       {
         index: true,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from typing import Any, NoReturn
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from niamoto.core.collections import CollectionCatalogService
@@ -15,10 +15,21 @@ from niamoto.core.collections.models import (
     CollectionRole,
     CollectionSourceType,
 )
+from niamoto.core.collections.widget_candidate_models import WidgetCandidateGroups
 from niamoto.gui.api.context import get_database_path, get_working_directory
+from niamoto.gui.api.desktop_auth import require_desktop_mutation_auth
+from niamoto.gui.api.models.widget_candidates import (
+    WidgetCandidateApplyRequest,
+    WidgetCandidateApplyResponse,
+    WidgetCandidatePreviewRequest,
+    WidgetCandidatePreviewResponse,
+)
 from niamoto.gui.api.services.collection_data_options import (
     CollectionDataOptionsResponse,
     CollectionDataOptionsService,
+)
+from niamoto.gui.api.services.collection_widget_candidates import (
+    CollectionWidgetCandidateService,
 )
 from niamoto.gui.api.services.templates.config_service import (
     load_export_config,
@@ -46,6 +57,8 @@ class CollectionUpdateRequest(BaseModel):
 
 class CollectionCreateRequest(BaseModel):
     """Payload for creating a manual collection."""
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1)
     source_type: CollectionSourceType
@@ -82,6 +95,17 @@ def _data_options_service() -> CollectionDataOptionsService:
     )
 
 
+def _widget_candidate_service() -> CollectionWidgetCandidateService:
+    work_dir = get_working_directory()
+    return CollectionWidgetCandidateService(
+        work_dir=work_dir,
+        db_path=get_database_path(),
+        import_config=load_import_config(work_dir),
+        transform_config=load_transform_config(work_dir),
+        export_config=load_export_config(work_dir),
+    )
+
+
 def _save_service_config(service: CollectionCatalogService) -> None:
     save_import_config(
         get_working_directory(), service.import_config, create_backup=True
@@ -100,7 +124,11 @@ def _raise_catalog_error(exc: ValueError) -> NoReturn:
 @router.get("", response_model=CollectionCatalog)
 async def list_collections() -> CollectionCatalog:
     """List reviewable collection candidates and manual source options."""
-    return _catalog_service().list_collections()
+    with COLLECTION_CONFIG_LOCK:
+        try:
+            return _catalog_service().list_collections()
+        except ValueError as exc:
+            _raise_catalog_error(exc)
 
 
 @router.get(
@@ -111,11 +139,75 @@ async def get_collection_data_options(
     collection_name: str,
 ) -> CollectionDataOptionsResponse:
     """Return configured and available reusable data outputs for a collection."""
+    with COLLECTION_CONFIG_LOCK:
+        try:
+            return _data_options_service().get_options(collection_name)
+        except KeyError as exc:
+            message = str(exc.args[0]) if exc.args else str(exc)
+            raise HTTPException(status_code=404, detail=message) from exc
+
+
+@router.get(
+    "/{collection_name}/widget-candidates",
+    response_model=WidgetCandidateGroups,
+)
+async def get_collection_widget_candidates(
+    collection_name: str,
+) -> WidgetCandidateGroups:
+    """Return unified widget candidates for a collection."""
+    with COLLECTION_CONFIG_LOCK:
+        service = _widget_candidate_service()
     try:
-        return _data_options_service().get_options(collection_name)
+        return service.get_candidates(collection_name)
     except KeyError as exc:
         message = str(exc.args[0]) if exc.args else str(exc)
         raise HTTPException(status_code=404, detail=message) from exc
+
+
+@router.post(
+    "/{collection_name}/widget-candidates/preview",
+    response_model=WidgetCandidatePreviewResponse,
+)
+async def preview_collection_widget_candidates(
+    collection_name: str,
+    request: WidgetCandidatePreviewRequest,
+) -> WidgetCandidatePreviewResponse:
+    """Preview selected widget candidate config changes without writing files."""
+    with COLLECTION_CONFIG_LOCK:
+        service = _widget_candidate_service()
+    try:
+        return service.preview_apply(
+            collection_name,
+            request.selections,
+        )
+    except KeyError as exc:
+        message = str(exc.args[0]) if exc.args else str(exc)
+        raise HTTPException(status_code=404, detail=message) from exc
+
+
+@router.post(
+    "/{collection_name}/widget-candidates/apply",
+    response_model=WidgetCandidateApplyResponse,
+)
+async def apply_collection_widget_candidates(
+    collection_name: str,
+    request: WidgetCandidateApplyRequest,
+    http_request: Request,
+) -> WidgetCandidateApplyResponse:
+    """Apply selected widget candidates to transform.yml and export.yml."""
+    require_desktop_mutation_auth(http_request)
+    try:
+        with COLLECTION_CONFIG_LOCK:
+            return _widget_candidate_service().apply(
+                collection_name,
+                request.selections,
+                preview_token=request.preview_token,
+            )
+    except KeyError as exc:
+        message = str(exc.args[0]) if exc.args else str(exc)
+        raise HTTPException(status_code=404, detail=message) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.patch("/{collection_name}", response_model=CollectionMutationResponse)
@@ -136,7 +228,8 @@ async def update_collection(
         try:
             collection = service.update_collection(collection_name, **payload)
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            message = str(exc.args[0]) if exc.args else str(exc)
+            raise HTTPException(status_code=404, detail=message) from exc
         except ValueError as exc:
             _raise_catalog_error(exc)
         _save_service_config(service)

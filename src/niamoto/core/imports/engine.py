@@ -13,10 +13,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 import logging
+import uuid
 
 import pandas as pd
 import geopandas as gpd
-from sqlalchemy.sql import quoted_name, text
+from sqlalchemy.sql import text
 
 from niamoto.common.database import Database
 from niamoto.common.exceptions import DatabaseQueryError
@@ -60,17 +61,110 @@ class GenericImporter:
         Recent SQLAlchemy + duckdb-engine combinations can fail when pandas uses
         ``if_exists="replace"`` because pandas reflects the table through
         PostgreSQL-style system catalogs. For DuckDB we avoid that code path by
-        dropping the table ourselves, then creating it with ``if_exists="fail"``.
+        writing a staging table, then swapping it into place after the write
+        succeeds.
         """
+        staging_table = self._staging_table_name(table_name)
+        backup_table: Optional[str] = None
+        installed = False
+        try:
+            self._write_dataframe_to_staging(df, staging_table)
+            backup_table = self._replace_table_with_staging(staging_table, table_name)
+            installed = True
+        except Exception:
+            if installed:
+                self._restore_table_backup(backup_table, table_name)
+            else:
+                self._drop_table_if_exists(staging_table)
+            raise
+        else:
+            self._drop_table_if_exists(backup_table)
 
-        if self.db.is_duckdb:
-            quoted_table = str(quoted_name(table_name, quote=True))
-            self.db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
-            df.to_sql(table_name, self.db.engine, if_exists="fail", index=False)
-            self.db.invalidate_table_names_cache()
+    def _write_dataframe_to_staging(self, df: pd.DataFrame, staging_table: str) -> None:
+        """Write a DataFrame into a caller-owned staging table."""
+        df.to_sql(staging_table, self.db.engine, if_exists="fail", index=False)
+
+    def _staging_table_name(self, table_name: str) -> str:
+        """Return a temporary table name used for atomic-ish replacements."""
+        safe_name = "".join(
+            char if char.isalnum() or char == "_" else "_" for char in table_name
+        )
+        return f"__niamoto_tmp_{safe_name[:24]}_{uuid.uuid4().hex[:12]}"
+
+    def _drop_table_if_exists(self, table_name: Optional[str]) -> None:
+        if not table_name:
             return
+        quoted_table = quote_identifier(self.db, table_name)
+        try:
+            self.db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
+            self.db.invalidate_table_names_cache()
+        except Exception:
+            logger.warning("Failed to drop staging table %s", table_name, exc_info=True)
 
-        df.to_sql(table_name, self.db.engine, if_exists="replace", index=False)
+    def _replace_table_with_staging(
+        self, staging_table: str, table_name: str
+    ) -> Optional[str]:
+        """Swap a fully written staging table into the target table name.
+
+        Existing targets are renamed to a temporary backup first. Callers keep
+        that backup until the surrounding import has fully succeeded, so later
+        registry/count failures can restore the previous table.
+        """
+        self.db.invalidate_table_names_cache()
+        backup_table = (
+            self._staging_table_name(f"{table_name}_backup")
+            if self.db.has_table(table_name)
+            else None
+        )
+        quoted_staging = quote_identifier(self.db, staging_table)
+        quoted_target = quote_identifier(self.db, table_name)
+        quoted_backup = (
+            quote_identifier(self.db, backup_table)
+            if backup_table is not None
+            else None
+        )
+        try:
+            with self.db.engine.begin() as connection:
+                if quoted_backup is not None:
+                    connection.execute(
+                        text(f"ALTER TABLE {quoted_target} RENAME TO {quoted_backup}")
+                    )
+                connection.execute(
+                    text(f"ALTER TABLE {quoted_staging} RENAME TO {quoted_target}")
+                )
+        except Exception:
+            self.db.invalidate_table_names_cache()
+            if backup_table and self.db.has_table(backup_table):
+                self._restore_table_backup(backup_table, table_name)
+            raise
+        self.db.invalidate_table_names_cache()
+        return backup_table
+
+    def _restore_table_backup(
+        self, backup_table: Optional[str], table_name: str
+    ) -> None:
+        """Restore the previous target table after a failed staged replacement."""
+        quoted_target = quote_identifier(self.db, table_name)
+        quoted_backup = (
+            quote_identifier(self.db, backup_table)
+            if backup_table is not None
+            else None
+        )
+        with self.db.engine.begin() as connection:
+            connection.execute(text(f"DROP TABLE IF EXISTS {quoted_target}"))
+            if quoted_backup is not None:
+                connection.execute(
+                    text(f"ALTER TABLE {quoted_backup} RENAME TO {quoted_target}")
+                )
+        self.db.invalidate_table_names_cache()
+
+    def _count_table_rows(self, table_name: str) -> int:
+        """Return the row count for a quoted table name."""
+        quoted_table = quote_identifier(self.db, table_name)
+        count_df = pd.read_sql(
+            f"SELECT COUNT(*) as count FROM {quoted_table}", self.db.engine
+        )
+        return int(count_df.iloc[0]["count"])
 
     def import_from_csv(
         self,
@@ -94,100 +188,101 @@ class GenericImporter:
             # Ensure we still create a table with the expected columns
             df = self._ensure_dataframe_structure(df, id_field=id_field)
 
-        # Use DuckDB-native ingestion when the source identifier already matches
-        # the metadata we will register. If we need to generate default IDs, write
-        # the normalized DataFrame so the physical table and registry stay aligned.
-        if self.db.is_duckdb:
-            quoted_table = str(quoted_name(table_name, quote=True))
-            primary_key = id_field or self._ensure_identifier(df)
-            if "extra_data" not in df.columns:
-                df["extra_data"] = None
+        primary_key = id_field or self._ensure_identifier(df)
+        if "extra_data" not in df.columns:
+            df["extra_data"] = None
 
-            needs_generated_default_id = (
-                not id_field
-                and primary_key == "id"
-                and ("id" not in source_columns or df["id"].isnull().any())
-            )
-            if needs_generated_default_id:
-                self._write_dataframe_to_table(df, table_name)
-            else:
-                # DuckDB native CSV ingestion using read_csv_auto and CTAS
-                # Drop existing table if needed
-                self.db.execute_sql(f"DROP TABLE IF EXISTS {quoted_table}")
-
-                # Ensure absolute path for DuckDB
-                absolute_csv_path = csv_path.absolute()
-                escaped_path = str(absolute_csv_path).replace("'", "''")
-
-                # Scan the full CSV for dialect and type detection. DuckDB's default
-                # sample can miss late quoted values and mixed identifier formats.
-                create_sql = f"""
-                    CREATE TABLE {quoted_table} AS
-                    SELECT * FROM read_csv_auto(
-                        '{escaped_path}',
-                        header=true,
-                        auto_detect=true,
-                        sample_size=-1
-                    )
-                """
-                self.db.execute_sql(create_sql)
-
-                # Add extra_data column for metadata storage
-                alter_sql = f"ALTER TABLE {quoted_table} ADD COLUMN extra_data JSON DEFAULT NULL"
-                self.db.execute_sql(alter_sql)
-        else:
-            # Fallback to pandas for SQLite
-            primary_key = id_field or self._ensure_identifier(df)
-
-            # Add extra_data column if not present (for metadata storage)
-            if "extra_data" not in df.columns:
-                df["extra_data"] = None
-
-            self._write_dataframe_to_table(df, table_name)
-
-        # Convert WKT geometry columns to native GEOMETRY for spatial queries
-        self._convert_wkt_columns_to_geometry(table_name, df.columns.tolist())
-
-        # Analyze dataset for transformer suggestions
-        semantic_profile = None
+        staging_table = self._staging_table_name(table_name)
+        backup_table: Optional[str] = None
+        installed = False
         try:
-            semantic_profile = self._analyze_for_transformers(
-                df=df,
-                csv_path=csv_path,
-                entity_name=entity_name,
+            # Use DuckDB-native ingestion when the source identifier already matches
+            # the metadata we will register. If we need to generate default IDs, write
+            # the normalized DataFrame so the physical table and registry stay aligned.
+            if self.db.is_duckdb:
+                needs_generated_default_id = (
+                    not id_field
+                    and primary_key == "id"
+                    and ("id" not in source_columns or df["id"].isnull().any())
+                )
+                if needs_generated_default_id:
+                    self._write_dataframe_to_staging(df, staging_table)
+                else:
+                    quoted_staging_table = quote_identifier(self.db, staging_table)
+
+                    # Ensure absolute path for DuckDB
+                    absolute_csv_path = csv_path.absolute()
+                    escaped_path = str(absolute_csv_path).replace("'", "''")
+
+                    # Scan the full CSV for dialect and type detection. DuckDB's
+                    # default sample can miss late quoted values and mixed IDs.
+                    create_sql = f"""
+                        CREATE TABLE {quoted_staging_table} AS
+                        SELECT * FROM read_csv_auto(
+                            '{escaped_path}',
+                            header=true,
+                            auto_detect=true,
+                            sample_size=-1
+                        )
+                    """
+                    self.db.execute_sql(create_sql)
+
+                    # Add extra_data column for metadata storage
+                    alter_sql = (
+                        f"ALTER TABLE {quoted_staging_table} "
+                        "ADD COLUMN extra_data JSON DEFAULT NULL"
+                    )
+                    self.db.execute_sql(alter_sql)
+            else:
+                # Fallback to pandas for SQLite
+                self._write_dataframe_to_staging(df, staging_table)
+
+            # Convert WKT geometry columns on the staged table. If any later step
+            # fails, the existing production table has not been touched yet.
+            self._convert_wkt_columns_to_geometry(staging_table, df.columns.tolist())
+
+            # Analyze dataset for transformer suggestions
+            semantic_profile = None
+            try:
+                semantic_profile = self._analyze_for_transformers(
+                    df=df,
+                    csv_path=csv_path,
+                    entity_name=entity_name,
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to generate transformer suggestions for '{entity_name}': {e}",
+                    exc_info=True,
+                )
+
+            metadata = self._build_metadata(
+                df,
+                primary_key=primary_key,
+                source_path=str(csv_path),
+                extra_config=extra_config,
             )
-        except Exception as e:
-            logger.warning(
-                f"Failed to generate transformer suggestions for '{entity_name}': {e}",
-                exc_info=True,
+
+            # Add semantic profile to metadata
+            if semantic_profile:
+                metadata["semantic_profile"] = semantic_profile
+
+            row_count = self._count_table_rows(staging_table)
+            backup_table = self._replace_table_with_staging(staging_table, table_name)
+            installed = True
+            self.registry.register_entity(
+                name=entity_name,
+                kind=kind,
+                table_name=table_name,
+                config=metadata,
             )
-
-        metadata = self._build_metadata(
-            df,
-            primary_key=primary_key,
-            source_path=str(csv_path),
-            extra_config=extra_config,
-        )
-
-        # Add semantic profile to metadata
-        if semantic_profile:
-            metadata["semantic_profile"] = semantic_profile
-
-        self.registry.register_entity(
-            name=entity_name,
-            kind=kind,
-            table_name=table_name,
-            config=metadata,
-        )
-
-        # Get actual row count from the table (not from the sample df for DuckDB)
-        if self.db.is_duckdb:
-            count_df = pd.read_sql(
-                f"SELECT COUNT(*) as count FROM {quoted_table}", self.db.engine
-            )
-            row_count = int(count_df.iloc[0]["count"])
+        except Exception:
+            if installed:
+                self._restore_table_backup(backup_table, table_name)
+            else:
+                self._drop_table_if_exists(staging_table)
+            raise
         else:
-            row_count = len(df)
+            self._drop_table_if_exists(backup_table)
 
         return ImportResult(rows=row_count, table=table_name)
 
@@ -225,38 +320,17 @@ class GenericImporter:
             source_table, extraction_config, entity_name
         )
         source_entity_name = self._resolve_entity_name(source_table)
+        external_id_field = f"{entity_name}_id" if extraction_config.id_column else None
 
         # 1b. Add nested sets (lft/rght) for efficient hierarchical queries
         if len(hierarchy_df) > 0:
             hierarchy_df = builder.add_nested_sets(hierarchy_df)
-
-        if len(hierarchy_df) == 0:
-            # No data extracted, register empty entity
-            external_id_field = (
-                f"{entity_name}_id" if extraction_config.id_column else None
+        else:
+            hierarchy_df = self._ensure_empty_derived_reference_structure(
+                hierarchy_df,
+                external_id_field=external_id_field,
+                include_name=bool(extraction_config.name_column),
             )
-            self.registry.register_entity(
-                name=entity_name,
-                kind=kind,
-                table_name=table_name,
-                config={
-                    "derived": {
-                        "source_entity": source_entity_name,
-                        "extraction_levels": [
-                            lv.name for lv in extraction_config.levels
-                        ],
-                        "id_strategy": extraction_config.id_strategy,
-                        "incomplete_rows": extraction_config.incomplete_rows,
-                        "external_id_field": external_id_field,
-                        "external_name_field": "full_name"
-                        if extraction_config.name_column
-                        else None,
-                        "extracted_at": datetime.now(timezone.utc).isoformat(),
-                    },
-                    "schema": {"id_field": "id", "fields": []},
-                },
-            )
-            return ImportResult(rows=0, table=table_name)
 
         # Add extra_data column if not present
         if "extra_data" not in hierarchy_df.columns:
@@ -266,7 +340,6 @@ class GenericImporter:
         self._write_dataframe_to_table(hierarchy_df, table_name)
 
         # 3. Register in registry with derived metadata
-        external_id_field = f"{entity_name}_id" if extraction_config.id_column else None
         derived_metadata = {
             "source_entity": source_entity_name,
             "extraction_levels": [lv.name for lv in extraction_config.levels],
@@ -360,6 +433,10 @@ class GenericImporter:
                     source.name,
                 )
 
+            if gdf.empty:
+                logger.warning("No features found in source: %s", source_path)
+                continue
+
             # 1. Create TYPE row (parent container for this source)
             type_row = {
                 id_field or "id": feature_id,
@@ -398,23 +475,23 @@ class GenericImporter:
 
         # Create DataFrame
         df = pd.DataFrame(all_features)
+        primary_key = id_field or "id"
 
         if df.empty:
             logger.warning(f"No features found in {len(sources)} sources")
-            return ImportResult(rows=0, table=table_name)
+            df = self._empty_multi_feature_dataframe(primary_key)
+        else:
+            # Add extra_data column if not present
+            if "extra_data" not in df.columns:
+                df["extra_data"] = None
 
-        # Add extra_data column if not present
-        if "extra_data" not in df.columns:
-            df["extra_data"] = None
+            # Add nested sets for hierarchical queries (reuse HierarchyBuilder)
+            from niamoto.core.imports.hierarchy_builder import HierarchyBuilder
 
-        # Add nested sets for hierarchical queries (reuse HierarchyBuilder)
-        from niamoto.core.imports.hierarchy_builder import HierarchyBuilder
-
-        builder = HierarchyBuilder(self.db)
-        df = builder.add_nested_sets(df)
+            builder = HierarchyBuilder(self.db)
+            df = builder.add_nested_sets(df)
 
         # Write to database
-        primary_key = id_field or "id"
         self._write_dataframe_to_table(df, table_name)
 
         # Convert WKT location to native GEOMETRY for spatial queries
@@ -593,6 +670,54 @@ class GenericImporter:
         if not id_field and "id" not in df.columns:
             df["id"] = []
         return df
+
+    def _ensure_empty_derived_reference_structure(
+        self,
+        df: pd.DataFrame,
+        *,
+        external_id_field: Optional[str],
+        include_name: bool,
+    ) -> pd.DataFrame:
+        """Ensure empty derived imports replace stale tables with a stable schema."""
+        expected_columns = [
+            "id",
+            "parent_id",
+            "level",
+            "rank_name",
+            "rank_value",
+            "full_path",
+            "lft",
+            "rght",
+        ]
+        if external_id_field:
+            expected_columns.append(external_id_field)
+        if include_name:
+            expected_columns.append("full_name")
+
+        structured = df.copy()
+        for column in expected_columns:
+            if column not in structured.columns:
+                structured[column] = []
+
+        return structured[expected_columns]
+
+    @staticmethod
+    def _empty_multi_feature_dataframe(primary_key: str) -> pd.DataFrame:
+        columns = [
+            primary_key,
+            "shape_id",
+            "name",
+            "location",
+            "entity_type",
+            "shape_type",
+            "type",
+            "level",
+            "parent_id",
+            "lft",
+            "rght",
+            "extra_data",
+        ]
+        return pd.DataFrame({column: pd.Series(dtype="object") for column in columns})
 
     def _ensure_identifier(self, df: pd.DataFrame) -> str:
         if "id" not in df.columns:

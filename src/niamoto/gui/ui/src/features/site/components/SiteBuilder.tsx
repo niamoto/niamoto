@@ -27,6 +27,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
 import { PanelTransition } from '@/components/motion/PanelTransition'
 import {
   AlertDialog,
@@ -86,6 +87,38 @@ const DEFAULT_SITE_PREVIEW_LAYOUT: SiteWorkbenchLayout = {
 const DEFAULT_SITE_EDITOR_LAYOUT: SiteWorkbenchLayout = {
   tree: 20,
   editor: 80,
+}
+
+function SiteBuilderSkeleton() {
+  return (
+    <div
+      aria-busy="true"
+      data-stable-loading="site-builder"
+      className="flex h-full flex-col"
+    >
+      <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-3">
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-3.5 w-64 max-w-full" />
+        </div>
+        <Skeleton className="h-8 w-24" />
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(180px,20%)_1fr] overflow-hidden">
+        <div className="space-y-3 border-r p-3">
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-5/6" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-3/4" />
+        </div>
+        <div className="space-y-4 p-4">
+          <Skeleton className="h-8 w-56 max-w-full" />
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
@@ -552,14 +585,7 @@ export function SiteBuilder({ initialSection = 'pages' }: SiteBuilderProps) {
 
   // Loading state
   if (state.isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center p-4">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">{t('messages.loadingConfig')}</p>
-        </div>
-      </div>
-    )
+    return <SiteBuilderSkeleton />
   }
 
   // Error state

@@ -26,7 +26,6 @@ export function usePipelineHistory(limit = 10) {
       return Array.isArray(data) ? data : []
     },
     staleTime: 30_000,
-    refetchOnMount: 'always',
     retry: 1,
   })
 }

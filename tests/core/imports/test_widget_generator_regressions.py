@@ -80,7 +80,7 @@ class TestScatterPlotActivation:
         assert len(ScatterPlotWidget.compatible_structures) > 0
 
     def test_scatter_analysis_config_mapping(self):
-        """scatter_analysis→scatter_plot should produce a config with x_axis."""
+        """scatter_analysis→scatter_plot should use the transformer output columns."""
         from niamoto.core.imports.widget_generator import WidgetGenerator
         from niamoto.core.imports.data_analyzer import (
             EnrichedColumnProfile,
@@ -108,4 +108,5 @@ class TestScatterPlotActivation:
             profile, "scatter_analysis", "scatter_plot"
         )
         assert config, "scatter_analysis→scatter_plot should produce config"
-        assert "x_axis" in config
+        assert config["x_axis"] == "x"
+        assert config["y_axis"] == "y"

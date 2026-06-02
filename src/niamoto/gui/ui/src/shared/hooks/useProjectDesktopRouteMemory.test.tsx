@@ -15,6 +15,7 @@ import {
   type ProjectDesktopContext,
   type ProjectDesktopRoute,
 } from '@/shared/desktop/projectDesktopContext'
+import { markCreatedProjectHomeTarget } from '@/shared/desktop/projectLaunchIntent'
 import {
   resetProjectDesktopRouteMemoryForTests,
   useProjectDesktopRouteMemory,
@@ -113,6 +114,7 @@ async function renderRouteMemoryProbe({
 describe('useProjectDesktopRouteMemory', () => {
   beforeEach(() => {
     resetProjectDesktopRouteMemoryForTests()
+    window.localStorage.clear()
     useCurrentProjectScope.mockReturnValue({
       projectScope: 'desktop:/tmp/project-a',
       desktopProjectScope: 'desktop:/tmp/project-a',
@@ -122,6 +124,7 @@ describe('useProjectDesktopRouteMemory', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
+    window.localStorage.clear()
   })
 
   it('restores the stored project route from the startup route', async () => {
@@ -164,6 +167,54 @@ describe('useProjectDesktopRouteMemory', () => {
     expect(storage.setItem).toHaveBeenCalledWith(
       buildProjectDesktopContextStorageKey('desktop:/tmp/project-a'),
       expect.stringContaining('"pathname":"/sources"'),
+    )
+    await harness.unmount()
+  })
+
+  it('keeps a newly created project on the home route instead of restoring the old route', async () => {
+    markCreatedProjectHomeTarget('/tmp/project-a')
+
+    const storage = createStorage({
+      [buildProjectDesktopContextStorageKey('desktop:/tmp/project-a')]:
+        JSON.stringify({
+          lastRoute: { pathname: '/publish', search: '', hash: '' },
+          updatedAt: 100,
+        }),
+    })
+
+    const harness = await renderRouteMemoryProbe({
+      initialEntry: '/',
+      storage,
+    })
+
+    expect(harness.location).toBe('/')
+    expect(storage.setItem).toHaveBeenCalledWith(
+      buildProjectDesktopContextStorageKey('desktop:/tmp/project-a'),
+      expect.stringContaining('"pathname":"/"'),
+    )
+    await harness.unmount()
+  })
+
+  it('redirects a newly created project back home when the reload starts from another route', async () => {
+    markCreatedProjectHomeTarget('/tmp/project-a')
+
+    const storage = createStorage({
+      [buildProjectDesktopContextStorageKey('desktop:/tmp/project-a')]:
+        JSON.stringify({
+          lastRoute: { pathname: '/groups', search: '', hash: '' },
+          updatedAt: 100,
+        }),
+    })
+
+    const harness = await renderRouteMemoryProbe({
+      initialEntry: '/publish',
+      storage,
+    })
+
+    expect(harness.location).toBe('/')
+    expect(storage.setItem).not.toHaveBeenCalledWith(
+      buildProjectDesktopContextStorageKey('desktop:/tmp/project-a'),
+      expect.stringContaining('"pathname":"/publish"'),
     )
     await harness.unmount()
   })
@@ -249,5 +300,19 @@ describe('useProjectDesktopRouteMemory', () => {
       { pathname: '/tools/history', search: '', hash: '' },
     )
     await harness.unmount()
+  })
+
+  it('stays quiet when native desktop storage is unavailable', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const harness = await renderRouteMemoryProbe({
+      initialEntry: '/site/pages',
+    })
+
+    expect(harness.location).toBe('/site/pages')
+    expect(warnSpy).not.toHaveBeenCalled()
+
+    await harness.unmount()
+    warnSpy.mockRestore()
   })
 })

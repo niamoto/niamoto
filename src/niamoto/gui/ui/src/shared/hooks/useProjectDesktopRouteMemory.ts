@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import {
+  DEFAULT_PROJECT_DESKTOP_CONTEXT,
   normalizeProjectDesktopRoute,
   readNativeProjectDesktopContext,
   readStoredProjectDesktopContext,
@@ -11,6 +12,8 @@ import {
   type ProjectDesktopContext,
   type ProjectDesktopRoute,
 } from '@/shared/desktop/projectDesktopContext'
+import { hasDesktopBridge } from '@/shared/desktop/bridge'
+import { consumeCreatedProjectHomeTarget } from '@/shared/desktop/projectLaunchIntent'
 import { useCurrentProjectScope } from './useCurrentProjectScope'
 
 const restoredProjectScopes = new Set<string>()
@@ -22,8 +25,14 @@ interface NativeProjectDesktopRouteStorage {
 }
 
 const DEFAULT_NATIVE_ROUTE_STORAGE: NativeProjectDesktopRouteStorage = {
-  read: readNativeProjectDesktopContext,
-  writeRoute: writeNativeProjectDesktopRoute,
+  read: (projectScope) =>
+    hasDesktopBridge()
+      ? readNativeProjectDesktopContext(projectScope)
+      : Promise.resolve(DEFAULT_PROJECT_DESKTOP_CONTEXT),
+  writeRoute: (projectScope, route) =>
+    hasDesktopBridge()
+      ? writeNativeProjectDesktopRoute(projectScope, route)
+      : Promise.resolve(),
 }
 
 interface UseProjectDesktopRouteMemoryOptions {
@@ -65,6 +74,22 @@ export function useProjectDesktopRouteMemory({
 
     const activeProjectScope = projectScope
     const activeRoute = currentRoute
+    const shouldKeepHomeRoute = consumeCreatedProjectHomeTarget(activeProjectScope)
+
+    if (shouldKeepHomeRoute) {
+      restoredProjectScopes.add(activeProjectScope)
+
+      if (
+        !isStartupRoute(
+          activeRoute.pathname,
+          activeRoute.search,
+          activeRoute.hash,
+        )
+      ) {
+        navigate('/', { replace: true })
+        return
+      }
+    }
 
     if (storage) {
       if (!restoredProjectScopes.has(activeProjectScope)) {

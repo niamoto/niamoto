@@ -1,9 +1,11 @@
 """Regression tests for recipe routes on DuckDB projects."""
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from copy import deepcopy
 from typing import Any
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
@@ -622,6 +624,63 @@ def test_save_recipe_rolls_back_export_when_transform_save_fails(monkeypatch, tm
     assert saved_export_configs[1] == {"exports": []}
 
 
+def test_save_recipe_waits_for_export_config_write_lock(monkeypatch, tmp_path):
+    class RecipeTransformer:
+        param_schema = None
+
+    class RecipeWidget:
+        param_schema = None
+
+    def fake_get_plugin(name, plugin_type):
+        if plugin_type == PluginType.TRANSFORMER and name == "field_aggregator":
+            return RecipeTransformer
+        if plugin_type == PluginType.WIDGET and name == "bar_plot":
+            return RecipeWidget
+        raise KeyError(name)
+
+    monkeypatch.setattr(
+        recipes.PluginRegistry, "get_plugin", staticmethod(fake_get_plugin)
+    )
+    monkeypatch.setattr(recipes, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(
+        recipes,
+        "load_transform_config",
+        lambda _work_dir: [{"group_by": "taxons", "sources": [], "widgets_data": {}}],
+    )
+    monkeypatch.setattr(
+        recipes, "load_export_config", lambda _work_dir: {"exports": []}
+    )
+    monkeypatch.setattr(
+        recipes, "save_transform_config", lambda _work_dir, config: None
+    )
+    monkeypatch.setattr(recipes, "save_export_config", lambda _work_dir, config: None)
+
+    client = TestClient(create_app())
+    payload = {
+        "group_by": "taxons",
+        "recipe": {
+            "widget_id": "richness",
+            "transformer": {"plugin": "field_aggregator", "params": {}},
+            "widget": {"plugin": "bar_plot", "params": {}},
+        },
+    }
+
+    recipes.EXPORT_CONFIG_WRITE_LOCK.acquire()
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(client.post, "/api/recipes/save", json=payload)
+            with pytest.raises(TimeoutError):
+                future.result(timeout=0.1)
+
+            recipes.EXPORT_CONFIG_WRITE_LOCK.release()
+            response = future.result(timeout=5)
+    finally:
+        if recipes.EXPORT_CONFIG_WRITE_LOCK._is_owned():
+            recipes.EXPORT_CONFIG_WRITE_LOCK.release()
+
+    assert response.status_code == 200, response.text
+
+
 def test_delete_recipe_removes_widget_only_from_html_page_exporter(
     monkeypatch, tmp_path
 ):
@@ -834,3 +893,46 @@ def test_reorder_widgets_leaves_non_web_exporters_unchanged(monkeypatch, tmp_pat
         widget["data_source"] for widget in saved_exports[0]["groups"][0]["widgets"]
     ] == ["beta", "alpha"]
     assert saved_exports[1]["groups"][0]["widgets"] == json_widgets
+
+
+def test_reorder_widgets_waits_for_export_config_write_lock(monkeypatch, tmp_path):
+    export_config = {
+        "exports": [
+            {
+                "name": "web_pages",
+                "groups": [
+                    {
+                        "group_by": "taxons",
+                        "widgets": [
+                            {"plugin": "chart_widget", "data_source": "alpha"},
+                            {"plugin": "chart_widget", "data_source": "beta"},
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    monkeypatch.setattr(recipes, "get_working_directory", lambda: tmp_path)
+    monkeypatch.setattr(recipes, "load_export_config", lambda _work_dir: export_config)
+    monkeypatch.setattr(recipes, "save_export_config", lambda _work_dir, config: None)
+
+    client = TestClient(create_app())
+    recipes.EXPORT_CONFIG_WRITE_LOCK.acquire()
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                client.post,
+                "/api/recipes/taxons/reorder",
+                json={"widget_ids": ["beta", "alpha"]},
+            )
+            with pytest.raises(TimeoutError):
+                future.result(timeout=0.1)
+
+            recipes.EXPORT_CONFIG_WRITE_LOCK.release()
+            response = future.result(timeout=5)
+    finally:
+        if recipes.EXPORT_CONFIG_WRITE_LOCK._is_owned():
+            recipes.EXPORT_CONFIG_WRITE_LOCK.release()
+
+    assert response.status_code == 200, response.text

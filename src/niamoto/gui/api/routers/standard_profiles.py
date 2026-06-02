@@ -43,6 +43,7 @@ from niamoto.core.standards.validation import StandardProfileValidationService
 from niamoto.gui.api.context import get_database_path, get_working_directory
 from niamoto.gui.api.desktop_auth import require_desktop_mutation_auth
 from niamoto.gui.api.services.templates.config_service import (
+    EXPORT_CONFIG_WRITE_LOCK,
     load_export_config,
     load_import_config,
     load_transform_config,
@@ -216,7 +217,7 @@ def _draft_output_lock(
 @contextmanager
 def _standard_profile_config_lock() -> Iterator[None]:
     """Serialize export.yml profile mutations across threads and processes."""
-    with _standard_profile_write_lock:
+    with EXPORT_CONFIG_WRITE_LOCK, _standard_profile_write_lock:
         lock_path = _standard_profile_lock_path(get_working_directory())
         fcntl_module = _fcntl_module()
         if fcntl_module is None:

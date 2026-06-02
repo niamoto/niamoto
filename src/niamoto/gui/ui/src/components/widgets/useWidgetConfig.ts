@@ -102,7 +102,7 @@ export interface UseWidgetConfigReturn {
   deleteWidget: (widgetId: string) => Promise<boolean>
   duplicateWidget: (widgetId: string, newId: string) => Promise<boolean>
   reorderWidgets: (widgetIds: string[]) => Promise<boolean>
-  refetch: () => void
+  refetch: () => Promise<void>
 }
 
 /** Données brutes retournées par le fetch parallèle */
@@ -462,9 +462,11 @@ export function useWidgetConfig(groupBy: string, enabled: boolean = true): UseWi
     return mergeWidgetData(transformWidgets, exportWidgets)
   }, [data, groupBy])
 
-  const refetchWidgetConfig = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['widget-config'] })
-    queryClient.invalidateQueries({ queryKey: ['layout'] })
+  const refetchWidgetConfig = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['widget-config'] }),
+      queryClient.invalidateQueries({ queryKey: ['layout'] }),
+    ])
   }, [queryClient])
 
   // Mutations

@@ -31,6 +31,7 @@ from niamoto.common.database import Database
 from niamoto.core.imports.registry import EntityRegistry, EntityKind
 from niamoto.gui.api.services.preview_utils import error_html, wrap_html_response
 from niamoto.gui.api.services.templates.config_service import (
+    EXPORT_CONFIG_WRITE_LOCK,
     TRANSFORM_CONFIG_WRITE_LOCK,
     load_transform_config,
     save_transform_config,
@@ -1423,7 +1424,7 @@ async def save_widget_recipe(http_request: Request, request: SaveRecipeRequest):
     # Generate data source ID (for transform.yml)
     data_source_id = f"{recipe.widget_id}"
 
-    with TRANSFORM_CONFIG_WRITE_LOCK:
+    with TRANSFORM_CONFIG_WRITE_LOCK, EXPORT_CONFIG_WRITE_LOCK:
         # --- Update transform.yml ---
         transform_config = load_transform_config(work_dir)
 
@@ -1574,7 +1575,7 @@ async def reorder_widgets(
 
     work_dir = Path(work_dir)
 
-    with TRANSFORM_CONFIG_WRITE_LOCK:
+    with EXPORT_CONFIG_WRITE_LOCK:
         # Load export config
         export_config = load_export_config(work_dir)
 
@@ -1645,7 +1646,7 @@ async def delete_widget_recipe(request: Request, group_by: str, widget_id: str):
 
     work_dir = Path(work_dir)
 
-    with TRANSFORM_CONFIG_WRITE_LOCK:
+    with TRANSFORM_CONFIG_WRITE_LOCK, EXPORT_CONFIG_WRITE_LOCK:
         # --- Update transform.yml ---
         transform_config = load_transform_config(work_dir)
         group_config = find_transform_group(transform_config, group_by)

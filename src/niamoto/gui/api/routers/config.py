@@ -15,6 +15,7 @@ import shutil
 from datetime import datetime
 
 from ..context import get_database_path, get_working_directory
+from ..desktop_auth import require_desktop_mutation_auth
 from niamoto.gui.api.services.templates.config_service import (
     EXPORT_CONFIG_WRITE_LOCK,
     TRANSFORM_CONFIG_WRITE_LOCK,
@@ -177,6 +178,31 @@ def _find_export_group_in_supported_locations(
             if isinstance(candidate, dict) and candidate.get("group_by") == group_by:
                 return candidate
 
+    return None
+
+
+def _is_web_export_entry(export_entry: Dict[str, Any]) -> bool:
+    """Return whether an export target represents the site/page exporter."""
+    exporter = export_entry.get("exporter")
+    return exporter == "html_page_exporter" or (
+        exporter is None and export_entry.get("name") == "web_pages"
+    )
+
+
+def _find_web_export_group_in_supported_locations(
+    export_config: Dict[str, Any], group_by: str
+) -> Optional[Dict[str, Any]]:
+    """Find a web-page export group without being shadowed by API exporters."""
+    for export_entry in export_config.get("exports", []) or []:
+        if not isinstance(export_entry, dict) or not _is_web_export_entry(export_entry):
+            continue
+        for group in export_entry.get("groups", []) or []:
+            if isinstance(group, dict) and group.get("group_by") == group_by:
+                return group
+        params = export_entry.get("params", {}) or {}
+        for group in params.get("groups", []) or []:
+            if isinstance(group, dict) and group.get("group_by") == group_by:
+                return group
     return None
 
 
@@ -608,6 +634,68 @@ def _write_yaml_atomic(config_path: Path, content: Any) -> None:
         raise
 
 
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """Safe YAML loader that rejects duplicate mapping keys."""
+
+    def __init__(self, stream: Any) -> None:
+        super().__init__(stream)
+        self._key_path: List[str] = []
+
+
+def _construct_mapping_with_unique_keys(
+    loader: _UniqueKeyLoader,
+    node: yaml.nodes.MappingNode,
+    deep: bool = False,
+) -> Dict[Any, Any]:
+    loader.flatten_mapping(node)
+    mapping: Dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            hash(key)
+        except TypeError as exc:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                "found unhashable key",
+                key_node.start_mark,
+            ) from exc
+
+        key_path = ".".join([*loader._key_path, str(key)])
+        if key in mapping:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                f"Duplicate YAML key: {key_path}",
+                key_node.start_mark,
+            )
+
+        loader._key_path.append(str(key))
+        try:
+            value = loader.construct_object(value_node, deep=deep)
+        finally:
+            loader._key_path.pop()
+        mapping[key] = value
+    return mapping
+
+
+_UniqueKeyLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_mapping_with_unique_keys,
+)
+
+
+def _safe_load_unique_yaml(content: str) -> Any:
+    return yaml.load(content, Loader=_UniqueKeyLoader)
+
+
+def _format_yaml_error(exc: yaml.YAMLError) -> str:
+    problem = getattr(exc, "problem", None)
+    if isinstance(problem, str) and problem:
+        return problem
+    return str(exc)
+
+
 @router.get("/project")
 async def get_project_info() -> Dict[str, Any]:
     """
@@ -1019,8 +1107,9 @@ class DatasetsResponse(BaseModel):
 
 
 @router.get("/references/{reference_name}/config")
-async def get_reference_config(reference_name: str):
+async def get_reference_config(request: Request, reference_name: str):
     """Get full configuration for a specific reference from import.yml."""
+    require_desktop_mutation_auth(request)
     config_path = get_working_directory() / "config" / "import.yml"
 
     if not config_path.exists():
@@ -1659,11 +1748,14 @@ async def validate_import_v2(request: ImportConfigValidateRequest):
     try:
         # Parse YAML
         try:
-            config_dict = yaml.safe_load(request.config)
+            config_dict = _safe_load_unique_yaml(request.config)
         except yaml.YAMLError as e:
+            message = _format_yaml_error(e)
+            if not message.startswith("Duplicate YAML key:"):
+                message = f"Invalid YAML syntax: {message}"
             return ImportConfigValidateResponse(
                 valid=False,
-                errors={"_global": [f"Invalid YAML syntax: {str(e)}"]},
+                errors={"_global": [message]},
                 warnings={},
             )
 
@@ -1767,7 +1859,7 @@ async def save_import_v2(request: ImportConfigSaveRequest):
                 },
             )
 
-        config_dict = yaml.safe_load(request.config)
+        config_dict = _safe_load_unique_yaml(request.config)
         if not isinstance(config_dict, dict):
             raise HTTPException(status_code=400, detail="Invalid import configuration")
 
@@ -2065,7 +2157,7 @@ async def list_export_widgets(group_by: str) -> List[Dict[str, Any]]:
     """
     try:
         export_config = _load_export_config()
-        group = _find_export_group_in_supported_locations(export_config, group_by)
+        group = _find_web_export_group_in_supported_locations(export_config, group_by)
 
         if not group:
             return []
@@ -3006,7 +3098,7 @@ def _load_api_export_preview_items(
             .all()
         )
     finally:
-        db.close_db_session()
+        db.close()
 
     if not rows:
         return []
@@ -3053,7 +3145,7 @@ def _apply_api_export_preview_transformer(
 
         return fallback_item, fallback_preview
     finally:
-        db.close_db_session()
+        db.close()
 
 
 def _build_api_export_preview_group_config(
@@ -3216,9 +3308,12 @@ async def preview_saved_api_export_group_config(
             )
 
         saved_group = deepcopy(_find_target_group(export_target, group_by))
-        group_payload = saved_group or _build_default_api_group_config(
-            export_name, group_by
-        )
+        if saved_group is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"API export group '{group_by}' is not saved",
+            )
+        group_payload = saved_group
         request = ApiExportPreviewRequest.model_validate(
             {**group_payload, "section": section}
         )

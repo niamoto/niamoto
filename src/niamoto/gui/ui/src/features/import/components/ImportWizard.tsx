@@ -36,18 +36,23 @@ import { FileUploadZone, type FileUploadZoneHandle } from '@/features/import/com
 import { ExistingFilesSection } from '@/features/import/components/upload/ExistingFilesSection'
 import { PreImportGuidance } from '@/features/import/components/upload/PreImportGuidance'
 import { ImportCockpit } from '@/features/import/components/cockpit/ImportCockpit'
+import { ImportImpactPanel } from '@/features/import/components/cockpit/ImportImpactPanel'
 import { buildImportInventory } from '@/features/import/components/cockpit/importInventory'
 import { AutoConfigDisplay } from '@/features/import/components/review/AutoConfigDisplay'
 import { YamlPreview } from '@/features/import/components/review/YamlPreview'
 import type { FilePreflightSummary } from '@/features/import/components/upload/filePreflight'
 import { useAutoConfigureJob } from '@/features/import/hooks/useAutoConfigureJob'
+import { useCompatibilityCheck } from '@/features/import/hooks/useCompatibilityCheck'
 import { useImportJob } from '@/features/import/hooks/useImportJob'
 import { requestBugReport } from '@/features/feedback'
 import { useDatasets } from '@/features/import/hooks/useDatasets'
 import { useReferences } from '@/features/import/hooks/useReferences'
 import type { UploadedFileInfo } from '@/features/import/api/upload'
 import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
-import { importQueryKeys } from '@/features/import/queryKeys'
+import {
+  buildCollectionWidgetReviewPath,
+  refreshImportDependentQueries,
+} from './importWizardCache'
 
 type ImportPhase =
   | 'idle'
@@ -84,6 +89,7 @@ export function ImportWizard() {
   const [showAdvancedReview, setShowAdvancedReview] = useState(false)
   const [reviewTab, setReviewTab] = useState<'config' | 'yaml'>('config')
   const autoConfigureJob = useAutoConfigureJob()
+  const compatibilityCheck = useCompatibilityCheck()
   const importJob = useImportJob()
   const { data: datasetsData } = useDatasets()
   const { data: referencesData } = useReferences()
@@ -120,22 +126,34 @@ export function ImportWizard() {
     [autoConfigureJob, t]
   )
 
+  const checkCompatibilityBeforeConfigure = useCallback(
+    async (files: Array<{ name: string; path: string; size?: number }>, paths: string[]) => {
+      setUploadedFiles(files)
+      setFilePaths(paths)
+      setPhase('configuring')
+      setError(null)
+      await compatibilityCheck.check(files)
+      await runAutoConfigure(paths)
+    },
+    [compatibilityCheck, runAutoConfigure]
+  )
+
   // Handle files ready from upload
   const handleFilesReady = useCallback(
     async (files: UploadedFileInfo[], paths: string[]) => {
       setIsUploadingFiles(false)
       setPendingFiles([])
       setPendingFilePreflight({})
-      setUploadedFiles(
+      await checkCompatibilityBeforeConfigure(
         files.map((file) => ({
           name: file.filename,
           path: file.path,
           size: file.size,
-        }))
+        })),
+        paths
       )
-      await runAutoConfigure(paths)
     },
-    [runAutoConfigure]
+    [checkCompatibilityBeforeConfigure]
   )
 
   const handleSelectionChange = useCallback(
@@ -149,15 +167,15 @@ export function ImportWizard() {
   // Handle existing files selected for re-import
   const handleExistingFilesSelected = useCallback(
     async (paths: string[]) => {
-      setUploadedFiles(
+      await checkCompatibilityBeforeConfigure(
         paths.map((path) => ({
           name: path.split('/').pop() || path,
           path,
-        }))
+        })),
+        paths
       )
-      await runAutoConfigure(paths)
     },
-    [runAutoConfigure]
+    [checkCompatibilityBeforeConfigure]
   )
 
   // Start import from review phase
@@ -172,13 +190,7 @@ export function ImportWizard() {
   const handleImportComplete = useCallback(async () => {
     setPhase('complete')
 
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: importQueryKeys.all() }),
-      queryClient.invalidateQueries({ queryKey: ['pipeline-status'] }),
-    ])
-    queryClient.removeQueries({ queryKey: ['suggestions'] })
-    queryClient.removeQueries({ queryKey: ['configured-widgets'] })
-    queryClient.removeQueries({ queryKey: ['widget-config'] })
+    await refreshImportDependentQueries(queryClient)
     invalidateAllPreviews(queryClient)
 
     // Redirect to sources dashboard after short delay
@@ -209,6 +221,7 @@ export function ImportWizard() {
     setSelectedInventoryItemId(null)
     setIsUploadingFiles(false)
     setShowAdvancedReview(false)
+    compatibilityCheck.reset()
   }
 
   const importErrorDetailsJson = importJob.state.errorDetails
@@ -332,11 +345,17 @@ export function ImportWizard() {
       incomingState.filePaths.length > 0
     ) {
       autoStartedRef.current = true
-      setUploadedFiles(incomingState.uploadedFiles ?? [])
-      void runAutoConfigure(incomingState.filePaths)
+      void checkCompatibilityBeforeConfigure(
+        incomingState.uploadedFiles ??
+          incomingState.filePaths.map((path) => ({
+            name: path.split('/').pop() || path,
+            path,
+          })),
+        incomingState.filePaths
+      )
       navigate(pathname, { replace: true, state: null })
     }
-  }, [incomingState, navigate, pathname, phase, runAutoConfigure])
+  }, [checkCompatibilityBeforeConfigure, incomingState, navigate, pathname, phase])
 
   useEffect(() => {
     if (phase === 'importing' && configResult && importJob.state.status === 'idle') {
@@ -392,6 +411,13 @@ export function ImportWizard() {
       cockpitPhase,
       uploadedFiles,
     ]
+  )
+
+  const reviewCollectionWidgets = useCallback(
+    (collection: string) => {
+      navigate(buildCollectionWidgetReviewPath(collection))
+    },
+    [navigate]
   )
 
   useEffect(() => {
@@ -589,8 +615,20 @@ export function ImportWizard() {
                 items={cockpitItems}
                 selectedItemId={selectedInventoryItemId}
                 onSelectItem={(item) => setSelectedInventoryItemId(item.id)}
-                stage={autoConfigureJob.stage || t('autoConfig.loading.description')}
+                stage={
+                  compatibilityCheck.isChecking
+                    ? t('impact.checking')
+                    : autoConfigureJob.stage || t('autoConfig.loading.description')
+                }
                 introGuidance={<PreImportGuidance variant="compact" />}
+                detailPanel={
+                  <ImportImpactPanel
+                    reports={compatibilityCheck.matched}
+                    failedChecks={compatibilityCheck.failed}
+                    isChecking={compatibilityCheck.isChecking}
+                    onReviewCollection={reviewCollectionWidgets}
+                  />
+                }
               />
             </div>
           )}
@@ -616,59 +654,67 @@ export function ImportWizard() {
                 progress={phase === 'importing' ? importJob.state.progress : undefined}
                 introGuidance={<PreImportGuidance variant="compact" />}
                 detailPanel={
-                  <Collapsible
-                    open={showAdvancedReview}
-                    onOpenChange={setShowAdvancedReview}
-                    className="rounded-lg border bg-muted/10"
-                  >
-                    <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-left">
-                      <div>
-                        <div className="text-sm font-medium">{t('cockpit.review.advancedTitle')}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {t('cockpit.review.advancedDescription')}
+                  <div className="space-y-3">
+                    <ImportImpactPanel
+                      reports={compatibilityCheck.matched}
+                      failedChecks={compatibilityCheck.failed}
+                      isChecking={compatibilityCheck.isChecking}
+                      onReviewCollection={reviewCollectionWidgets}
+                    />
+                    <Collapsible
+                      open={showAdvancedReview}
+                      onOpenChange={setShowAdvancedReview}
+                      className="rounded-lg border bg-muted/10"
+                    >
+                      <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-left">
+                        <div>
+                          <div className="text-sm font-medium">{t('cockpit.review.advancedTitle')}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {t('cockpit.review.advancedDescription')}
+                          </div>
                         </div>
-                      </div>
-                      <ChevronDown
-                        className={`h-4 w-4 text-muted-foreground transition-transform ${showAdvancedReview ? 'rotate-180' : ''}`}
-                      />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="border-t p-3">
-                      <Tabs value={reviewTab} onValueChange={(value) => setReviewTab(value as 'config' | 'yaml')} className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
-                          <TabsTrigger value="config">{t('wizard.configurationTab')}</TabsTrigger>
-                          <TabsTrigger value="yaml">{t('wizard.yamlTab')}</TabsTrigger>
-                        </TabsList>
+                        <ChevronDown
+                          className={`h-4 w-4 text-muted-foreground transition-transform ${showAdvancedReview ? 'rotate-180' : ''}`}
+                        />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="border-t p-3">
+                        <Tabs value={reviewTab} onValueChange={(value) => setReviewTab(value as 'config' | 'yaml')} className="w-full">
+                          <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="config">{t('wizard.configurationTab')}</TabsTrigger>
+                            <TabsTrigger value="yaml">{t('wizard.yamlTab')}</TabsTrigger>
+                          </TabsList>
 
-                        <PanelTransition transitionKey={reviewTab} className="mt-4">
-                          {reviewTab === 'config' ? (
-                            <AutoConfigDisplay
-                              result={configResult}
-                              editable={phase !== 'importing'}
-                              onReclassify={handleReclassify}
-                              detectedColumns={configResult.detected_columns || {}}
-                              importState={
-                                phase === 'importing'
-                                  ? {
-                                      active: true,
-                                      phase: importJob.state.phase,
-                                      message: importJob.state.message,
-                                      progress: importJob.state.progress,
-                                      processedEntities: importJob.state.processedEntities,
-                                      totalEntities: importJob.state.totalEntities,
-                                      currentEntity: importJob.state.currentEntity,
-                                      currentEntityType: importJob.state.currentEntityType,
-                                      events: importJob.state.events,
-                                    }
-                                  : undefined
-                              }
-                            />
-                          ) : (
-                            <YamlPreview result={configResult} maxHeight="300px" />
-                          )}
-                        </PanelTransition>
-                      </Tabs>
-                    </CollapsibleContent>
-                  </Collapsible>
+                          <PanelTransition transitionKey={reviewTab} className="mt-4">
+                            {reviewTab === 'config' ? (
+                              <AutoConfigDisplay
+                                result={configResult}
+                                editable={phase !== 'importing'}
+                                onReclassify={handleReclassify}
+                                detectedColumns={configResult.detected_columns || {}}
+                                importState={
+                                  phase === 'importing'
+                                    ? {
+                                        active: true,
+                                        phase: importJob.state.phase,
+                                        message: importJob.state.message,
+                                        progress: importJob.state.progress,
+                                        processedEntities: importJob.state.processedEntities,
+                                        totalEntities: importJob.state.totalEntities,
+                                        currentEntity: importJob.state.currentEntity,
+                                        currentEntityType: importJob.state.currentEntityType,
+                                        events: importJob.state.events,
+                                      }
+                                    : undefined
+                                }
+                              />
+                            ) : (
+                              <YamlPreview result={configResult} maxHeight="300px" />
+                            )}
+                          </PanelTransition>
+                        </Tabs>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </div>
                 }
                 footer={
                   phase !== 'importing' ? (

@@ -914,12 +914,18 @@ async def browse_files(path: str = ".") -> Dict[str, Any]:
         # List directory contents
         items = []
         for item in p.iterdir():
+            if item.is_symlink():
+                continue
+            try:
+                item_stat = item.stat()
+            except OSError:
+                continue
             items.append(
                 {
                     "name": item.name,
                     "type": "directory" if item.is_dir() else "file",
                     "path": str(item),
-                    "size": item.stat().st_size if item.is_file() else None,
+                    "size": item_stat.st_size if item.is_file() else None,
                 }
             )
 

@@ -31,12 +31,20 @@ describe('projectDesktopContext', () => {
   it('accepts only known app routes as restorable routes', () => {
     expect(isRestorableProjectRoute('/')).toBe(true)
     expect(isRestorableProjectRoute('/sources')).toBe(true)
-    expect(isRestorableProjectRoute('/groups/plots_hierarchy')).toBe(true)
+    expect(isRestorableProjectRoute('/sources/import')).toBe(true)
+    expect(isRestorableProjectRoute('/sources/verification')).toBe(true)
+    expect(isRestorableProjectRoute('/groups')).toBe(true)
+    expect(isRestorableProjectRoute('/groups/review')).toBe(true)
+    expect(isRestorableProjectRoute('/groups/api-settings')).toBe(true)
     expect(isRestorableProjectRoute('/site/pages')).toBe(true)
     expect(isRestorableProjectRoute('/publish')).toBe(true)
     expect(isRestorableProjectRoute('/tools/settings')).toBe(true)
     expect(isRestorableProjectRoute('/tools/history')).toBe(true)
 
+    expect(isRestorableProjectRoute('/groups/plots_hierarchy')).toBe(false)
+    expect(isRestorableProjectRoute('/sources/dataset/occurrences')).toBe(false)
+    expect(isRestorableProjectRoute('/sources/reference/taxons')).toBe(false)
+    expect(isRestorableProjectRoute('/tools/explorer')).toBe(false)
     expect(isRestorableProjectRoute('https://example.com')).toBe(false)
     expect(isRestorableProjectRoute('//example.com')).toBe(false)
     expect(isRestorableProjectRoute('/unknown')).toBe(false)
@@ -82,6 +90,13 @@ describe('projectDesktopContext', () => {
         pathname: '/publish',
         search: '',
         hash: 'latest',
+      }),
+    ).toBeNull()
+    expect(
+      normalizeProjectDesktopRoute({
+        pathname: '/groups/plots_hierarchy',
+        search: '',
+        hash: '',
       }),
     ).toBeNull()
   })

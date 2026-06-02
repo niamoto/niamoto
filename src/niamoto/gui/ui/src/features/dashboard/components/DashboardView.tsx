@@ -1,5 +1,9 @@
 import { useTranslation } from "react-i18next"
 import { Loader2 } from "lucide-react"
+import {
+  InlineRefreshIndicator,
+  StablePageSkeleton,
+} from "@/components/loading/StableLoadingState"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { usePipelineStatus } from "@/hooks/usePipelineStatus"
@@ -14,14 +18,7 @@ export function DashboardView() {
 
   if (!pipeline) {
     if (!isLoading) return null
-    return (
-      <div className="flex h-full items-center justify-center p-4">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span>{t("pipeline.dashboard.loading", "Chargement du tableau de bord...")}</span>
-        </div>
-      </div>
-    )
+    return <StablePageSkeleton sections={4} />
   }
 
   const { data, groups, site, publication, running_job } = pipeline
@@ -63,9 +60,10 @@ export function DashboardView() {
           </h1>
           <p className={globalColor}>{globalLabel}</p>
         </div>
-        {isFetching && !running_job && (
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/50" />
-        )}
+        <InlineRefreshIndicator
+          active={isFetching && !running_job}
+          label={t("pipeline.dashboard.refreshing", "Actualisation")}
+        />
       </div>
 
       {/* ── Job en cours ─────────────────────────────────────────── */}

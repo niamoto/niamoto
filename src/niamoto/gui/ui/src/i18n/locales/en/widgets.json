@@ -352,7 +352,6 @@
   },
   "actions": {
     "addWidget": "Add widget",
-    "addFromSuggestions": "From suggestions",
     "addCombinedWidget": "Combined widget",
     "duplicateWidget": "Duplicate widget",
     "addField": "+ Add field",
@@ -393,6 +392,8 @@
     "noWidgetsHint": "Add widgets first in the \"Widgets\" tab to configure their layout.",
     "noWidgetsHintAdd": "Add widgets using the \"Add widget\" button in the left panel.",
     "widgetsConfigured": "{{count}} widgets configured",
+    "hideWidgetList": "Hide widget list",
+    "showWidgetList": "Show widget list",
     "clickToEdit": "Click to edit",
     "unsavedChanges": "Unsaved changes",
     "previews": "Previews",
@@ -462,6 +463,7 @@
     "widget": "Widget"
   },
   "modal": {
+    "description": "Add one or more widgets from suggestions, combinations, or a custom configuration.",
     "suggestions": "Suggestions",
     "combined": "Combined",
     "custom": "Custom",
@@ -474,6 +476,7 @@
     "autoDetectedPatterns": "Auto-detected patterns",
     "manualCombine": "Combine manually",
     "proposedWidgets": "Proposed widgets",
+    "showMoreSuggestions": "+{{count}} more",
     "recommended": "Recommended",
     "creationSteps": "Creation steps",
     "stepIdentifier": "Identifier",

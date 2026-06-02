@@ -211,7 +211,7 @@ def get_database_path() -> Optional[Path]:
 
 
 @router.get("/schema", response_model=DatabaseSchema)
-async def get_database_schema():
+def get_database_schema():
     """
     Get the complete database schema including tables, views, and columns.
 

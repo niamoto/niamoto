@@ -3001,7 +3001,7 @@ async def render_spatial_map(
 
 
 @router.get("/spatial", response_model=SpatialStats)
-async def get_spatial_stats(
+def get_spatial_stats(
     entity: str = Query(default="occurrences", description="Entity with spatial data"),
     x_column: Optional[str] = Query(default=None, description="X/Longitude column"),
     y_column: Optional[str] = Query(default=None, description="Y/Latitude column"),
@@ -3388,7 +3388,7 @@ async def get_taxonomy_consistency(
 
 
 @router.get("/value-validation/{entity}", response_model=EntityValidation)
-async def get_value_validation(
+def get_value_validation(
     entity: str,
     columns: Optional[str] = Query(
         default=None, description="Comma-separated list of columns to validate"

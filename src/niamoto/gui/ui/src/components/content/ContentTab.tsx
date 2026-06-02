@@ -8,6 +8,7 @@
 
 import { useState, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { PanelLeft, Plus } from 'lucide-react'
 import type { PanelImperativeHandle, PanelSize } from 'react-resizable-panels'
 import {
@@ -17,12 +18,6 @@ import {
 } from '@/components/ui/resizable'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   useConfiguredWidgets,
   useWidgetConfig,
@@ -55,6 +50,13 @@ interface ContentTabProps {
 
 export function ContentTab({ reference }: ContentTabProps) {
   const { t } = useTranslation(['widgets', 'common'])
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedPanel = searchParams.get('panel')
+  const routeRequestsAddWidget = requestedPanel === 'add-widget'
+  const routeAddWidgetRequestKey = routeRequestsAddWidget
+    ? `${reference.name}:${location.key}:${searchParams.toString()}`
+    : null
   // Selection state is scoped to the current reference to avoid resetting it in an effect.
   const [selectedWidgetState, setSelectedWidgetState] = useState<{
     referenceName: string
@@ -68,9 +70,14 @@ export function ContentTab({ reference }: ContentTabProps) {
       ? selectedWidgetState.widgetId
       : null
 
-  // Modal state
   const [addModalOpen, setAddModalOpen] = useState(false)
-  const [addModalTab, setAddModalTab] = useState<'suggestions' | 'combined' | 'custom'>('suggestions')
+  const [dismissedRouteAddWidgetKey, setDismissedRouteAddWidgetKey] = useState<
+    string | null
+  >(null)
+  const routeAddWidgetOpen =
+    routeAddWidgetRequestKey !== null &&
+    dismissedRouteAddWidgetKey !== routeAddWidgetRequestKey
+  const addModalVisible = addModalOpen || routeAddWidgetOpen
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
@@ -93,18 +100,16 @@ export function ContentTab({ reference }: ContentTabProps) {
     refetch: refetchWidgets,
   } = useWidgetConfig(reference.name, true)
 
-  // Fetch suggestions only when the add-widget modal is opened
   const { suggestions, loading: suggestionsLoading } = useSuggestions(
     reference.name,
     undefined,
-    addModalOpen
+    addModalVisible,
   )
 
-  // Extract available fields from suggestions (for field-select widgets)
   const availableFields = useMemo(() => {
     const fields = new Set<string>()
-    suggestions.forEach((s) => {
-      if (s.matched_column) fields.add(s.matched_column)
+    suggestions.forEach((suggestion) => {
+      if (suggestion.matched_column) fields.add(suggestion.matched_column)
     })
     return Array.from(fields).sort()
   }, [suggestions])
@@ -209,16 +214,26 @@ export function ContentTab({ reference }: ContentTabProps) {
     return await reorderWidgets(widgetIds)
   }, [reorderWidgets])
 
-  // Handle open add modal with specific tab — invalidate cache to force fresh fetch
-  const handleOpenAddModal = useCallback((tab: 'suggestions' | 'combined' | 'custom') => {
-    setAddModalTab(tab)
+  const handleOpenAddModal = useCallback(() => {
     setAddModalOpen(true)
   }, [])
 
-  // Handle widget added from modal
+  const clearRouteAddWidgetPanel = useCallback(() => {
+    if (!routeAddWidgetRequestKey || searchParams.get('panel') !== 'add-widget') {
+      return
+    }
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('panel')
+    setSearchParams(nextSearchParams, { replace: true })
+  }, [routeAddWidgetRequestKey, searchParams, setSearchParams])
+
   const handleWidgetAdded = useCallback(() => {
     refetchWidgets()
     setAddModalOpen(false)
+    if (routeAddWidgetRequestKey) {
+      setDismissedRouteAddWidgetKey(routeAddWidgetRequestKey)
+      clearRouteAddWidgetPanel()
+    }
     setSelectedWidgetState((current) => {
       if (current.referenceName === reference.name && current.widgetId === null) {
         return current
@@ -229,7 +244,20 @@ export function ContentTab({ reference }: ContentTabProps) {
         widgetId: null,
       }
     })
-  }, [reference.name, refetchWidgets])
+  }, [
+    clearRouteAddWidgetPanel,
+    reference.name,
+    refetchWidgets,
+    routeAddWidgetRequestKey,
+  ])
+
+  const handleAddModalOpenChange = useCallback((isOpen: boolean) => {
+    setAddModalOpen(isOpen)
+    if (!isOpen && routeAddWidgetRequestKey) {
+      setDismissedRouteAddWidgetKey(routeAddWidgetRequestKey)
+      clearRouteAddWidgetPanel()
+    }
+  }, [clearRouteAddWidgetPanel, routeAddWidgetRequestKey])
 
   const leftPanelRef = useRef<PanelImperativeHandle>(null)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -262,138 +290,125 @@ export function ContentTab({ reference }: ContentTabProps) {
   return (
     <div className="h-full flex flex-col">
       <ResizablePanelGroup direction="horizontal" className="flex-1">
-        {/* Left Panel - Widget List */}
-        <ResizablePanel
-          panelRef={leftPanelRef}
-          defaultSize="20%"
-          minSize="14%"
-          maxSize="26%"
-          collapsible
-          collapsedSize={0}
-          onResize={handleLeftPanelResize}
-        >
-          <div className="relative h-full">
-          <div className="absolute inset-0 flex flex-col">
-            {/* Header with Add button + collapse toggle */}
-            <div className="px-2 py-1.5 border-b flex items-center gap-1">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" className="gap-1">
-                    <Plus className="h-4 w-4" />
-                    {t('widgets:actions.addWidget')}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={() => handleOpenAddModal('suggestions')}>
-                    {t('widgets:actions.addFromSuggestions')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleOpenAddModal('combined')}>
-                    {t('widgets:actions.addCombinedWidget')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleOpenAddModal('custom')}>
-                    {t('widgets:modal.custom')}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 ml-auto" onClick={togglePanel} title="Hide widget list">
-                <PanelLeft className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Search */}
-            <div className="px-2 py-1.5 border-b">
-              <Input
-                placeholder={t('common:actions.search')}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-7 text-xs"
-              />
-            </div>
-
-            {/* Widget List */}
-            <div className="flex-1 min-h-0">
-              <WidgetListPanel
-                widgets={filteredWidgets}
-                selectedId={selectedWidgetId}
-                loading={configuredWidgetsLoading || widgetsLoading}
-                onSelect={handleSelectWidget}
-                onDelete={handleDeleteWidget}
-                onDuplicate={handleDuplicateWidget}
-                onReorder={handleReorderWidgets}
-              />
-            </div>
-
-            {/* Footer */}
-            <div className="shrink-0 p-2 border-t text-xs text-muted-foreground text-center">
-              {t('widgets:layout.widgetsConfigured', { count: configuredWidgets.length })}
-            </div>
-          </div>
-          </div>
-        </ResizablePanel>
-
-        {/* Resize Handle */}
-        <ResizableHandle />
-
-        {/* Right Panel - Contextual */}
-        <ResizablePanel defaultSize="80%" minSize="55%">
-          <div className="relative h-full">
-          <div className="absolute inset-0 flex flex-col">
-            {/* Collapsed toolbar: toggle + add widget */}
-            {isCollapsed && (
-              <div className="flex items-center gap-1 border-b px-2 py-1 shrink-0">
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={togglePanel} title="Show widget list">
+          {/* Left Panel - Widget List */}
+          <ResizablePanel
+            panelRef={leftPanelRef}
+            defaultSize="20%"
+            minSize="14%"
+            maxSize="26%"
+            collapsible
+            collapsedSize={0}
+            onResize={handleLeftPanelResize}
+          >
+            <div className="relative h-full">
+            <div className="absolute inset-0 flex flex-col">
+              {/* Header with Add button + collapse toggle */}
+              <div className="px-2 py-1.5 border-b flex items-center gap-1">
+                <Button size="sm" className="gap-1" onClick={handleOpenAddModal}>
+                  <Plus className="h-4 w-4" />
+                  {t('widgets:actions.addWidget')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 ml-auto"
+                  onClick={togglePanel}
+                  title={t('widgets:layout.hideWidgetList')}
+                >
                   <PanelLeft className="h-4 w-4" />
                 </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7">
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    <DropdownMenuItem onClick={() => handleOpenAddModal('suggestions')}>
-                      {t('widgets:actions.addFromSuggestions')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleOpenAddModal('combined')}>
-                      {t('widgets:actions.addCombinedWidget')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleOpenAddModal('custom')}>
-                      {t('widgets:modal.custom')}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <span className="text-xs text-muted-foreground ml-1">
-                  {t('widgets:layout.widgetsConfigured', { count: configuredWidgets.length })}
-                </span>
               </div>
-            )}
-            <div className="flex-1 min-h-0">
-              <ContentRightPanel
-                selectedWidget={selectedWidget}
-                allWidgets={configuredWidgets}
-                groupBy={reference.name}
-                availableFields={availableFields}
-                previewPreference={previewPreference}
-                onPreviewPreferenceChange={handlePreviewPreferenceChange}
-                detailPreviewAutoRefresh={detailPreviewAutoRefresh}
-                onSelectWidget={handleSelectWidget}
-                onBack={handleBackToLayout}
-                onUpdateWidget={handleUpdateWidget}
-                onDeleteWidget={handleDeleteWidget}
-                onLayoutSaved={refetchWidgets}
-          />
+
+              {/* Search */}
+              <div className="px-2 py-1.5 border-b">
+                <Input
+                  placeholder={t('common:actions.search')}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-7 text-xs"
+                />
+              </div>
+
+              {/* Widget List */}
+              <div className="flex-1 min-h-0">
+                <WidgetListPanel
+                  widgets={filteredWidgets}
+                  selectedId={selectedWidgetId}
+                  loading={configuredWidgetsLoading || widgetsLoading}
+                  onSelect={handleSelectWidget}
+                  onDelete={handleDeleteWidget}
+                  onDuplicate={handleDuplicateWidget}
+                  onReorder={handleReorderWidgets}
+                />
+              </div>
+
+              {/* Footer */}
+              <div className="shrink-0 p-2 border-t text-xs text-muted-foreground text-center">
+                {t('widgets:layout.widgetsConfigured', { count: configuredWidgets.length })}
+              </div>
             </div>
-          </div>
-          </div>
-        </ResizablePanel>
+            </div>
+          </ResizablePanel>
+
+          {/* Resize Handle */}
+          <ResizableHandle />
+
+          {/* Right Panel - Contextual */}
+          <ResizablePanel defaultSize="80%" minSize="55%">
+            <div className="relative h-full">
+            <div className="absolute inset-0 flex flex-col">
+              {/* Collapsed toolbar: toggle + add widget */}
+              {isCollapsed && (
+                <div className="flex items-center gap-1 border-b px-2 py-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={togglePanel}
+                    title={t('widgets:layout.showWidgetList')}
+                  >
+                    <PanelLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={handleOpenAddModal}
+                    aria-label={t('widgets:actions.addWidget')}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  <span className="text-xs text-muted-foreground ml-1">
+                    {t('widgets:layout.widgetsConfigured', { count: configuredWidgets.length })}
+                  </span>
+                </div>
+              )}
+              <div className="flex-1 min-h-0">
+                <ContentRightPanel
+                  selectedWidget={selectedWidget}
+                  allWidgets={configuredWidgets}
+                  groupBy={reference.name}
+                  availableFields={availableFields}
+                  previewPreference={previewPreference}
+                  onPreviewPreferenceChange={handlePreviewPreferenceChange}
+                  detailPreviewAutoRefresh={detailPreviewAutoRefresh}
+                  onSelectWidget={handleSelectWidget}
+                  onBack={handleBackToLayout}
+                  onUpdateWidget={handleUpdateWidget}
+                  onDeleteWidget={handleDeleteWidget}
+                  onLayoutSaved={refetchWidgets}
+                />
+              </div>
+            </div>
+            </div>
+          </ResizablePanel>
       </ResizablePanelGroup>
 
-      {/* Add Widget Modal */}
-      {addModalOpen ? (
+      {addModalVisible ? (
         <AddWidgetModal
-          open={addModalOpen}
-          onOpenChange={setAddModalOpen}
-          defaultTab={addModalTab}
+          open={addModalVisible}
+          onOpenChange={handleAddModalOpenChange}
+          defaultTab="suggestions"
           reference={reference}
           suggestions={suggestions}
           suggestionsLoading={suggestionsLoading}

@@ -3,8 +3,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { invokeDesktop } from '@/shared/desktop/bridge'
 import {
   getManualProjectOpenTarget,
-  markManualProjectOpen,
+  markCreatedProjectHomeTarget,
 } from '@/shared/desktop/projectLaunchIntent'
+import { openDesktopProjectFromHome } from '@/shared/desktop/projectNavigation'
 import { reloadDesktopProject } from '@/shared/desktop/projectReload'
 import {
   DEFAULT_APP_SETTINGS,
@@ -154,8 +155,8 @@ export function useWelcomeScreen() {
           expectedProject: projectPath,
         })
 
-        markManualProjectOpen(projectPath)
-        window.location.reload()
+        markCreatedProjectHomeTarget(projectPath)
+        openDesktopProjectFromHome(projectPath)
 
         return projectPath
       } catch (err) {

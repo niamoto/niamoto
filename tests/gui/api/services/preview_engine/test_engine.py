@@ -704,6 +704,50 @@ def test_render_inline_class_object_reuses_configured_class_object_path():
     )
 
 
+def test_render_inline_accepts_dataframe_transformer_results():
+    engine = _make_engine()
+    db = MagicMock()
+    svc = MagicMock()
+    result_frame = pd.DataFrame({"x": [1, 2], "y": [2, 4]})
+    request = PreviewRequest(
+        group_by="taxons",
+        inline={
+            "transformer_plugin": "scatter_analysis",
+            "transformer_params": {
+                "source": "occurrences",
+                "x_field": "dbh",
+                "y_field": "height",
+            },
+            "widget_plugin": "scatter_plot",
+            "widget_params": {"x_axis": "x", "y_axis": "y"},
+            "widget_title": "Dbh",
+        },
+    )
+
+    svc.transform_single_widget.return_value = result_frame
+    with (
+        patch.object(
+            engine,
+            "_resolve_preview_group_context",
+            return_value=(svc, {"group_by": "taxons"}, 42),
+        ),
+        patch.object(engine, "_build_preview_group_config", return_value={}),
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine._preprocess_data_for_widget",
+            side_effect=lambda data, *_args: data,
+        ),
+        patch(
+            "niamoto.gui.api.services.preview_engine.engine.render_widget",
+            return_value="<div>scatter</div>",
+        ) as render_widget,
+    ):
+        result = engine._render_inline(request, db, [])
+
+    assert result == "<div>scatter</div>"
+    rendered_data = render_widget.call_args.args[2]
+    pd.testing.assert_frame_equal(rendered_data, result_frame)
+
+
 def test_render_entity_source_uses_transformer_service_pipeline():
     engine = _make_engine()
     db = MagicMock()
