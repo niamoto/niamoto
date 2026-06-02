@@ -330,7 +330,7 @@ class WidgetRecipeCompatibilityService:
                     export_override.get("plugin")
                     if isinstance(export_override, dict)
                     else None
-                ) or export_widgets.get(str(widget_id))
+                ) or export_widgets.get((collection, str(widget_id)))
                 for source_name, fields in self._source_fields_for_widget(
                     plugin,
                     widget_cfg,
@@ -362,7 +362,7 @@ class WidgetRecipeCompatibilityService:
         fields: list[str],
     ) -> str | None:
         if plugin in self.SIMPLE_FIELD_PARAMS:
-            value = params.get("field")
+            value = widget_cfg.get("field") or params.get("field")
             if isinstance(value, str) and value:
                 return value
 
@@ -423,7 +423,7 @@ class WidgetRecipeCompatibilityService:
                     add_many(source_name, fields)
 
         for param_name in self.SIMPLE_FIELD_PARAMS.get(plugin, ()):
-            value = params.get(param_name)
+            value = widget_cfg.get(param_name) or params.get(param_name)
             add(default_source, value)
 
         if plugin == "direct_attribute":
@@ -490,8 +490,8 @@ class WidgetRecipeCompatibilityService:
 
         return {source: sorted(fields) for source, fields in grouped.items()}
 
-    def _export_widgets_by_source(self) -> dict[str, str]:
-        result: dict[str, str] = {}
+    def _export_widgets_by_source(self) -> dict[tuple[str, str], str]:
+        result: dict[tuple[str, str], str] = {}
         for export in self.export_config.get("exports", []) or []:
             if not isinstance(export, dict):
                 continue
@@ -506,13 +506,14 @@ class WidgetRecipeCompatibilityService:
                 for group in groups:
                     if not isinstance(group, dict):
                         continue
+                    collection = str(group.get("group_by") or "")
                     for widget in group.get("widgets", []) or []:
                         if not isinstance(widget, dict):
                             continue
                         data_source = widget.get("data_source")
                         plugin = widget.get("plugin")
                         if data_source and plugin:
-                            result[str(data_source)] = str(plugin)
+                            result[(collection, str(data_source))] = str(plugin)
         return result
 
     def _schema_fingerprint(self, incoming_profile: IncomingDataProfile) -> str:

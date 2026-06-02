@@ -412,3 +412,109 @@ def test_widget_recipe_compatibility_reads_export_widgets_from_params_groups():
 
     assert by_widget["family_chart"].widget_plugin == "donut_chart"
     assert by_widget["family_chart"].status == "degraded"
+
+
+def test_widget_recipe_compatibility_reads_top_level_simple_widget_fields():
+    transform_config = [
+        {
+            "group_by": "taxons",
+            "widgets_data": {
+                "top_families": {
+                    "plugin": "top_ranking",
+                    "source": "occurrences",
+                    "field": "family",
+                }
+            },
+        }
+    ]
+    profile = IncomingDataProfile(
+        columns={
+            "new_family": IncomingColumnProfile(name="new_family", type="string"),
+        }
+    )
+    service = WidgetRecipeCompatibilityService(transform_config=transform_config)
+
+    report = service.classify(
+        "occurrences",
+        profile,
+        old_column_names={"family"},
+    )
+
+    assert report.impacts[0].widget_id == "top_families"
+    assert report.impacts[0].status == "broken"
+    assert report.impacts[0].affected_columns == ["family"]
+    assert "new:occurrences:family" not in {
+        impact.widget_id for impact in report.impacts
+    }
+
+
+def test_widget_recipe_compatibility_keys_export_widgets_by_collection():
+    transform_config = [
+        {
+            "group_by": "taxons",
+            "widgets_data": {
+                "summary": {
+                    "plugin": "categorical_distribution",
+                    "params": {"source": "occurrences", "field": "family"},
+                }
+            },
+        },
+        {
+            "group_by": "plots",
+            "widgets_data": {
+                "summary": {
+                    "plugin": "categorical_distribution",
+                    "params": {"source": "occurrences", "field": "plot_type"},
+                }
+            },
+        },
+    ]
+    export_config = {
+        "exports": [
+            {
+                "groups": [
+                    {
+                        "group_by": "taxons",
+                        "widgets": [
+                            {"data_source": "summary", "plugin": "donut_chart"}
+                        ],
+                    },
+                    {
+                        "group_by": "plots",
+                        "widgets": [{"data_source": "summary", "plugin": "bar_plot"}],
+                    },
+                ]
+            }
+        ]
+    }
+    profile = IncomingDataProfile(
+        columns={
+            "family": IncomingColumnProfile(
+                name="family",
+                type="string",
+                cardinality=80,
+                coverage=1.0,
+                label_max_length=12,
+            ),
+            "plot_type": IncomingColumnProfile(
+                name="plot_type",
+                type="string",
+                cardinality=20,
+                coverage=1.0,
+                label_max_length=12,
+            ),
+        }
+    )
+    service = WidgetRecipeCompatibilityService(
+        transform_config=transform_config,
+        export_config=export_config,
+    )
+
+    report = service.classify("occurrences", profile)
+    by_collection = {impact.collection: impact for impact in report.impacts}
+
+    assert by_collection["taxons"].widget_plugin == "donut_chart"
+    assert by_collection["taxons"].status == "degraded"
+    assert "too high for a readable donut chart" in by_collection["taxons"].detail
+    assert by_collection["plots"].widget_plugin == "bar_plot"
+    assert by_collection["plots"].status == "still_valid"
