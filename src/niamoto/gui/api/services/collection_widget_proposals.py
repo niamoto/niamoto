@@ -242,14 +242,19 @@ class CollectionWidgetProposalService:
 
             transform_config = deepcopy(self.transform_config)
             export_config = deepcopy(self.export_config)
-            group = find_or_create_transform_group(transform_config, collection_name)
-            group["sources"] = self._merged_sources(
-                group.get("sources", []), collection_name
-            )
-            widgets_data = group.setdefault("widgets_data", {})
+            transform_changes = [
+                change for change in applicable if change.transform_widget
+            ]
+            if transform_changes:
+                group = find_or_create_transform_group(
+                    transform_config, collection_name
+                )
+                group["sources"] = self._merged_sources(
+                    group.get("sources", []), collection_name
+                )
+                widgets_data = group.setdefault("widgets_data", {})
 
-            for change in applicable:
-                if change.transform_widget:
+                for change in transform_changes:
                     transform_widget = dict(change.transform_widget)
                     transform_widget.pop("export_override", None)
                     widgets_data[change.widget_id] = transform_widget

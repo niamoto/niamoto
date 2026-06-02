@@ -1198,6 +1198,68 @@ def test_preview_collection_widget_candidates_invalid_without_source_relation(
     )
 
 
+def test_apply_export_only_widget_candidate_without_source_relation(
+    gui_duckdb_client, gui_duckdb_context
+):
+    import_path = gui_duckdb_context / "config" / "import.yml"
+    import_config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    taxons_config = import_config["entities"]["references"]["taxons"]
+    taxons_config.pop("relation", None)
+    taxons_config["connector"] = {"source": "occurrences"}
+    import_path.write_text(
+        yaml.safe_dump(import_config, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    candidate_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-candidates"
+    ).json()
+    candidates = [
+        *candidate_payload["recommended"],
+        *candidate_payload["available"],
+        *candidate_payload["needs_review"],
+    ]
+    navigation = next(
+        candidate
+        for candidate in candidates
+        if candidate["widget_plugin"] == "hierarchical_nav_widget"
+    )
+
+    preview_response = gui_duckdb_client.post(
+        "/api/collections/taxons/widget-candidates/preview",
+        json={"selections": [{"candidate_id": navigation["id"]}]},
+    )
+    assert preview_response.status_code == 200, preview_response.text
+    assert preview_response.json()["changes"][0]["action"] == "add"
+
+    response = gui_duckdb_client.post(
+        "/api/collections/taxons/widget-candidates/apply",
+        json={
+            "selections": [{"candidate_id": navigation["id"]}],
+            "preview_token": preview_response.json()["preview_token"],
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["success"] is True
+    transform_config = yaml.safe_load(
+        (gui_duckdb_context / "config" / "transform.yml").read_text(encoding="utf-8")
+    )
+    assert not any(
+        group.get("group_by") == "taxons"
+        for group in transform_config
+        if isinstance(group, dict)
+    )
+    export_config = yaml.safe_load(
+        (gui_duckdb_context / "config" / "export.yml").read_text(encoding="utf-8")
+    )
+    export_group = export_config["exports"][0]["groups"][0]
+    widgets_by_source = {
+        widget.get("data_source"): widget for widget in export_group["widgets"]
+    }
+    assert widgets_by_source[navigation["id"]]["plugin"] == "hierarchical_nav_widget"
+
+
 def test_apply_collection_widget_candidates_derives_transform_source_relation(
     gui_duckdb_client, gui_duckdb_context
 ):
