@@ -77,26 +77,53 @@ export function SourcesOverview({
   const [savingConfig, setSavingConfig] = useState(false)
   const isRefreshing = summaryFetching || referencesFetching || datasetsFetching || savingConfig
 
+  const layers = useMemo(
+    () => (summary?.entities ?? []).filter((entity) => entity.entity_type === 'layer'),
+    [summary?.entities]
+  )
+
+  const importSourceTableNames = useMemo(() => {
+    const tableNames = new Set<string>()
+    for (const dataset of datasets) {
+      tableNames.add(dataset.table_name)
+    }
+    for (const reference of references) {
+      tableNames.add(reference.table_name)
+    }
+    for (const layer of layers) {
+      tableNames.add(layer.name)
+    }
+    return tableNames
+  }, [datasets, layers, references])
+
+  const importAlerts = useMemo(
+    () => (summary?.alerts ?? []).filter((alert) => importSourceTableNames.has(alert.entity)),
+    [importSourceTableNames, summary?.alerts]
+  )
+
+  const importedRowCount = useMemo(
+    () =>
+      (summary?.entities ?? [])
+        .filter((entity) => importSourceTableNames.has(entity.name))
+        .reduce((total, entity) => total + entity.row_count, 0),
+    [importSourceTableNames, summary?.entities]
+  )
+
   const alertsByEntity = useMemo(() => {
     const grouped = new Map<string, number>()
-    for (const alert of summary?.alerts ?? []) {
+    for (const alert of importAlerts) {
       grouped.set(alert.entity, (grouped.get(alert.entity) ?? 0) + 1)
     }
     return grouped
-  }, [summary?.alerts])
+  }, [importAlerts])
 
   const entityMetrics = useMemo(
     () => new Map(summary?.entities.map((entity) => [entity.name, entity]) ?? []),
     [summary?.entities]
   )
 
-  const layers = useMemo(
-    () => (summary?.entities ?? []).filter((entity) => entity.entity_type === 'layer'),
-    [summary?.entities]
-  )
-
   const sourceCount = datasets.length + references.length + layers.length
-  const alertCount = summary?.alerts.length ?? 0
+  const alertCount = importAlerts.length
   const enrichableReferences = references.filter((reference) => reference.can_enrich)
   const configuredEnrichmentCount = enrichableReferences.filter(
     (reference) => reference.enrichment_enabled
@@ -251,7 +278,7 @@ export function SourcesOverview({
 
       <section className="grid gap-3 md:grid-cols-3">
         <MetricCard
-          value={summary.total_rows.toLocaleString()}
+          value={importedRowCount.toLocaleString()}
           label={t('dashboard.readiness.metrics.rowsLabel', 'Rows imported')}
           sublabel={t('dashboard.readiness.metrics.rowsSublabel', 'Across {{count}} sources', {
             count: sourceCount,
@@ -324,11 +351,8 @@ export function SourcesOverview({
         </div>
         <div className="space-y-2">
           {references.map((reference) => {
-            const metrics =
-              entityMetrics.get(reference.table_name) ?? entityMetrics.get(reference.name)
-            const issueCount =
-              (alertsByEntity.get(reference.name) ?? 0) +
-              (alertsByEntity.get(reference.table_name) ?? 0)
+            const metrics = entityMetrics.get(reference.table_name)
+            const issueCount = alertsByEntity.get(reference.table_name) ?? 0
             const status = getReferenceStatus(reference, issueCount)
             const statusVariant =
               status === 'structural_alert'
