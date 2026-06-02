@@ -262,6 +262,36 @@ def test_widget_recipe_compatibility_tracks_time_series_dependencies():
     assert report.impacts[0].affected_columns == ["fruit_count"]
 
 
+def test_widget_recipe_compatibility_tracks_scatter_analysis_fields():
+    transform_config = [
+        {
+            "group_by": "taxons",
+            "widgets_data": {
+                "allometry": {
+                    "plugin": "scatter_analysis",
+                    "params": {
+                        "source": "occurrences",
+                        "x_field": "dbh",
+                        "y_field": "height",
+                    },
+                }
+            },
+        }
+    ]
+    profile = IncomingDataProfile(
+        columns={
+            "dbh": IncomingColumnProfile(name="dbh", type="float"),
+        }
+    )
+    service = WidgetRecipeCompatibilityService(transform_config=transform_config)
+
+    report = service.classify("occurrences", profile)
+
+    assert report.impacts[0].widget_id == "allometry"
+    assert report.impacts[0].status == "broken"
+    assert report.impacts[0].affected_columns == ["height"]
+
+
 def test_widget_recipe_compatibility_descends_into_transform_chain_steps():
     transform_config = [
         {

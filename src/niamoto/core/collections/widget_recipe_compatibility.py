@@ -124,6 +124,7 @@ class WidgetRecipeCompatibilityService:
         "statistical_summary": ("field",),
         "categorical_distribution": ("field",),
         "geospatial_extractor": ("field",),
+        "scatter_analysis": ("x_field", "y_field"),
         "shape_processor": ("field",),
     }
 
