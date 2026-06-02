@@ -1359,7 +1359,7 @@ class CollectionWidgetProposalService:
             return {
                 "name": source_name,
                 "data": source_name,
-                "grouping": collection.name,
+                "grouping": collection.source_name,
                 "relation": {
                     "plugin": "direct_reference",
                     "key": id_field,

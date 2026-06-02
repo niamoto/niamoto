@@ -1136,6 +1136,47 @@ def test_widget_candidate_identifier_and_name_heuristics_are_project_neutral(
     )
 
 
+def test_widget_candidate_dataset_collection_groups_by_backing_dataset(tmp_path):
+    service = CollectionWidgetProposalService(
+        work_dir=tmp_path,
+        db_path=None,
+        import_config={
+            "entities": {
+                "datasets": {
+                    "occurrences": {
+                        "schema": {"id_field": "occurrence_id"},
+                    }
+                }
+            }
+        },
+        transform_config=[],
+        export_config={},
+    )
+    collection = CollectionCatalogEntry(
+        name="trees",
+        label="Trees",
+        source_type="dataset",
+        source_name="occurrences",
+        grain="tree",
+        roles=["site"],
+    )
+
+    source_config = service._source_config_for_collection(  # noqa: SLF001 - regression for generated transform grouping
+        collection,
+        "occurrences",
+        existing_sources=[],
+    )
+
+    assert source_config is not None
+    assert source_config["data"] == "occurrences"
+    assert source_config["grouping"] == "occurrences"
+    assert source_config["relation"] == {
+        "plugin": "direct_reference",
+        "key": "occurrence_id",
+        "ref_key": "occurrence_id",
+    }
+
+
 def test_navigation_proposal_uses_context_hierarchy_fields(tmp_path):
     service = CollectionWidgetProposalService(
         work_dir=tmp_path,
