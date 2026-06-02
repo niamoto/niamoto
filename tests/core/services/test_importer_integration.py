@@ -429,6 +429,64 @@ def test_multi_feature_import_reprojects_to_wgs84(tmp_path, monkeypatch):
     assert geom.y == pytest.approx(expected_lat, abs=1e-5)
 
 
+def test_reset_multi_feature_reference_replaces_table_when_sources_are_empty(
+    tmp_path,
+    monkeypatch,
+):
+    """A reset re-import with empty spatial sources must remove stale rows."""
+    db_path = tmp_path / "multi_feature_empty.duckdb"
+    service = ImporterService(str(db_path))
+    fake_source = tmp_path / "communes.gpkg"
+    fake_source.write_bytes(b"")
+
+    config = ReferenceEntityConfig(
+        kind=ReferenceKind.SPATIAL,
+        connector=ConnectorConfig(
+            type=ConnectorType.FILE_MULTI_FEATURE,
+            sources=[
+                MultiFeatureSource(
+                    name="Communes",
+                    path=str(fake_source),
+                    name_field="nom",
+                )
+            ],
+        ),
+        schema=EntitySchema(id_field="id", fields=[]),
+    )
+
+    non_empty_gdf = gpd.GeoDataFrame(
+        {"geometry": [Point(166.45, -22.27)], "nom": ["Feature A"]},
+        crs="EPSG:4326",
+    )
+    empty_gdf = gpd.GeoDataFrame(
+        {"geometry": [], "nom": []},
+        geometry="geometry",
+        crs="EPSG:4326",
+    )
+    reads = iter([non_empty_gdf, empty_gdf])
+    monkeypatch.setattr(
+        "niamoto.core.imports.engine.gpd.read_file",
+        lambda path, **kwargs: next(reads).copy(),
+    )
+
+    try:
+        service.import_reference("shapes", config, reset_table=True)
+        initial_count = service.db.execute_sql(
+            "SELECT COUNT(*) FROM entity_shapes", fetch=True
+        )[0]
+        assert initial_count > 0
+
+        message = service.import_reference("shapes", config, reset_table=True)
+
+        reset_count = service.db.execute_sql(
+            "SELECT COUNT(*) FROM entity_shapes", fetch=True
+        )[0]
+        assert "Imported 0 features" in message
+        assert reset_count == 0
+    finally:
+        service.close()
+
+
 def test_duckdb_csv_import_detects_late_quoted_values(tmp_path):
     """DuckDB CSV detection must scan beyond its default sample size."""
 

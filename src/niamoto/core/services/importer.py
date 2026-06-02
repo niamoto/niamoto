@@ -159,13 +159,18 @@ class ImporterService:
                     source_copy = source.model_copy(update={"path": str(resolved_path)})
                     resolved_sources.append(source_copy)
 
-                # Import via multi-feature engine
-                result = self.engine.import_multi_feature(
-                    entity_name=name,
-                    table_name=table_name,
-                    sources=resolved_sources,
-                    kind=kind,
-                    id_field=config.schema.id_field if config.schema else None,
+                # Import via multi-feature engine. Keep a reset backup because
+                # empty spatial sources still need to replace the target table.
+                result = self._run_with_reset_backup(
+                    table_name,
+                    reset_table,
+                    lambda: self.engine.import_multi_feature(
+                        entity_name=name,
+                        table_name=table_name,
+                        sources=resolved_sources,
+                        kind=kind,
+                        id_field=config.schema.id_field if config.schema else None,
+                    ),
                 )
 
                 return f"Imported {result.rows} features into {table_name} from {len(config.connector.sources)} source files"

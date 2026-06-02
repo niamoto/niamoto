@@ -433,6 +433,10 @@ class GenericImporter:
                     source.name,
                 )
 
+            if gdf.empty:
+                logger.warning("No features found in source: %s", source_path)
+                continue
+
             # 1. Create TYPE row (parent container for this source)
             type_row = {
                 id_field or "id": feature_id,
@@ -471,23 +475,23 @@ class GenericImporter:
 
         # Create DataFrame
         df = pd.DataFrame(all_features)
+        primary_key = id_field or "id"
 
         if df.empty:
             logger.warning(f"No features found in {len(sources)} sources")
-            return ImportResult(rows=0, table=table_name)
+            df = self._empty_multi_feature_dataframe(primary_key)
+        else:
+            # Add extra_data column if not present
+            if "extra_data" not in df.columns:
+                df["extra_data"] = None
 
-        # Add extra_data column if not present
-        if "extra_data" not in df.columns:
-            df["extra_data"] = None
+            # Add nested sets for hierarchical queries (reuse HierarchyBuilder)
+            from niamoto.core.imports.hierarchy_builder import HierarchyBuilder
 
-        # Add nested sets for hierarchical queries (reuse HierarchyBuilder)
-        from niamoto.core.imports.hierarchy_builder import HierarchyBuilder
-
-        builder = HierarchyBuilder(self.db)
-        df = builder.add_nested_sets(df)
+            builder = HierarchyBuilder(self.db)
+            df = builder.add_nested_sets(df)
 
         # Write to database
-        primary_key = id_field or "id"
         self._write_dataframe_to_table(df, table_name)
 
         # Convert WKT location to native GEOMETRY for spatial queries
@@ -696,6 +700,24 @@ class GenericImporter:
                 structured[column] = []
 
         return structured[expected_columns]
+
+    @staticmethod
+    def _empty_multi_feature_dataframe(primary_key: str) -> pd.DataFrame:
+        columns = [
+            primary_key,
+            "shape_id",
+            "name",
+            "location",
+            "entity_type",
+            "shape_type",
+            "type",
+            "level",
+            "parent_id",
+            "lft",
+            "rght",
+            "extra_data",
+        ]
+        return pd.DataFrame({column: pd.Series(dtype="object") for column in columns})
 
     def _ensure_identifier(self, df: pd.DataFrame) -> str:
         if "id" not in df.columns:
