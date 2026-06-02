@@ -54,25 +54,6 @@ jobs:
             fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
           "
 
-      - name: Validate feedback worker secrets
-        if: github.event_name == 'release'
-        shell: bash
-        env:
-          NIAMOTO_FEEDBACK_WORKER_URL: ${{ secrets.NIAMOTO_FEEDBACK_WORKER_URL || secrets.FEEDBACK_WORKER_URL }}
-          NIAMOTO_FEEDBACK_API_KEY: ${{ secrets.NIAMOTO_FEEDBACK_API_KEY || secrets.FEEDBACK_API_KEY }}
-        run: |
-          missing=()
-          if [ -z "$NIAMOTO_FEEDBACK_WORKER_URL" ]; then
-            missing+=(NIAMOTO_FEEDBACK_WORKER_URL)
-          fi
-          if [ -z "$NIAMOTO_FEEDBACK_API_KEY" ]; then
-            missing+=(NIAMOTO_FEEDBACK_API_KEY)
-          fi
-          if [ "${#missing[@]}" -gt 0 ]; then
-            echo "Missing required feedback worker secrets for desktop release: ${missing[*]}" >&2
-            exit 1
-          fi
-
       # --- System dependencies ---
       - name: Install Linux dependencies
         if: startsWith(matrix.os, 'ubuntu-')

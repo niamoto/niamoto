@@ -1013,6 +1013,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    use super::built_feedback_env_vars;
     use super::collect_configured_feedback_env_vars;
     use super::generate_startup_token;
     use super::startup_ready_url;
@@ -1056,5 +1057,17 @@ mod tests {
                 "https://feedback.example.com"
             )]
         );
+    }
+
+    #[test]
+    fn built_feedback_env_vars_are_available_for_packaged_desktop() {
+        let env_vars = built_feedback_env_vars();
+
+        assert!(env_vars.iter().any(|(name, value)| {
+            *name == "NIAMOTO_FEEDBACK_WORKER_URL" && !value.trim().is_empty()
+        }));
+        assert!(env_vars.iter().any(|(name, value)| {
+            *name == "NIAMOTO_FEEDBACK_API_KEY" && !value.trim().is_empty()
+        }));
     }
 }
