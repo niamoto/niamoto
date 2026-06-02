@@ -148,6 +148,32 @@ def test_release_metadata_files_are_part_of_release_commit() -> None:
     ]
 
 
+def test_preflight_uses_frozen_uv_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    recorded_steps: list[tuple[str, list[str], Path]] = []
+
+    monkeypatch.setattr(niamoto_release, "ensure_release_prerequisites", lambda: None)
+    monkeypatch.setattr(
+        niamoto_release.shutil,
+        "which",
+        lambda tool: None if tool == "cargo" else f"/usr/bin/{tool}",
+    )
+
+    def fake_run_step(
+        description: str, args: list[str], *, cwd: Path = niamoto_release.ROOT_DIR
+    ) -> None:
+        recorded_steps.append((description, args, cwd))
+
+    monkeypatch.setattr(niamoto_release, "run_step", fake_run_step)
+
+    niamoto_release.run_preflight_checks()
+
+    assert recorded_steps[0] == (
+        "Pytest",
+        ["uv", "run", "--frozen", "pytest", "tests/", "-x", "-q", "--tb=short"],
+        niamoto_release.ROOT_DIR,
+    )
+
+
 def test_prepare_release_commit_refreshes_and_stages_lockfiles(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -188,6 +214,24 @@ def test_prepare_release_commit_refreshes_and_stages_lockfiles(
         "Commit release",
         "Create tag",
     ]
+    assert recorded_steps[0] == (
+        "Version bump",
+        [
+            "uv",
+            "run",
+            "--frozen",
+            "bump2version",
+            "--current-version",
+            "0.15.7",
+            "--new-version",
+            "0.15.8",
+            "--no-commit",
+            "--no-tag",
+            "--allow-dirty",
+            "patch",
+        ],
+        niamoto_release.ROOT_DIR,
+    )
     assert recorded_steps[1] == (
         "Refresh uv.lock",
         [

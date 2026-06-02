@@ -414,7 +414,10 @@ def release_worktree_needs_restaging() -> bool:
 def run_preflight_checks() -> None:
     ensure_release_prerequisites()
 
-    run_step("Pytest", ["uv", "run", "pytest", "tests/", "-x", "-q", "--tb=short"])
+    run_step(
+        "Pytest",
+        ["uv", "run", "--frozen", "pytest", "tests/", "-x", "-q", "--tb=short"],
+    )
     run_step("Ruff", ["uvx", "ruff", "check", "src/"])
     run_step("pnpm install", ["pnpm", "install", "--frozen-lockfile"], cwd=UI_DIR)
     run_step("Frontend build", ["pnpm", "run", "build"], cwd=UI_DIR)
@@ -474,6 +477,7 @@ def prepare_release_commit(
         [
             "uv",
             "run",
+            "--frozen",
             "bump2version",
             "--current-version",
             current_version,
