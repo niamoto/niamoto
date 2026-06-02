@@ -7,6 +7,1099 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.20.0] - 2026-06-02
+
+### Features
+
+- Unify automatic widget recommendations (#172)
+- Streamline import cockpit workflow
+- Guide users before import uploads
+- Show collection computation progress in sidebar
+- Allow custom API export data source
+- Streamline collection data outputs
+- Refine collection data outputs
+- Complete standard profile workflows
+- Add standardized export profiles
+- Improve API export auto-configuration
+- Support auxiliary source review editing
+- Add data source inspection tabs (#142)
+- Improve index field selection
+- Add workflow history details
+- Add workflow history view
+- Add list performance diagnostics
+- Add workflow commands to palette
+- Remember desktop view preferences
+- Remember desktop route per project
+- Improve site builder authoring workflow
+- Persist site workbench preview state
+- Add native desktop menu shell
+- Refine desktop shell and export toggles
+- Add source enrichment reset mode
+- Add enrichment panel workflow
+- Add script to revert Tauri updater manifest to a previous version
+- Add AST-based plugin manifest extractor
+- Redesign pipeline overview (#125)
+- Migrate from ReadTheDocs to GitHub Pages
+- Add landing teaser with Niamoto product mocks
+- Add Niamoto marketing site plan with partner assets
+- Improve index generator configuration workflow
+- Build remotion product demo
+- Wire Intro/Outro scenes and add TransitionLabels
+- Add Acts 4-6 (Collections, Site Builder, Publish)
+- Add UI components, cursor system, and Acts 1-3
+- Bootstrap Remotion demo video project
+- Unify desktop and app startup loaders
+- Add desktop debug mode and feedback fallback
+- Improve collections computation feedback
+- Replace collection select with custom dropdown
+- Restore collection selector in CollectionPanel toolbar
+- Add logos for BHL and spatial providers
+- Add spatial enrichment v1
+- Add inaturalist rich enrichment
+- Add BHL references enrichment
+- Add shared name verifier for rich enrichers
+- Add catalogue of life rich enrichment
+- Expand enrichment provider integrations
+- Redesign enrichment workspace
+- Add multi-source enrichment workflow
+- Surface enrichment progress on dashboard cards
+- Add desktop update test harness
+- Improve publish workspace and desktop window state
+- Refine panel navigation and transitions
+- Html2canvas-pro screenshot + enriched debug context
+- Add in-app feedback system with CF Worker proxy
+- Add page transition and card entrance animations
+- Add 8 new theme presets
+- Extend style categories and add theme fallback logic
+- Tauri desktop release readiness (#65)
+- Add collapsible widget list panel
+- Merge Sources tab into Blocs as dialog overlay
+- Add enriched collections overview with status cards
+- Simplify API export UX for non-technical users (#61)
+- Extend pre-import impact checks (#60)
+- Add iOS and Android icon sets
+- Replace logo with new N lettermark design
+- Add release automation infrastructure (#58)
+- Show live import progress events
+- Stream auto-config analysis events
+- Classify auxiliary stats sources separately
+- Improve semantic relationship detection
+- Integrate ML acquisition wave and retraining results
+- Replace synthetic anonymous holdout with diversified real columns
+- Retrained models on enriched gold set (2525 cols)
+- Add niamoto-nc to gold set, fix basal_area merge
+- Expand alias registry — 13 new concepts, 76.6% concept (+5.3)
+- Multi-dataset eval suite — 418 cols, 7 datasets, 71% concept
+- Full instance evaluation with annotations — 57 cols, alias 25% → ML 46% concept
+- Retrain all models with cross-rank reciprocity features — ProductScore 79.25 → 80.04 (+0.79)
+- Add fusion surrogate autoresearch runner
+- Add product-oriented evaluation and surrogate fusion loop
+- Complete Phase 3 — profiles, affordances, patterns, anomalies
+- Concept taxonomy, enriched data, coarsened training (2231 cols)
+- Add gold set builder, training scripts, and CLI metric
+- Add alias registry, ml_mode API, and evaluation harness
+- Add multi-platform deployment from GUI
+- Add sidebar layout to Data, Groups and Publish modules
+- Add pipeline status hooks, home page and staleness banner
+- Simplify navigation, fix multi-lang export and map rendering
+- Refactor footer as category-based sections with internal/external links
+- Create niamoto-subset instance from niamoto-nc for fast testing
+- Centre de notifications connecté aux jobs du pipeline
+- Bouton transform dans GroupPanel + checkbox composite dans Build
+- Ajouter group_by, endpoints active/last-run et job composite transform→export
+- Ajouter JobFileStore + fix os.chdir() thread-unsafe
+- Add shimmer loading skeleton with widget-type icons
+- Add Plotly bundle splitting (core 1.3MB, maps 2.2MB)
+- Migrate all preview components to unified engine and delete legacy queue
+- Wire preview engine invalidation and migrate recipes (Phase 4)
+- Add usePreviewFrame hook and shared preview components (Phase 3)
+- Add unified preview engine (Phase 1)
+- Add combined widget analysis previews
+- Centralize table resolver and transform config models
+- Full offline support for desktop application
+- Enrich raster_stats and land_use with layer-select UI hints
+- Add geographic layers API and LayerSelectField widget
+- Add Phase 2.1 form widgets for transform configuration
+- Add KeyValuePairsField and TagsField widgets with auto-detection
+- Enrich Pydantic models with UI hints and fix Select.Item bug
+- Use native macOS titlebar overlay instead of custom traffic lights
+- Add multilingual support and i18n infrastructure
+- Add MapRenderer service and fix layout preview issues
+- Refactor index config with side panel editor and reusable preview
+- Improve site preview navigation and widget suggestions
+- Complete i18n migration for all UI components
+- Enhance site builder with improved navigation and group preview
+- Add x_label and y_label quick edit fields for axis customization
+- Implement Option A hybrid layout with improved widget modal
+- Add multi-field pattern detection for combined widgets
+- Add drag-and-drop widget reordering and layout.order support
+- Add specialized parameter editors and preview service
+- Add unified widget recipe editor with wizard interface
+- Enhance relation detection and support for class_object_field_aggregator
+- Add index generator configuration and widget management
+- Enhance desktop app with welcome screen, site config UI and layout editor
+- Add advanced theme system with typography, shapes, and effects
+- Replace bootstrap with intelligent widget suggestion system
+- Integrate Tauri for desktop application support
+- Add PyInstaller support and resource cascade system
+- Remove hardcoded table references in showcase metrics
+- Remove hardcoded entity references in data explorer and showcase
+- Complete EntityRegistry v2 migration for stats and entities
+- Add development tooling with instance context management
+- Add intelligent onboarding wizard with auto-configuration
+- Add transform-source-select widget with group context
+- Migrate 11 transformers to entity-select widget
+- Add dynamic entity-select widget and update config templates
+- Migrate aggregation transformers to EntityRegistry
+- Migrate 3 distribution transformers to EntityRegistry
+- Migrate remaining 3 class_objects transformers to EntityRegistry
+- Migrate categories_extractor and series_extractor class_objects transformers to EntityRegistry
+- Migrate loaders to EntityRegistry and create refactoring tracking system
+- Add environment variable substitution and plugin config validation
+- Add partners section to TeamSection component with logos and descriptions
+- Add PerspectivesSection component and integrate into showcase page fix: update Rich version in StackTechSection fix: include 'perspectives' in showcase store sections
+- Implement pipeline management with tabs and shared state
+- Add Cloudflare deployment functionality and integrate into the GUI
+- Add API demo component and integrate into showcase page
+- Add exports structure API endpoint and update UI components for directory visualization
+- Add YAML configuration editor and backup functionality
+- Update API documentation page and navigation structure
+- Add Plotly.js and react-plotly.js for data visualization
+- Update GUI documentation and improve language switcher component
+- Implement enrichment preview functionality in Data Explorer
+- Add package.json to repo for Docker builds
+- Enhance showcase components with improved YAML configuration display and updated use case statistics
+- Implement interactive showcase pages with real data pipeline integration
+- Expose plugin param schemas for dynamic gui config
+- Implement unified pipeline editor with ReactFlow
+- Improve Transform interface and add pipeline specifications
+- Implement hierarchical navigation and transform pipeline interface
+- Add SQLite performance optimizations
+- Update CLAUDE.md for development guidelines and commands; update permissions in settings.local.json; refine error handling in bar_plot and donut_chart widgets
+- Enhance API enrichment with chained requests and improve GUI packaging
+- Add support for binomial naming in TaxonomyImporter
+- Enhance taxonomy name generation logic in TaxonomyImporter
+- Introduce Tropicos enricher plugin for enhanced taxonomy data enrichment
+- Enhance ShapeImporter and StatsLoader for improved feature handling and ID generation
+- Introduce comprehensive GUI enhancements and CLI improvements
+- Update CLI help message and initialization options
+- Enhance interactive map functionality with Mapbox support
+- Implement hierarchical shape support and enhancements
+- Implement new Shape ID generation format in documentation and code
+- Enhance geospatial extraction and interactive map functionality
+- Enhance FieldAggregator to support JSON field access
+- Add project initialization and metadata enhancements
+- Integrate i18n support across components and add language switcher
+- Enhance shape import functionality and configuration management
+- Introduce faceted spinner and enhance circular progress component
+- Enhance import process with progress tracking and new UI components
+- Add table fields retrieval and enhance import field handling
+- Enhance PlotImporter and import functionality
+- Enhance ShapeProcessor to support group_id configuration
+- Update documentation and configuration for multiple data sources
+- Enhance ShapeProcessor to support group_id configuration
+- Update documentation and configuration for multiple data sources
+- Enhance StatsLoader to support dynamic key field lookup
+- Enhance import functionality with progress tracking and hierarchy configuration
+- Add support for multiple data sources in transformations
+- Implement new import-v2 interface with enhanced functionality
+- Introduce taxonomy hierarchy configuration and streamline import process
+- Integrate httpx for enhanced API interactions and improve import functionality
+- Enhance import wizard and API integration for improved data handling
+- Add React-based GUI configuration interface for Niamoto
+- Enhance export command output and improve plot importer functionality
+- Enhance console output utilities
+- Implement JSON API exporter and enhance data access utilities
+- Enhance configuration file handling and directory setup
+- Add screenshots to README and enhance data availability checks in widgets
+- Enhance Tailwind CSS configuration and implement image gallery features
+- Major documentation overhaul and database aggregator plugin
+- Enhance template handling and CLI options in Niamoto
+- Add run and stats commands to Niamoto CLI
+- Integrate Tailwind CSS for enhanced styling and remove legacy assets
+- Add bump2version to development dependencies
+- Update dependencies and enhance project configuration
+- Enhance widget tooltips and JSON parsing capabilities
+- Refactor Plotly widgets to utilize shared utility functions for layout and rendering
+- Enhance widget styling and structure for modern design
+- Enhance InteractiveMapWidget with loading indicator and improved error handling
+- Adjust positioning and rotation in ConcentricRingsWidget for improved label visibility
+- Update ConcentricRingsWidget to use annotations for segment labels and percentages
+- Add stacked area normalized transformation and concentric rings widget
+- Enhance data transformation and radial gauge widget functionality
+- Add gradient color generation to BarPlotWidget
+- Enhance data transformation and bar plot widget functionality
+- Enhance InteractiveMapWidget with TopoJSON support and optimize GeoJSON handling
+- Enhance HtmlPageExporter with field selection and navigation data extraction
+- Add auto-zoom capability and improve empty state handling in map and info grid widgets
+- - improve test isolation and prevent config file creation during tests  - simplify nested field handling by using existing _get_field_from_table method -improve JSON field handling and use temporary directories for tests
+- Enhance taxonomy import to handle family and genus level entries with taxon IDs
+- Add plugins command to list and inspect available plugins
+- Add auto-color feature to bar plots and enhance hierarchical navigation tests
+- Add auto-color generation for bar plots and simplify widget layout template
+- Add map attribution toggle and improve progress tracking in HTML export
+- Add hierarchical configuration support for plot imports
+- Implement configurable top ranking plugin with direct, hierarchical and join modes
+- Add hierarchical plot structure with nested set model support
+- Improve hierarchical navigation with auto-scroll and enhanced styling
+- Implement hierarchical navigation widget with Tailwind CSS styling
+- Add PyPI token authentication support and release documentation
+- Add PyPI token authentication support and release documentation
+- Implement HTML page exporter with configurable widgets
+- Major core refactoring, taxonomy implementation, and testing overhaul
+- Add support for creating named fields from labels in MultiColumnExtractor
+- Add 'nb_species' to plot information and improve value handling in templates and data extraction, redising the shape_index page
+- Update links in forests, plots, and trees templates to point to index pages
+- Refactor data import process to use ImporterService and improve error handling
+- Enhance GitHub deployment with configurable user identity and improved branch handling
+- Update page generator and template for improved data handling and localization
+- Add index page generation for taxons, plots, and shapes; update navigation links
+- Add Endemia logo to footer and index templates
+- Enhance node opening functionality with smooth scrolling effect
+- Add API taxonomy enricher and enhance plugin documentation
+- Enhance plugin architecture and add direct reference loader
+
+### Performance
+
+- Speed up import auto-configuration
+- Optimize data explorer table rendering
+- Lazy load collection previews
+- Speed up reference field suggestions
+- Streamline transform and export pipelines (#59)
+- Add pytest-xdist parallel execution and mark slow benchmarks
+- Batch fusion features in evaluate.py — ProductScore 14h → 42min
+- Batch fusion feature extraction — training 5h → 15min, identical results
+- Reduce binary size by 43% through dependency optimization
+
+### Bug Fixes
+
+- Keep uv run checks frozen
+- Preserve uv lock resolution options in releases
+- Narrow import status badge variants
+- Preserve export cancellation fallback
+- Address PR review blockers
+- Harden publish and import dashboard flows
+- Gate desktop releases on sidecar startup
+- Polish dark mode branding and sidebar state
+- Tighten import file handling
+- Harden import cockpit file matching
+- Preserve duckdb resolution cutoff
+- Stabilize desktop API auth client test
+- Keep missing DuckDB read-only connections lazy
+- Stabilize DuckDB access in GUI previews
+- Eliminate pytest warnings
+- Stabilize plugin loading and test cleanup
+- Resolve high clawpatch findings
+- Resolve clawpatch review findings
+- Resolve clawpatch high findings
+- Resolve clawpatch findings
+- Close remaining clawpatch low findings
+- Stabilize preview and overlay regressions
+- Stabilize collection and index workflows
+- Stabilize API route regressions
+- Authorize desktop API requests
+- Preserve profiler total row count
+- Infer legacy top ranking mode
+- Resolve spatial preview geometry
+- Preserve group index generator fields
+- Discover recipe widget schemas
+- Align import v2 validation with model
+- Validate relationship CSV inputs
+- Escape BibTeX export values
+- Offload enrichment preview loading
+- Bound index suggestion record loads
+- Enforce query result limits
+- Preserve duplicate transform widgets
+- Fail transform jobs for unknown groups
+- Count hierarchical representatives from relation
+- Preserve registry plugin type
+- Translate standard compatibility errors
+- Translate enrichment preview errors
+- Mark publication stale after site config changes
+- Offload smart auto configure
+- Analyze spatial shape uploads
+- Drop registered import tables
+- Scope combined suggestions sources
+- Translate enrichment config errors
+- Honor configured spatial geometry fields
+- Bound csv import uploads
+- Hide non-transform job status
+- Parse underscored entity map references
+- Bound time series presence percentages
+- Resolve repository ml models
+- Aggregate duplicate class object rows
+- Validate outlier export thresholds
+- Reload desktop projects through native bridge
+- Bound retained import jobs
+- Validate stats validation rules
+- Bound data explorer query limits
+- Expose cli export jobs
+- Validate dataset config updates
+- Respect cleared preview fields
+- Align import v2 schema contract
+- Enforce export widget identifiers
+- Load all recipe widget plugins
+- Cancel export jobs
+- Validate canonical transform lists
+- Stream site file uploads
+- Align index generator group lookup
+- Read root transform source configs
+- Limit feedback screenshot uploads
+- Prefer explicit spatial coordinate columns
+- Preserve import status setup errors
+- Validate config updates before writing
+- Bind transformer package exports
+- Securely open exported files
+- Write validation rules atomically
+- Avoid leaking config file paths
+- Validate backup config names
+- Parameterize archive preview validation query
+- Escape Rich markup in stats output
+- Escape Rich markup in plugin listing
+- Escape Rich markup in direct CLI errors
+- Escape Rich markup in progress output
+- Escape Rich markup in CLI output
+- Block unsafe outbound test redirects
+- Write source transform config atomically
+- Use read-only table preview connection
+- Open table preview database read-only
+- Require auth for credential mutations
+- Serialize API export target updates
+- Escape formulas in outlier CSV exports
+- Validate API export target paths
+- Require auth for validation rule updates
+- Serialize config scaffolding updates
+- Serialize source config updates
+- Share transform config write lock
+- Serialize transform widget updates
+- Avoid orphan recipe transforms
+- Serialize collection metadata updates
+- Write data content atomically
+- Restrict data content writes
+- Serve uploaded SVGs as attachments
+- Create valid web export targets
+- Validate widget dependency scripts
+- Open template lookups read-only
+- Scope recipe widget deletion
+- Require desktop auth for import mutations
+- Write bulk import config atomically
+- Serialize index generator updates
+- Constrain backup restore paths
+- Stabilize pipeline history import snapshot
+- Write config updates atomically
+- Serialize reference config updates
+- Quote Darwin Core group queries
+- Merge enrichment updates with current data
+- Validate Darwin Core query identifiers
+- Resolve entity tables before querying
+- Restrict derived column formulas
+- Restrict custom formula evaluation
+- Resolve archived test fixture paths
+- Hide absolute export list paths
+- Guard widget suggestions without project
+- Preserve group index preview footers
+- Quote dataset count tables
+- Accept uppercase upload extensions
+- Hide combined suggestion internals
+- Hide backup filesystem paths
+- Avoid GUI backup collisions
+- Record JSON export metadata duration
+- Register plugins with correct arguments
+- Preserve benchmark logs
+- Escape class object CSV paths
+- Bound GBIF request timeouts
+- Open entity reads read-only
+- Limit BibTeX upload size
+- Constrain saved source paths
+- Restrict served project files
+- Tolerate empty BibTeX fields
+- Restrict API test targets
+- Constrain site file listing paths
+- Validate recipe plugin params
+- Preserve static page extensions
+- Limit extracted upload archives
+- Preserve uploads on failed overwrite
+- Preserve API export group settings
+- Preserve unresolved widgets on reorder
+- Return all recipe source columns
+- Ignore invalid WKT in shape distribution
+- Preserve deploy validation extras
+- Validate dataset config shape
+- Count dangling taxonomy orphans
+- Paginate valid WKT map features
+- Constrain configured source paths
+- Escape render widget messages
+- Restrict site file content access
+- Stream terminal auto config events
+- Reject concurrent import all jobs
+- Validate current import config schema
+- Preserve zero medians in validation stats
+- Include max values in validation histograms
+- Redact listed import job tracebacks
+- Redact import job tracebacks
+- Guard debug health error route
+- Tolerate invalid WKT in coverage analysis
+- Reject duplicate normalized CSV headers
+- Preserve layout widget index identity
+- Validate plugin compatibility requests
+- Include datasets for reference-only recipes
+- Reject colliding source uploads
+- Limit source upload memory use
+- Avoid backup filename collisions
+- Preserve upper edge in smart bins
+- Keep top ranking suggestion counts positive
+- Resolve humboldt collection backing sources
+- Filter horizontal bar zeros by value axis
+- Handle zero-width contextual gauge ranges
+- Render dictionary line plots with multiple y axes
+- Constrain exporter output paths
+- Sanitize leaflet map rendering
+- Use advanced transform chain references
+- Default static page context to none
+- Escape widget container metadata
+- Validate archived shapefile zip extraction
+- Resolve archived debug script roots
+- Run archived test helper from repo root
+- Resolve dev script repository root
+- Clean untracked autoresearch directories
+- Preserve fusion surrogate cache on rebuild failure
+- Handle help sections without index pages
+- Validate template config before export update
+- Surface geospatial source failures
+- Honor geospatial registry id fields
+- Copy semantic affordance sets
+- Calculate edge density per area unit
+- Align class object series by axis
+- Round scalar gauge maximums upward
+- Handle deployer unpublish network errors
+- Reject disjoint relationship samples
+- Project vector overlay feature areas
+- Honor raster nodata metadata
+- Convert table view data before empty check
+- Mark uvloop as non-windows dependency
+- Ignore invalid summary stat filters
+- Convert summary stats data before empty check
+- Handle plot import removal
+- Resolve query db paths from repo root
+- Use configured spatial preview dataset
+- Preserve DuckDB mode during selects
+- Substitute plain config env vars
+- Expand configured database paths
+- Tolerate partial UI builds
+- Fail plugin manifest on syntax errors
+- Validate aggregation SQL identifiers
+- Sanitize markdown preview html
+- Validate import v2 saves
+- Quote entity route identifiers
+- Constrain site uploads to files
+- Constrain preview source paths
+- Require desktop auth for project reload
+- Block private URL health checks
+- Use typed ecological transformer params
+- Preserve nojekyll in GitHub API deploys
+- Restrict file browser to project root
+- Keep desktop auth token private
+- Prevent docs help output deletion
+- Avoid export cwd lock deadlock
+- Preserve existing zip upload components
+- Skip empty product holdouts
+- Support validated query templates
+- Honor adjacency hierarchy id field
+- Validate loader SQL identifiers
+- Enforce GUI API path containment
+- Escape user values in CLI console output
+- Clean MagicMock artifacts between tests
+- Preserve unowned root databases in tests
+- Export transformer suggestion model
+- Match plugin structures by descriptor
+- Support empty widget transform tables
+- Honor top-level widget source
+- Prompt for deployment credentials
+- Fail pipeline on transform config errors
+- Prevent silent CLI startup failures
+- Use dropdown for export data sources
+- Improve export labels and warning handling
+- Harden generated exports and enrichment configs
+- Harden standard profile exports and tooling
+- Harden export profile fallbacks
+- Render void html tags without children
+- Address React Doctor UI findings
+- Address enrichment review feedback
+- Improve enrichment previews
+- Stabilize enrichment jobs
+- Scan full CSV during DuckDB imports
+- Allow adding import files incrementally
+- Handle missing data preview tables
+- Prevent recipe editor crashes
+- Stabilize index field editor
+- Preserve markdown content on page switch
+- Persist desktop route memory natively
+- Prevent collections preview update loops
+- Address site editor review feedback
+- Restore export config path hook
+- Place preview restore next to delete
+- Keep desktop project context in sync
+- Soften project switcher hover states
+- Preserve static site path for html exports
+- Pin codecov cli version
+- Harden release staging flow
+- Update rustls webpki lockfile
+- Harden export and enrichment jobs
+- Split codecov checks by coverage area
+- Align vitest config typing
+- Address enrichment polling review feedback
+- Stabilize frontend coverage tests
+- Install pnpm before node cache
+- Refine enrichment workflow reliability and UX
+- Stage plugin manifest during releases
+- Polish export format wizard
+- Stabilize index config preview and actions
+- Honor taxon stats relation fields
+- Avoid welcome screen flicker on desktop
+- Avoid recreating missing desktop project dirs
+- Use native macOS traffic light placement
+- Stabilize create project button hover
+- Remove stale docs toctree entry
+- Stabilize table preview pagination
+- Harden release artifact publishing
+- Restore macos executable permissions
+- Harden release automation flows
+- Accept flattened macos release app artifacts
+- Resolve frontend lint warnings
+- Surface pipeline status failures in publish
+- Restrict publish gate to fresh sites
+- Fail closed while publish gate resolves
+- Gate publish on site configuration
+- Restore site setup for unconfigured sites
+- Tighten site root detection
+- Base site readiness on a real root page
+- Keep default web exports empty
+- Stop scaffolding a synthetic home page
+- Remove default home injection from site config
+- Consolidate release automation flow
+- Pass updater signing password explicitly
+- Pass updater signing key path to macos finalizer
+- Resolve downloaded macos app bundle in release finalizer
+- Finalize macos release artifacts after notarization
+- Repair macos signing pipeline for tauri bundles
+- Sign versioned python framework bundle
+- Bundle-sign python framework entrypoints
+- Resolve versioned python path dynamically
+- Sign flattened macos python entrypoints
+- Sign embedded Python frameworks in CI
+- Codesign macOS sidecar binaries in CI
+- Pre-import Apple signing certificate in CI
+- Recheck connectivity on startup
+- Include trained ml models in desktop bundles
+- Align mac traffic lights vertically
+- Allow accented project names in wizard
+- Point help output to the new GitHub Pages docs URL
+- Exclude internal design system from Sphinx build
+- Avoid duplicate help_content entries in wheel
+- Harden config suggestions and uv dev workflow
+- Stabilize collection auto-detect and desktop tools
+- Resolve site builder lint warning
+- Polish demo video interactions
+- Refine demo video transitions
+- Bind geospatial extractor to runtime config
+- Stabilize previews and GitHub Pages deployment
+- Prevent desktop preview request storms
+- Harden desktop connectivity and updates
+- Disable in-app windows updates
+- Reduce collections preview load on low-power devices
+- Preserve collection tab navigation
+- Tighten publish readiness flow
+- Improve UI rendering smoothness
+- Smooth import query refresh states
+- Improve linux updater install flow
+- Prevent duplicate update toasts
+- Repair packaged desktop widgets and feedback
+- Enable tauri devtools feature for desktop debug mode
+- Clarify collection batch progress
+- Clear stale widget suggestion caches after import
+- Hide sidebar branding in desktop builds
+- Force bash shell for Tauri build on Windows
+- Resolve typescript errors across forms and views
+- Ensure site configs include a home page
+- Auto fit map previews to data
+- Stabilize tauri dev startup
+- Reduce redundant frontend polling
+- Harden widget previews and config inference
+- Harden tauri desktop runtime
+- Resolve frontend context split regressions
+- Harden desktop update and packaging flows
+- Improve Windows desktop compatibility
+- Disable Windows sidecar console for desktop builds
+- Limit entity list to 15 items with max-height cap
+- Polish enrichment workspace and preview
+- Use native linux titlebar chrome
+- Streamline widget detail preview and forms
+- Correct language switcher paths in exports
+- Harden desktop update relaunch flow
+- Simplify theme picker cards
+- Open preview in browser from desktop
+- Stabilize gui import and publishing workflows
+- Harden gui runtime diagnostics
+- Improve widget and transformer form handling
+- Tighten desktop settings behavior
+- Recover offline indicator on reconnect
+- Align widget previews and layout config
+- Hide legends in layout overview miniatures via Plotly relayout
+- Improve preview engine resilience and health endpoint
+- Improve Tauri startup, updater UX, and collections UI
+- Disable RUSTSEC issue creation and improve desktop startup
+- Address user findings — form reset, cooldown enforcement, screenshot capture, error sanitization
+- Address code review findings
+- Refine mac desktop header alignment
+- Restore dev hot reload workflow
+- Wire theme polish review fixes
+- Isolate scroll zones and harmonize tab headers
+- Move collapse toggle to right, fix scrollbar and scroll issues
+- Use i18n for relative time in collections overview
+- Resolve tab mismatch, API settings access, and stale i18n keys
+- Correct stale i18n keys and tab value mismatch
+- Enforce canonical home page export
+- Improve desktop startup recovery
+- Add unittest to PyInstaller hidden imports
+- Polish publish workflow panels
+- Stabilize publish previews and history
+- Harden import and widget flows
+- Harden import summary navigation
+- Stabilize gui startup context
+- Preserve enrichment tab state in onboarding UI
+- Make pyinstaller install portable in CI
+- Restore binary build packaging
+- Increase auto-configure job polling timeout for CI with xdist
+- Add --clear flag to uv venv to handle cached virtualenv
+- Use correct codecov-action v5 parameter name
+- Skip subset benchmark tests in CI when instance unavailable
+- Skip benchmark tests when subset instance is unavailable
+- Translate api enrichment UI
+- Support reference-only spatial widgets
+- Restore map suggestions for coordinate fields
+- Correct silver.yml ground-truth annotations for afrique dataset
+- Broaden pre-commit large-file exclusion to cover ml/models/*.joblib
+- Raise ML confidence threshold to 0.6 to prevent false positives
+- Clean up stale paths and packaging after ml/ centralization
+- Restore ml autoresearch and packaging entrypoints
+- Skip pre-commit hooks in autoresearch runner commits
+- Replace codex with claude cli in surrogate runner
+- Defer stack validation in surrogate runner, add scope filter
+- Harden surrogate autoresearch prompt
+- Defer stack baseline in surrogate runner
+- Address gpt-5.4 review — ship models, fix hierarchy ID, anonymous inference, coordinates
+- Address codex review — align identifier namespace, geometry affordances, drop rapidfuzz
+- Address P1 review findings — remove dead code and unsafe deserialization
+- Add monaco-editor types as dev dependency
+- Remove obsolete deploy CLI tests and fix SyntaxWarning
+- Comprehensive i18n audit — replace all French fallbacks with English, fix namespace issues and add missing translation keys
+- Add fixed seed to ML detector tests for cross-version reproducibility
+- Remove duplicate legacy preview route that shadowed templates router
+- Address PR #54 review comments (CI, build scripts, docs)
+- Datetime serialization in job store and obsolete preview mount test
+- Prevent duplicate toasts and wrong group name on transform completion
+- Supprimer read_only=True des connexions DuckDB API
+- Codex review #3 — conditional polling, strict types, i18n timeAgo
+- Corrections revue Codex #2 — sécurité, i18n, robustesse
+- Extraire les chaînes FR hardcodées vers i18n (sources + publish)
+- Corrections revue Codex — filtrage job_type, progression monotone, polling reprise
+- Résoudre le montage preview et les chemins relatifs export
+- Resolve full export pipeline for taxons, plots, and shapes
+- Ajouter skipif pour les tests dépendant des instances locales
+- Corriger la génération de config des suggestions et les tests cassés
+- Add html.escape() to all widget error messages and data interpolations
+- Add padding to info_grid widget container
+- Refresh button now bypasses browser cache and shows shimmer
+- Categorical_distribution type coercion for YAML string categories
+- Rewrite _render_entity_map and pass is_map=True to Plotly
+- Series_extractor bar_plot field name mismatch and missing param forwarding
+- Stabilize widget previews and shape scalar gauges
+- Correct widget previews for entity and class_object sources
+- Add minimal Tailwind classes and CSS chevron for navigation preview
+- Remove CDN dependencies (Tailwind, Font Awesome) from previews
+- Force iframe preview refresh after widget reorder
+- Fix drag & drop snap-back and refresh layout after reorder
+- Make request optional in preview_template for direct call from layout.py
+- Exclude FastAPI-injected request parameter from signature test
+- Fix TypeScript errors and preview refresh
+- Finalize analysis transformer output and formatting
+- Stabilize config scaffolding and import config access
+- Formatting and remaining test updates for v1 config contract
+- Handle inline content_markdown in static pages
+- Update test assertions and mocks for recent changes
+- Ensure gauge widget is proposed for all numeric columns
+- Improve relation reference_key detection
+- Handle identical values in distribution preview and fix binary counter
+- Improve widget suggestions and fix geometry serialization errors
+- Use working directory context for Config in GUI API
+- Update tests for absolute database path and refine numeric/categorical detection
+- Correct PyInstaller settings to prevent numpy and DLL corruption
+- Replace Unicode arrows and bullets with ASCII, fix run command description
+- Replace all Unicode emojis with cross-platform emoji() function
+- Replace Unicode characters with ASCII-only for Windows compatibility
+- Replace Unicode characters with ASCII in spec file
+- Commit package-lock.json for reproducible builds
+- Actually check directory emptiness before blocking init
+- Improve init command path handling and error messages
+- Restore working directory after init command
+- Handle Windows paths in project name extraction
+- Correct project path derivation in plugins command
+- Remove hard dependency on uv tool
+- Flatten Windows zip structure for easier extraction
+- Correction de 13 bugs dans les plugins transformers et l'API smart_config
+- Preserve large integer ID precision and load group_by dynamically
+- Preserve large integer IDs precision in index generation
+- Fix pytest collection and test database artifacts
+- Update instance initialization to EntityRegistry v2 format
+- Improve fallback logic for displaying configuration path or file in ImportDemo component
+- Update file count logic to handle edge cases and reorder sections in showcase store
+- Resolve CI/CD build issues with GUI dist directory
+- Restore .gitkeep file for CI/CD builds
+- Update Tropicos API name in enrichment configuration
+- Improve API enrichment field translations
+- Simplify publish script to handle GUI packaging properly
+- Ensure GUI dist directory exists for CI/CD builds
+- Resolve CI/CD build issue with GUI dist directory
+- Correct caching logic in api_taxonomy_enricher
+- Refine entity existence check in PlotImporter
+- Update API URL and enhance drag-and-drop functionality in import wizard
+- Prevent rendering of empty widgets in WidgetPlugin and RadialGaugeWidget
+- Improve zoom level calculation in InteractiveMapWidget
+- Update parent linking logic in TaxonomyImporter
+- Update drag-and-drop cursor styles and hierarchy level descriptions
+- Correct hierarchy level description in PlotHierarchyConfig component
+- Standardize field naming in advanced options for import functionality
+- Update bar plot widget to handle cases with no meaningful y-axis data
+- Add ORDER BY clause to SQL queries in HtmlPageExporter for consistent result ordering
+- Correct quotation marks in LICENSE and update Plotly version in pyproject.toml for Scattermap support; enhance README with instructions for managing multiple Niamoto installations
+- Fix interactive map widget for all groups
+- Enhance info panel rendering by adding support for external data sources and improving value checks
+- Improve error handling in page generation and refactor UICN translation function in taxon index template
+
+### Refactoring
+
+- Reduce UI dead code
+- Prune unused UI code
+- Add shell-neutral desktop bridge
+- Replace screencast architecture with motion graphics foundation
+- Compact desktop UI density
+- Overhaul theme system — consolidate to 6 themes, unique fonts, offline fonts, font selector
+- Unify collection transform state
+- Reorganize sidebar navigation and header
+- Stabilize frontend lint architecture
+- Enforce frontend architecture boundaries
+- Split site config hooks
+- Lazy load monaco editors
+- Standardize frontend data queries
+- Consolidate frontend theme state
+- Consolidate enrichment configuration workflow
+- Add ARIA region labels to enrichment panel columns
+- Replace enrichment config tabs with accordion sections
+- Replace enrichment 2-col grid with 3-col ResizablePanelGroup
+- Extract enrichment render helpers to separate file
+- Extract useEnrichmentState hook from EnrichmentTab
+- Polish publish preview copy and layout
+- Improve collection layout overview
+- Compact source cards with consistent icon-only actions
+- Migrate shell components to theme-aware utilities
+- Redesign sources dashboard workflow (#64)
+- Site module UX revamp — unified view + first-launch experience (#63)
+- Merge header and tabs into single compact toolbar
+- Move pipeline status from banner to breadcrumb
+- Flatten collections sidebar with status dots
+- Rename Groups module to Collections in GUI
+- Redesign sources workspace
+- Simplify publish workflow
+- Migrate geospatial I/O to pyogrio
+- Remove publish.sh, move scripts to dev/, update docs for CI-based PyPI publish
+- Clean up scripts directory, archive obsolete utilities
+- Close ui architecture review findings
+- Move home route into dashboard feature
+- Finalize frontend feature architecture cleanup
+- Simplify import flow react architecture
+- Streamline reference enrichment flow
+- Keep import workflow in context
+- Polish import analysis flow
+- Simplify import configuration review UX
+- Remove misleading data quality dashboard score
+- Move plotly-bundles to scripts/build/ and add CSS assets
+- Harden and centralize auto-config rules
+- Calibrate enriched reference classification
+- Extract smart auto-config decision layer
+- Centralize offline ML workspace under ml
+- Simplify FK heuristic, delegate specific id types to alias registry
+- Address P3 review findings
+- Address P2 review findings
+- Replace old pattern matching with alias registry, remove old MLColumnDetector
+- Declarative registries, POST inline, smart entity selection (#55)
+- Migrate deployers from services to plugins, add GUI deploy API with health check and unpublish
+- Flatten sidebar navigation and remove Labs/Tools sections
+- Delegate to TransformerService with shared code path
+- Intégrer JobFileStore dans les routers transform et export
+- Finalize preview engine — dead code removal, security hardening, ETag optimization
+- Consolidate HTML wrappers, remove dead Plotly bundle, fix review findings
+- Extract preview_utils and decouple engine from PreviewService
+- Migrate hooks to React Query + debounce
+- Optimize widget preview system performance
+- Migrate npm to pnpm and update build scripts
+- Update EntityKind types, config generator and components
+- Harden routers, normalize YAML None values, migrate to table resolver
+- Rename Index tab to Liste for better UX
+- Reorganize components directory structure
+- Reorganize routes and consolidate API structure
+- Cleanup legacy code and reorganize components
+- Separate data loading from transformation logic
+- Prepare EntityRegistry v2 migration
+- Improve geospatial data handling in GeospatialExtractor
+- Unify source configuration structure across documentation and code
+- Remove taxon estimation logic from OccurrencesStep and SummaryStep
+- Streamline import wizard and remove deprecated components
+- Standardize success and error indicators in console output
+- Clean up imports and enhance progress tracking
+- Simplify value formatting logic in RadialGaugeWidget
+- Remove deprecated template compatibility test from IndexGenerator
+- Update asset paths and enhance static page layout
+- Modernize export system with configurable IndexGeneratorPlugin and reorganize templates                                                                             │ │                                                                                                                                                                                                │ │   - Add new IndexGeneratorPlugin for configurable index page generation with filtering, custom display fields, and multiple views                                                              │ │   - Update HtmlPageExporter to integrate new plugin with fallback to traditional generation                                                                                                    │ │   - Add comprehensive configuration models for index generation (IndexGeneratorConfig, IndexGeneratorDisplayField, etc.)                                                                       │ │   - Reorganize template structure: move legacy templates to niamoto-legacy/ folder for backward compatibility                                                                                  │ │   - Modernize base templates with Tailwind CSS v4, improved responsive design, and configurable theming                                                                                        │ │   - Update template references to use simplified paths (group_detail.html instead of _layouts/group_detail_with_sidebar.html)
+- Improve plugin test reliability by reloading modules and fixing imports
+- Consolidate plugin system mocking with contextmanager in tests
+- Improve plugin test structure with mock registry helper and better error handling
+- Migrate from mapbox to standard plotly map types and remove token requirement
+- Optimize hierarchical navigation by loading data from external JS files
+- Centralize config models and restructure tests
+- Improve error handling, validation, and tests
+- Improve plugin architecture with enhanced registry and tests
+- Optimize test suite performance and fix environment test
+
+### Documentation
+
+- Fix plugin registry docstring
+- Refresh agent and GUI documentation
+- Update institutional site wording
+- Drop golden rule line from CLAUDE.md
+- Add site markdown authoring plan
+- Add site markdown authoring design
+- Add site workbench preview plan
+- Add site workbench preview design
+- Add native menu shortcuts design
+- Add desktop shell workbench trial design
+- Add source enrichment reset design
+- Add enrichment panel design spec
+- Include release retrospective in docs toctree
+- Add site builder empty-state implementation plan
+- Add collection transform/export auto-config to ROADMAP
+- Connect MCP server to local SLM fine-tuning and eval harness in ROADMAP
+- Add Niamoto MCP server for AI-agent-driven instance setup to ROADMAP
+- Add plugin platform overhaul (marketplace, R support, in-app creator) to ROADMAP
+- Add desktop shell evaluation (Tauri vs Electron) to ROADMAP
+- Move hosted Niamoto from not-planned to later in ROADMAP
+- Add site builder empty-state design
+- Link ROADMAP.md from README
+- Add not-planned and contribute sections to ROADMAP.md
+- Add Now/Soon/Later horizons to ROADMAP.md
+- Add GBIF Challenge 2026 milestone to ROADMAP.md
+- Add vision and recently shipped to ROADMAP.md
+- Scaffold root ROADMAP.md
+- Add ROADMAP.md implementation plan
+- Add ROADMAP.md design spec
+- Refresh README hero screenshots
+- Refresh README visuals
+- Rewrite contributing guide
+- Reorganize and refresh desktop-first documentation (#123)
+- Move DESIGN_SYSTEM.md to docs/ for project-wide visibility
+- Add DESIGN_SYSTEM.md documenting the visual system
+- Add motion graphics brainstorm and implementation plan
+- Mark Phase 0+1 checkboxes as complete in demo video plan
+- Add enrichment tab ux consolidation design
+- Add spatial enrichment v1 design
+- Add iNaturalist rich enrichment design
+- Add BHL references enrichment design
+- Add GN verifier shared design
+- Add Catalogue of Life rich enrichment design
+- Add demo video production plan
+- Add GN-assisted TAXREF rich design
+- Add Tropicos rich enrichment design
+- Add GBIF rich enrichment implementation plan
+- Add GBIF rich enrichment design
+- Add desktop update harness design
+- Add publish layout redesign spec
+- Add sources mission control design
+- Add publish ui simplification design
+- Add ml model regeneration design
+- Refine repository guidance for coding agents
+- Rewrite gui documentation in english
+- Update CHANGELOG for v0.9.0 release
+- Fix CodeRabbit review findings — paths and changelog accuracy
+- Reorganize ml detection knowledge base
+- Add pertinence audit plan and update autoresearch programmes
+- Add standards-based dataset acquisition plan
+- Rename NiamotoOfflineScore → GlobalScore, remove CSV mention
+- Add info tooltips to dashboard hero stat cards
+- Update error patterns with fix status after session improvements
+- Add workflow schema and improvement timeline to dashboard
+- Add training & evaluation guide — complete workflow documentation
+- Update dashboard and experiment doc with V5 results (77.5% concept)
+- Rewrite ML detection dashboard with current data and new sections
+- Remove archived obsolete documentation
+- Translate all ML detection docs to English, rewrite index, fix cross-references
+- Archive obsolete files and reorganize documentation structure
+- Log retraining, ProductScore 80.04, batch optimization 20x, instance eval
+- Log session 2026-03-19 — runner fixes, cross-rank gain, plateau
+- Add integration status report, fix restore_paths for untracked files
+- Rewrite overview for botanist audience
+- Update roadmap with enriched dataset results
+- Alléger le plan transform trigger + corrections revue Codex
+- Ajouter les plans shapes config et transform trigger + jobs robustes
+- Add preview architecture, API reference, and widget thumbnail guide
+- Mark all acceptance criteria as validated
+- Add architecture docs, v1 release plan and config contract
+- Rewrite plugin dev guide with modern Pydantic patterns + update plan
+- Add Phase 3.3 user documentation for transform widgets
+- Add Phase 3.2 config simplification analysis (6 axes identified)
+- Update plan - mark Phase 2.5 layers as completed
+- Add comprehensive git tag management commands
+- Reorganize and fix Sphinx documentation structure
+- Reorganize documentation structure and add ML detection system
+- Reorganize documentation structure and improve formatting
+- Add API documentation for plugin system
+
+### Other
+
+- Cover release lock resolution args
+- Use PyPI Codecov CLI
+- Snapshot fresh clawpatch review
+- Harden clawpatch regression coverage
+- Stabilize publication freshness check
+- Cover fragmentation metric calculations
+- Assert elevation profile calculations
+- Isolate nested axis config mutations
+- Restore plugin registry fixture state
+- Assert pipeline option propagation
+- Exercise layout preview delegation
+- Make pattern matching checks collectable
+- Enforce explicit schema fields
+- Assert json api security guards
+- Require template endpoint success
+- Cover field aggregator registration
+- Cover multi-group transform last run
+- Cover plugin list registry types
+- Cover index generator params groups
+- Cover export widgets params groups
+- Collect dev preview smoke scripts
+- Cover read-only entity listing
+- Fail plugin discovery regressions
+- Fail stale plugin sample imports
+- Preserve base test setup
+- Fail on plugin discovery errors
+- Tighten geospatial error contracts
+- Isolate shape processor fixtures
+- Assert import phase order
+- Assert raw data error rendering
+- Bump duckdb to 1.5.2
+- Fix pnpm build approvals
+- Avoid compatibility test module collision
+- Untrack planning notes from gitignored dirs
+- Gitignore skill working dirs (plans, brainstorms, superpowers, ideation)
+- Archive internal planning docs and tidy AI-related tracking
+- Fix collection block previews (#156)
+- Update GitHub Actions to Node 24 (#143)
+- Add file consistency pre-commit checks
+- Enforce UI lint checks
+- Ignore frontend coverage output
+- Expand coverage baseline
+- Strengthen enrichment regression coverage
+- Sync plugin manifest and auto-regenerate via pre-commit
+- Refresh release metadata
+- Fail loudly instead of auto-committing blocked by branch rules (#130)
+- Sync tauri cargo lock version
+- Cover site builder readiness regressions
+- Refine site readiness regressions
+- Use Tailscale GitHub Action to reach Coolify on tailnet (#129)
+- Add marketing-sync workflow (triggers niamoto-site redeploy)
+- Initial .marketing/plugins.json
+- Ignore local worktree and pnpm cache artifacts
+- Wire Apple signing secrets into Tauri builds
+- Sync release lockfiles
+- Sync desktop planning and version metadata
+- Remove retired design-system exclusions
+- Add English desktop screenshots and dashboard polish
+- Bump rustls-webpki to 0.103.12 (RUSTSEC-2026-0098)
+- Apply rounded corners for Windows/Linux and macOS HIG padding
+- Update lock files for v0.14.7
+- Update uv.lock
+- Update tauri lockfile version
+- Desaturate herbier accent color — subtler stone tone
+- Update uv.lock for 0.14.1
+- Fix desktop project reload fixture
+- Compact enrichment workspace layout
+- Update lockfiles for 0.13.2
+- Refresh uv.lock
+- Drop macOS Intel matrix (macos-13 runner retired)
+- Add macOS Intel and Linux arm64 to release builds
+- Update tauri lockfile for 0.12.4
+- Bump node to 22 for publish and binaries workflows
+- Refresh safe dependencies
+- Compact widget list items in collection panel
+- Darken sidebar across all 10 themes
+- Regenerate ml models for sklearn 1.8
+- Pin pyinstaller and update desktop packaging
+- Realign dependencies and raise minimum python to 3.12
+- Replace battle test phases with focused import suites
+- Clean unused ui public assets
+- Add ablation runner and tune header convergence
+- Macro-F1 0.3522 → 0.3527 (+0.05 pts)
+- Macro-F1 0.3433 → 0.3522 (+0.89 pts)
+- Macro-F1 0.3403 → 0.3433 (+0.30 pts)
+- Macro-F1 0.3370 → 0.3403 (+0.33 pts)
+- Macro-F1 0.2877 → 0.3068 (+1.91 pts)
+- Macro-F1 0.3063 → 0.3257 (+1.9 pts)
+- Macro-F1 0.3005 → 0.3063 (+0.6 pts)
+- Macro-F1 0.2877 → 0.3005 (+1.3 pts)
+- Macro-F1 0.5640 → 0.5641 (+0.01 pts)
+- Macro-F1 0.5591 → 0.5640 (+0.49 pts)
+- Macro-F1 0.5529 → 0.5591 (+0.62 pts)
+- Macro-F1 0.5497 → 0.5529 (+0.32 pts)
+- Macro-F1 0.5470 → 0.5497 (+0.27 pts)
+- Macro-F1 0.5383 → 0.5470 (+0.87 pts)
+- Macro-F1 0.5375 → 0.5383 (+0.08 pts)
+- Macro-F1 0.5370 → 0.5375 (+0.05 pts)
+- Macro-F1 0.5283 → 0.5370 (+0.87 pts)
+- Macro-F1 0.4937 → 0.5283 (+3.46 pts)
+- Macro-F1 0.4931 → 0.4937 (+0.06 pts)
+- Macro-F1 0.4864 → 0.4931 (+0.67 pts)
+- Macro-F1 0.4763 → 0.4864 (+1.01 pts)
+- Macro-F1 0.4455 → 0.4763 (+3.08 pts)
+- Macro-F1 0.3658 → 0.4455 (+7.97 pts)
+- Update uv.lock for 0.8.1
+- Sync tauri version to 0.7.5 and add it to bumpversion config
+- Replace Rocket icon with Send and Menu with PanelLeft
+- Redesign command palette with grouped layout and descriptions
+- Upgrade GitHub Actions to Node.js 24 compatible versions
+- Add preview engine tests and update layout tests
+- Add e2e, data explorer, stats and service tests
+- Add Phase 3.1 end-to-end tests for GUI config generation (30 tests)
+- Add Phase 1.3 transform config validation tests (56 tests)
+- Update npm dependencies to fix security vulnerabilities
+- Remove macOS Intel build to save GitHub Actions quota
+- Move Claude Code config files to gitignore
+- Amélioration de la couverture de tests de 60% à 68%
+- Upgrade minimum Python version from 3.10 to 3.11
+- Fix test assertions and add auxiliary file cleanup
+- Upgrade all dependencies to latest versions
+- Remove old pipeline editor and dead import code
+- Refactor code structure for improved readability and maintainability
+- Update CHANGELOG for version 0.7.0 release
+- Update versioning configuration and bump version to 0.7.0
+- Update uv.lock to include upload times for package distributions and bump revision to 2
+- Update shape import configuration and enhance testing
+- Update version to 0.5.6, enhance installation and quickstart documentation, and refine configuration handling in tests. Added templates directory to documentation and improved export configuration assertions in tests.
+- Update pyproject.toml for wheel packaging and modify README for asset links
+- Update CHANGELOG.md
+- Bump niamoto version from 0.4.2 to 0.5.0
+- Remove config files and add config folder to gitignore
+- Add requests-mock to dev dependencies and bump version to 0.4.2
+- Enhance GitHub deployment tests with branch existence checks
+- Fix commited mock files
+
 ## [v0.19.1] - 2026-05-22
 
 ### Features
