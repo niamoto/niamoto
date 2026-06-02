@@ -151,6 +151,83 @@ def test_end_to_end_derived_taxonomy(tmp_path):
 
 
 @pytest.mark.integration
+def test_reset_derived_reference_replaces_existing_table_when_extraction_is_empty(
+    tmp_path,
+):
+    """A reset re-import with zero derived rows must remove stale table rows."""
+    occurrences_csv = tmp_path / "occurrences.csv"
+    pd.DataFrame(
+        {
+            "id": [1, 2],
+            "family": ["Arecaceae", "Cunoniaceae"],
+            "genus": ["Burretiokentia", "Codia"],
+            "species": ["vieillardii", "mackeeana"],
+        }
+    ).to_csv(occurrences_csv, index=False)
+
+    config = GenericImportConfig(
+        entities=EntitiesConfig(
+            datasets={
+                "occurrences": DatasetEntityConfig(
+                    connector=ConnectorConfig(
+                        type=ConnectorType.FILE, path=str(occurrences_csv)
+                    ),
+                    schema=EntitySchema(id_field="id", fields=[]),
+                )
+            },
+            references={
+                "taxonomy": ReferenceEntityConfig(
+                    kind=ReferenceKind.HIERARCHICAL,
+                    connector=ConnectorConfig(
+                        type=ConnectorType.DERIVED,
+                        source="occurrences",
+                        extraction=ExtractionConfig(
+                            levels=[
+                                HierarchyLevel(name="family", column="family"),
+                                HierarchyLevel(name="genus", column="genus"),
+                                HierarchyLevel(name="species", column="species"),
+                            ],
+                            id_strategy="hash",
+                        ),
+                    ),
+                    schema=EntitySchema(id_field="id", fields=[]),
+                    hierarchy=HierarchyConfig(
+                        strategy=HierarchyStrategy.ADJACENCY_LIST,
+                        levels=["family", "genus", "species"],
+                    ),
+                )
+            },
+        )
+    )
+
+    service = ImporterService(str(tmp_path / "test.duckdb"))
+    try:
+        service.import_all(config, reset_table=True)
+        initial_count = service.db.execute_sql(
+            "SELECT COUNT(*) FROM entity_taxonomy", fetch=True
+        )[0]
+        assert initial_count > 0
+
+        pd.DataFrame(
+            {
+                "id": [1, 2],
+                "family": ["", ""],
+                "genus": ["", ""],
+                "species": ["", ""],
+            }
+        ).to_csv(occurrences_csv, index=False)
+
+        service.import_all(config, reset_table=True)
+
+        reset_count = service.db.execute_sql(
+            "SELECT COUNT(*) FROM entity_taxonomy", fetch=True
+        )[0]
+        assert reset_count == 0
+    finally:
+        service.close()
+
+
+@pytest.mark.integration
 def test_circular_dependency_detection(tmp_path):
     """Test that circular dependencies are detected and rejected."""
     config = GenericImportConfig(

@@ -320,38 +320,17 @@ class GenericImporter:
             source_table, extraction_config, entity_name
         )
         source_entity_name = self._resolve_entity_name(source_table)
+        external_id_field = f"{entity_name}_id" if extraction_config.id_column else None
 
         # 1b. Add nested sets (lft/rght) for efficient hierarchical queries
         if len(hierarchy_df) > 0:
             hierarchy_df = builder.add_nested_sets(hierarchy_df)
-
-        if len(hierarchy_df) == 0:
-            # No data extracted, register empty entity
-            external_id_field = (
-                f"{entity_name}_id" if extraction_config.id_column else None
+        else:
+            hierarchy_df = self._ensure_empty_derived_reference_structure(
+                hierarchy_df,
+                external_id_field=external_id_field,
+                include_name=bool(extraction_config.name_column),
             )
-            self.registry.register_entity(
-                name=entity_name,
-                kind=kind,
-                table_name=table_name,
-                config={
-                    "derived": {
-                        "source_entity": source_entity_name,
-                        "extraction_levels": [
-                            lv.name for lv in extraction_config.levels
-                        ],
-                        "id_strategy": extraction_config.id_strategy,
-                        "incomplete_rows": extraction_config.incomplete_rows,
-                        "external_id_field": external_id_field,
-                        "external_name_field": "full_name"
-                        if extraction_config.name_column
-                        else None,
-                        "extracted_at": datetime.now(timezone.utc).isoformat(),
-                    },
-                    "schema": {"id_field": "id", "fields": []},
-                },
-            )
-            return ImportResult(rows=0, table=table_name)
 
         # Add extra_data column if not present
         if "extra_data" not in hierarchy_df.columns:
@@ -361,7 +340,6 @@ class GenericImporter:
         self._write_dataframe_to_table(hierarchy_df, table_name)
 
         # 3. Register in registry with derived metadata
-        external_id_field = f"{entity_name}_id" if extraction_config.id_column else None
         derived_metadata = {
             "source_entity": source_entity_name,
             "extraction_levels": [lv.name for lv in extraction_config.levels],
@@ -688,6 +666,36 @@ class GenericImporter:
         if not id_field and "id" not in df.columns:
             df["id"] = []
         return df
+
+    def _ensure_empty_derived_reference_structure(
+        self,
+        df: pd.DataFrame,
+        *,
+        external_id_field: Optional[str],
+        include_name: bool,
+    ) -> pd.DataFrame:
+        """Ensure empty derived imports replace stale tables with a stable schema."""
+        expected_columns = [
+            "id",
+            "parent_id",
+            "level",
+            "rank_name",
+            "rank_value",
+            "full_path",
+            "lft",
+            "rght",
+        ]
+        if external_id_field:
+            expected_columns.append(external_id_field)
+        if include_name:
+            expected_columns.append("full_name")
+
+        structured = df.copy()
+        for column in expected_columns:
+            if column not in structured.columns:
+                structured[column] = []
+
+        return structured[expected_columns]
 
     def _ensure_identifier(self, df: pd.DataFrame) -> str:
         if "id" not in df.columns:
