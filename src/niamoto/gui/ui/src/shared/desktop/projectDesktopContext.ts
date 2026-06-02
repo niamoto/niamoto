@@ -4,11 +4,17 @@ const PROJECT_DESKTOP_CONTEXT_STORAGE_KEY_PREFIX = 'niamoto.projectDesktopContex
 
 const RESTORABLE_EXACT_ROUTES = [
   '/',
+  '/sources',
+  '/sources/import',
+  '/sources/verification',
+  '/sources/enrichment',
+  '/groups',
+  '/groups/review',
+  '/groups/api-settings',
   '/site/pages',
   '/site/general',
   '/site/appearance',
   '/publish',
-  '/tools/explorer',
   '/tools/preview',
   '/tools/settings',
   '/tools/plugins',
@@ -17,7 +23,7 @@ const RESTORABLE_EXACT_ROUTES = [
   '/tools/history',
 ]
 
-const RESTORABLE_ROUTE_PREFIXES = ['/sources', '/groups', '/help']
+const RESTORABLE_ROUTE_PREFIXES = ['/help']
 
 const MAX_ROUTE_SEGMENT_LENGTH = 512
 

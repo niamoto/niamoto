@@ -13,6 +13,7 @@ import {
   type ProjectDesktopRoute,
 } from '@/shared/desktop/projectDesktopContext'
 import { hasDesktopBridge } from '@/shared/desktop/bridge'
+import { consumeCreatedProjectHomeTarget } from '@/shared/desktop/projectLaunchIntent'
 import { useCurrentProjectScope } from './useCurrentProjectScope'
 
 const restoredProjectScopes = new Set<string>()
@@ -73,6 +74,22 @@ export function useProjectDesktopRouteMemory({
 
     const activeProjectScope = projectScope
     const activeRoute = currentRoute
+    const shouldKeepHomeRoute = consumeCreatedProjectHomeTarget(activeProjectScope)
+
+    if (shouldKeepHomeRoute) {
+      restoredProjectScopes.add(activeProjectScope)
+
+      if (
+        !isStartupRoute(
+          activeRoute.pathname,
+          activeRoute.search,
+          activeRoute.hash,
+        )
+      ) {
+        navigate('/', { replace: true })
+        return
+      }
+    }
 
     if (storage) {
       if (!restoredProjectScopes.has(activeProjectScope)) {

@@ -11,8 +11,8 @@ import {
 import {
   clearManualProjectOpenTarget,
   getManualProjectOpenTarget,
-  markManualProjectOpen,
 } from '@/shared/desktop/projectLaunchIntent'
+import { openDesktopProjectFromHome } from '@/shared/desktop/projectNavigation'
 import { listenDesktopProjectSelected } from '@/shared/shell/desktopMenu'
 import { ThemeProvider } from '@/components/theme'
 import { Toaster } from 'sonner'
@@ -146,8 +146,7 @@ function App() {
           }
 
           if (result.state === 'loaded') {
-            markManualProjectOpen(path)
-            window.location.reload()
+            openDesktopProjectFromHome(path)
             return
           }
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { invokeDesktop } from '@/shared/desktop/bridge'
-import { markManualProjectOpen } from '@/shared/desktop/projectLaunchIntent'
+import { openDesktopProjectFromHome } from '@/shared/desktop/projectNavigation'
 import { reloadDesktopProject } from '@/shared/desktop/projectReload'
 import { getDesktopShell } from '@/shared/desktop/runtime'
 
@@ -115,8 +115,7 @@ export function useProjectSwitcher() {
           expectedProject: projectPath,
         })
 
-        markManualProjectOpen(projectPath)
-        window.location.reload()
+        openDesktopProjectFromHome(projectPath)
       } catch (err) {
         const errorMsg =
           err instanceof Error ? err.message : 'Failed to switch project'

@@ -1,4 +1,5 @@
 const MANUAL_PROJECT_OPEN_KEY = 'niamoto.manualProjectOpen'
+const CREATED_PROJECT_HOME_KEY = 'niamoto.createdProjectHome'
 const MANUAL_PROJECT_OPEN_TTL_MS = 30_000
 
 interface ManualProjectOpenIntent {
@@ -6,13 +7,13 @@ interface ManualProjectOpenIntent {
   timestamp: number
 }
 
-function readManualProjectOpenIntent(): ManualProjectOpenIntent | null {
+function readProjectLaunchIntent(storageKey: string): ManualProjectOpenIntent | null {
   if (typeof window === 'undefined') {
     return null
   }
 
   try {
-    const raw = window.localStorage.getItem(MANUAL_PROJECT_OPEN_KEY)
+    const raw = window.localStorage.getItem(storageKey)
     if (!raw) {
       return null
     }
@@ -23,7 +24,7 @@ function readManualProjectOpenIntent(): ManualProjectOpenIntent | null {
       typeof parsed.timestamp !== 'number' ||
       Date.now() - parsed.timestamp > MANUAL_PROJECT_OPEN_TTL_MS
     ) {
-      window.localStorage.removeItem(MANUAL_PROJECT_OPEN_KEY)
+      window.localStorage.removeItem(storageKey)
       return null
     }
 
@@ -32,12 +33,12 @@ function readManualProjectOpenIntent(): ManualProjectOpenIntent | null {
       timestamp: parsed.timestamp,
     }
   } catch {
-    window.localStorage.removeItem(MANUAL_PROJECT_OPEN_KEY)
+    window.localStorage.removeItem(storageKey)
     return null
   }
 }
 
-export function markManualProjectOpen(path: string): void {
+function writeProjectLaunchIntent(storageKey: string, path: string): void {
   if (typeof window === 'undefined') {
     return
   }
@@ -47,11 +48,19 @@ export function markManualProjectOpen(path: string): void {
     timestamp: Date.now(),
   }
 
-  window.localStorage.setItem(MANUAL_PROJECT_OPEN_KEY, JSON.stringify(payload))
+  window.localStorage.setItem(storageKey, JSON.stringify(payload))
+}
+
+export function markManualProjectOpen(path: string): void {
+  writeProjectLaunchIntent(MANUAL_PROJECT_OPEN_KEY, path)
+}
+
+export function markCreatedProjectHomeTarget(path: string): void {
+  writeProjectLaunchIntent(CREATED_PROJECT_HOME_KEY, path)
 }
 
 export function getManualProjectOpenTarget(): string | null {
-  return readManualProjectOpenIntent()?.path ?? null
+  return readProjectLaunchIntent(MANUAL_PROJECT_OPEN_KEY)?.path ?? null
 }
 
 export function clearManualProjectOpenTarget(): void {
@@ -60,4 +69,18 @@ export function clearManualProjectOpenTarget(): void {
   }
 
   window.localStorage.removeItem(MANUAL_PROJECT_OPEN_KEY)
+}
+
+export function consumeCreatedProjectHomeTarget(projectScope: string | null): boolean {
+  const intent = readProjectLaunchIntent(CREATED_PROJECT_HOME_KEY)
+  if (!projectScope || !intent) {
+    return false
+  }
+
+  if (projectScope !== `desktop:${intent.path}`) {
+    return false
+  }
+
+  window.localStorage.removeItem(CREATED_PROJECT_HOME_KEY)
+  return true
 }
