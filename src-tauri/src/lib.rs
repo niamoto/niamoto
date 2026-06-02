@@ -25,6 +25,8 @@ const SERVER_STARTUP_RETRY_LIMIT: u32 = 3;
 const DEV_API_PORT: u16 = 8080;
 const DESKTOP_TOKEN_HEADER: &str = "x-niamoto-desktop-token";
 const APP_LOADER_CSS: &str = include_str!("../../src/niamoto/gui/ui/src/styles/app-loader.css");
+const BUILT_FEEDBACK_WORKER_URL: Option<&str> = option_env!("NIAMOTO_FEEDBACK_WORKER_URL");
+const BUILT_FEEDBACK_API_KEY: Option<&str> = option_env!("NIAMOTO_FEEDBACK_API_KEY");
 
 /// Shared state to track the FastAPI server process
 struct ServerState {
@@ -66,6 +68,28 @@ fn sidecar_target_triple() -> &'static str {
     {
         "aarch64-pc-windows-msvc"
     }
+}
+
+fn collect_configured_feedback_env_vars(
+    worker_url: Option<&'static str>,
+    api_key: Option<&'static str>,
+) -> Vec<(&'static str, &'static str)> {
+    [
+        ("NIAMOTO_FEEDBACK_WORKER_URL", worker_url),
+        ("NIAMOTO_FEEDBACK_API_KEY", api_key),
+    ]
+    .into_iter()
+    .filter_map(|(name, value)| {
+        value
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| (name, value))
+    })
+    .collect()
+}
+
+fn built_feedback_env_vars() -> Vec<(&'static str, &'static str)> {
+    collect_configured_feedback_env_vars(BUILT_FEEDBACK_WORKER_URL, BUILT_FEEDBACK_API_KEY)
 }
 
 fn resolve_sidecar_path(
@@ -342,6 +366,9 @@ fn launch_fastapi_server(
     command.env("NIAMOTO_DESKTOP_AUTH_TOKEN", desktop_auth_token);
     command.env("NIAMOTO_STARTUP_SESSION", startup_session);
     command.env("NIAMOTO_STARTUP_LOG", startup_log_path);
+    for (name, value) in built_feedback_env_vars() {
+        command.env(name, value);
+    }
     if niamoto_home.is_none() {
         command.env("NIAMOTO_LOGS", startup_log_dir());
     }
@@ -986,8 +1013,9 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::startup_ready_url;
+    use super::collect_configured_feedback_env_vars;
     use super::generate_startup_token;
+    use super::startup_ready_url;
     use tauri::Url;
 
     #[test]
@@ -1014,5 +1042,19 @@ mod tests {
     fn startup_ready_url_requires_dev_url_in_hot_reload_mode() {
         let error = startup_ready_url(true, None, 8080).unwrap_err();
         assert!(error.contains("Missing devUrl"));
+    }
+
+    #[test]
+    fn collect_configured_feedback_env_vars_filters_empty_values() {
+        let env_vars =
+            collect_configured_feedback_env_vars(Some(" https://feedback.example.com "), Some(" "));
+
+        assert_eq!(
+            env_vars,
+            vec![(
+                "NIAMOTO_FEEDBACK_WORKER_URL",
+                "https://feedback.example.com"
+            )]
+        );
     }
 }
