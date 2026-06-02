@@ -413,8 +413,9 @@ class WidgetRecipeCompatibilityService:
                     "plugin": step_plugin,
                     "params": step_params,
                 }
-                if step.get("source"):
-                    step_widget_cfg["source"] = step["source"]
+                step_source = step.get("source") or default_source
+                if step_source:
+                    step_widget_cfg["source"] = step_source
                 for source_name, fields in self._source_fields_for_widget(
                     step_plugin,
                     step_widget_cfg,

@@ -313,6 +313,50 @@ def test_widget_recipe_compatibility_descends_into_transform_chain_steps():
     assert report.impacts[0].affected_columns == ["fruit_count"]
 
 
+def test_widget_recipe_compatibility_uses_chain_source_for_steps_without_source():
+    transform_config = [
+        {
+            "group_by": "taxons",
+            "widgets_data": {
+                "phenology": {
+                    "plugin": "transform_chain",
+                    "params": {
+                        "source": "occurrences",
+                        "steps": [
+                            {
+                                "plugin": "time_series_analysis",
+                                "params": {
+                                    "time_field": "month_obs",
+                                    "fields": {"flower": "has_flower"},
+                                    "value_fields": ["fruit_count"],
+                                },
+                                "output_key": "phenology_raw",
+                            },
+                        ],
+                    },
+                }
+            },
+        }
+    ]
+    profile = IncomingDataProfile(
+        columns={
+            "month_obs": IncomingColumnProfile(name="month_obs", type="integer"),
+            "has_flower": IncomingColumnProfile(name="has_flower", type="integer"),
+        }
+    )
+    service = WidgetRecipeCompatibilityService(transform_config=transform_config)
+
+    report = service.classify(
+        "occurrences",
+        profile,
+        old_column_names={"month_obs", "has_flower"},
+    )
+
+    assert report.impacts[0].widget_id == "phenology"
+    assert report.impacts[0].status == "broken"
+    assert report.impacts[0].affected_columns == ["fruit_count"]
+
+
 def test_top_ranking_readability_uses_ranked_field_not_aggregate_field():
     transform_config = [
         {
