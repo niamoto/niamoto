@@ -249,9 +249,18 @@ class CollectionWidgetProposalService:
                 group = find_or_create_transform_group(
                     transform_config, collection_name
                 )
-                group["sources"] = self._merged_sources(
-                    group.get("sources", []), collection_name
-                )
+                if any(
+                    self._transform_requires_source_relation(
+                        collection_name,
+                        change.transform_widget,
+                    )
+                    for change in transform_changes
+                ):
+                    group["sources"] = self._merged_sources(
+                        group.get("sources", []), collection_name
+                    )
+                else:
+                    group.setdefault("sources", group.get("sources", []))
                 widgets_data = group.setdefault("widgets_data", {})
 
                 for change in transform_changes:
@@ -322,7 +331,10 @@ class CollectionWidgetProposalService:
             )
 
         transform_widget, export_widget = self._config_for_proposal(proposal)
-        if source_relation_error and transform_widget:
+        if source_relation_error and self._transform_requires_source_relation(
+            proposal.collection,
+            transform_widget,
+        ):
             return WidgetProposalConfigChange(
                 proposal_id=proposal.id,
                 widget_id=widget_id,
@@ -377,6 +389,33 @@ class CollectionWidgetProposalService:
         if widget.get("params"):
             export_widget["params"] = widget["params"]
         return transform_widget, export_widget
+
+    def _transform_requires_source_relation(
+        self,
+        collection_name: str,
+        transform_widget: dict[str, Any] | None,
+    ) -> bool:
+        if not transform_widget:
+            return False
+
+        plugin = transform_widget.get("plugin")
+        if plugin != "field_aggregator":
+            return True
+
+        collection = self.catalog_service.get_collection(collection_name)
+        group_sources = {collection.name, collection.source_name, None, ""}
+        params = transform_widget.get("params") or {}
+        fields = params.get("fields") or []
+        if not isinstance(fields, list):
+            return True
+
+        for field in fields:
+            if not isinstance(field, dict):
+                continue
+            source = field.get("source")
+            if source not in group_sources:
+                return True
+        return False
 
     def _foundational_widget_proposals(
         self,
@@ -727,7 +766,7 @@ class CollectionWidgetProposalService:
                     break
 
         count_field = self._count_field_for_source(source_name)
-        if count_field:
+        if count_field and self._can_read_related_source(collection, source_name):
             fields.append(
                 {
                     "source": source_name,
@@ -738,6 +777,21 @@ class CollectionWidgetProposalService:
             )
 
         return fields[:6]
+
+    def _can_read_related_source(
+        self,
+        collection: CollectionCatalogEntry,
+        source_name: str,
+    ) -> bool:
+        if source_name == collection.source_name:
+            return True
+        existing_sources = self._existing_sources_for_collection(collection.name)
+        source_config = self._source_config_for_collection(
+            collection,
+            source_name,
+            existing_sources,
+        )
+        return source_config is not None
 
     def _append_general_info_field(
         self,

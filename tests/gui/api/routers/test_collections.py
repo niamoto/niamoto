@@ -30,6 +30,23 @@ def _first_transform_backed_candidate(candidate_payload):
     )
 
 
+def _first_external_source_candidate(candidate_payload):
+    candidates = [
+        *candidate_payload["recommended"],
+        *candidate_payload["available"],
+        *candidate_payload["needs_review"],
+    ]
+    return next(
+        candidate
+        for candidate in candidates
+        if (
+            candidate.get("recipe_summary", {}).get("transformer", {}).get("plugin")
+            and candidate.get("recipe_summary", {}).get("transformer", {}).get("plugin")
+            != "field_aggregator"
+        )
+    )
+
+
 def _preview_widget_candidate(client, candidate_id: str):
     response = client.post(
         "/api/collections/taxons/widget-candidates/preview",
@@ -1182,7 +1199,7 @@ def test_preview_collection_widget_candidates_invalid_without_source_relation(
     candidate_payload = gui_duckdb_client.get(
         "/api/collections/taxons/widget-candidates"
     ).json()
-    candidate = _first_transform_backed_candidate(candidate_payload)
+    candidate = _first_external_source_candidate(candidate_payload)
 
     response = gui_duckdb_client.post(
         "/api/collections/taxons/widget-candidates/preview",
@@ -1258,6 +1275,81 @@ def test_apply_export_only_widget_candidate_without_source_relation(
         widget.get("data_source"): widget for widget in export_group["widgets"]
     }
     assert widgets_by_source[navigation["id"]]["plugin"] == "hierarchical_nav_widget"
+
+
+def test_apply_general_info_widget_candidate_without_source_relation(
+    gui_duckdb_client, gui_duckdb_context
+):
+    db_path = gui_duckdb_context / "db" / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute("ALTER TABLE entity_taxons ADD COLUMN rank_name VARCHAR")
+        conn.execute("ALTER TABLE entity_taxons ADD COLUMN category VARCHAR")
+        conn.execute(
+            """
+            UPDATE entity_taxons
+            SET rank_name = CASE id WHEN 101 THEN 'family' ELSE 'species' END,
+                category = CASE id WHEN 101 THEN 'native' ELSE 'endemic' END
+            """
+        )
+    finally:
+        conn.close()
+
+    import_path = gui_duckdb_context / "config" / "import.yml"
+    import_config = yaml.safe_load(import_path.read_text(encoding="utf-8"))
+    taxons_config = import_config["entities"]["references"]["taxons"]
+    taxons_config.pop("relation", None)
+    taxons_config["connector"] = {"source": "occurrences"}
+    import_path.write_text(
+        yaml.safe_dump(import_config, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    candidate_payload = gui_duckdb_client.get(
+        "/api/collections/taxons/widget-candidates"
+    ).json()
+    candidates = [
+        *candidate_payload["recommended"],
+        *candidate_payload["available"],
+        *candidate_payload["needs_review"],
+    ]
+    general_info = next(
+        candidate
+        for candidate in candidates
+        if candidate["widget_plugin"] == "info_grid"
+    )
+
+    preview_response = gui_duckdb_client.post(
+        "/api/collections/taxons/widget-candidates/preview",
+        json={"selections": [{"candidate_id": general_info["id"]}]},
+    )
+    assert preview_response.status_code == 200, preview_response.text
+    assert preview_response.json()["changes"][0]["action"] == "add"
+
+    response = gui_duckdb_client.post(
+        "/api/collections/taxons/widget-candidates/apply",
+        json={
+            "selections": [{"candidate_id": general_info["id"]}],
+            "preview_token": preview_response.json()["preview_token"],
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["success"] is True
+    transform_config = yaml.safe_load(
+        (gui_duckdb_context / "config" / "transform.yml").read_text(encoding="utf-8")
+    )
+    taxon_group = next(
+        group for group in transform_config if group.get("group_by") == "taxons"
+    )
+    assert taxon_group.get("sources") == []
+    transform_widget = taxon_group["widgets_data"][general_info["id"]]
+    field_sources = {
+        field.get("source")
+        for field in transform_widget["params"]["fields"]
+        if isinstance(field, dict)
+    }
+    assert field_sources == {"taxons"}
 
 
 def test_apply_collection_widget_candidates_derives_transform_source_relation(

@@ -398,6 +398,30 @@ class WidgetRecipeCompatibilityService:
             for field_name in field_names:
                 add(source_name, field_name)
 
+        if plugin == "transform_chain":
+            for step in params.get("steps") or []:
+                if not isinstance(step, dict):
+                    continue
+                step_plugin = step.get("plugin")
+                step_params = step.get("params") or {}
+                if not isinstance(step_plugin, str) or not isinstance(
+                    step_params,
+                    dict,
+                ):
+                    continue
+                step_widget_cfg: dict[str, Any] = {
+                    "plugin": step_plugin,
+                    "params": step_params,
+                }
+                if step.get("source"):
+                    step_widget_cfg["source"] = step["source"]
+                for source_name, fields in self._source_fields_for_widget(
+                    step_plugin,
+                    step_widget_cfg,
+                    step_params,
+                ).items():
+                    add_many(source_name, fields)
+
         for param_name in self.SIMPLE_FIELD_PARAMS.get(plugin, ()):
             value = params.get(param_name)
             add(default_source, value)
