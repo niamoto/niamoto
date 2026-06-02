@@ -1,5 +1,7 @@
 """Tests for plugin registry API routes."""
 
+import threading
+
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
@@ -8,6 +10,7 @@ from niamoto.core.plugins.base import PluginType, WidgetPlugin
 from niamoto.core.plugins.registry import PluginRegistry
 from niamoto.gui.api.app import create_app
 from niamoto.gui.api.routers import plugins as plugins_router
+from tests.gui.api.routers.concurrency_helpers import TrackingRLock
 
 
 class DummyWidget(WidgetPlugin):
@@ -198,6 +201,68 @@ def test_load_all_plugins_restores_registry_when_cascade_loading_fails(monkeypat
 
         assert PluginRegistry.has_plugin("existing_widget", PluginType.WIDGET)
     finally:
+        PluginRegistry.clear()
+
+
+def test_load_all_plugins_serializes_concurrent_registry_reloads(monkeypatch):
+    PluginRegistry.clear()
+    reload_lock = TrackingRLock()
+    first_loader_entered = threading.Event()
+    release_first_loader = threading.Event()
+    calls_lock = threading.Lock()
+    calls = 0
+
+    class BlockingPluginLoader:
+        def load_plugins_with_cascade(self, project_path=None):
+            nonlocal calls
+            with calls_lock:
+                calls += 1
+                call_number = calls
+            if call_number == 1:
+                first_loader_entered.set()
+                assert release_first_loader.wait(timeout=2)
+            PluginRegistry.register_plugin(
+                f"project_widget_{call_number}",
+                DummyWidget,
+                PluginType.WIDGET,
+            )
+
+    monkeypatch.setattr(
+        plugins_router,
+        "_plugin_registry_reload_lock",
+        reload_lock,
+    )
+    monkeypatch.setattr(
+        plugins_router, "PluginLoader", BlockingPluginLoader, raising=False
+    )
+    monkeypatch.setattr(
+        plugins_router,
+        "get_optional_working_directory",
+        lambda: None,
+        raising=False,
+    )
+
+    first = threading.Thread(target=plugins_router.load_all_plugins)
+    second = threading.Thread(target=plugins_router.load_all_plugins)
+    try:
+        first.start()
+        assert first_loader_entered.wait(timeout=2)
+
+        second.start()
+        assert reload_lock.contended_acquire.wait(timeout=2)
+        assert calls == 1
+
+        release_first_loader.set()
+        first.join(timeout=2)
+        second.join(timeout=2)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert calls == 2
+    finally:
+        release_first_loader.set()
+        first.join(timeout=2)
+        second.join(timeout=2)
         PluginRegistry.clear()
 
 

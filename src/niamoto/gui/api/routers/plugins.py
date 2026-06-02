@@ -1,5 +1,6 @@
 """Plugin registry API endpoints using the real Niamoto plugin system."""
 
+import threading
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -12,6 +13,7 @@ from niamoto.gui.api.context import get_optional_working_directory
 from niamoto.gui.api.desktop_auth import require_desktop_mutation_auth
 
 router = APIRouter()
+_plugin_registry_reload_lock = threading.RLock()
 
 
 class ParameterSchema(BaseModel):
@@ -111,14 +113,15 @@ def load_all_plugins() -> None:
     override lower-priority plugins. If discovery fails, keep the previous
     registry intact for in-flight API requests.
     """
-    snapshot = _snapshot_plugin_registry()
-    project_path = get_optional_working_directory()
-    try:
-        PluginRegistry.clear()
-        PluginLoader().load_plugins_with_cascade(project_path)
-    except Exception:
-        _restore_plugin_registry(snapshot)
-        raise
+    with _plugin_registry_reload_lock:
+        snapshot = _snapshot_plugin_registry()
+        project_path = get_optional_working_directory()
+        try:
+            PluginRegistry.clear()
+            PluginLoader().load_plugins_with_cascade(project_path)
+        except Exception:
+            _restore_plugin_registry(snapshot)
+            raise
 
 
 def _require_plugin_registry_auth(request: Request) -> None:
