@@ -385,7 +385,7 @@ async def list_plugin_types():
 
 
 @router.post("/check-compatibility", response_model=CompatibilityResult)
-async def check_compatibility(check: CompatibilityCheck):
+async def check_compatibility(check: CompatibilityCheck, request: Request):
     """
     Check if a plugin is compatible with given source data.
 
@@ -395,6 +395,7 @@ async def check_compatibility(check: CompatibilityCheck):
     Returns:
         Compatibility result with explanation
     """
+    _require_plugin_registry_auth(request)
     try:
         load_all_plugins()
 

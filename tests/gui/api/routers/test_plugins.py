@@ -154,6 +154,28 @@ def test_get_plugin_schema_accepts_desktop_auth_when_token_is_configured(monkeyp
         PluginRegistry.clear()
 
 
+def test_check_compatibility_requires_desktop_auth_when_token_is_configured(
+    monkeypatch,
+):
+    called = False
+    monkeypatch.setenv("NIAMOTO_DESKTOP_AUTH_TOKEN", "desktop-secret")
+
+    def fake_load_all_plugins():
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(plugins_router, "load_all_plugins", fake_load_all_plugins)
+
+    response = TestClient(create_app()).post(
+        "/api/plugins/check-compatibility",
+        json={"plugin_id": "dummy_widget", "source_data": {"type": "dataframe"}},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid desktop auth token."
+    assert called is False
+
+
 def test_load_all_plugins_restores_registry_when_cascade_loading_fails(monkeypatch):
     PluginRegistry.clear()
     PluginRegistry.register_plugin("existing_widget", DummyWidget, PluginType.WIDGET)
