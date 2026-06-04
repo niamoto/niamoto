@@ -880,7 +880,7 @@ export default function PublishOverview() {
                 </div>
               )}
               <div className="flex items-center justify-between text-sm">
-                <span>{currentBuild.message}</span>
+                <span>{formatBuildProgressMessage(currentBuild.message, currentBuild.progress)}</span>
                 <span>{currentBuild.progress}%</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -1264,7 +1264,7 @@ function localizeBackendMessage(
   }
   if (message.startsWith('export.generating:')) {
     const pct = message.split(':')[1] || ''
-    return t('build.progress.generating', { pct, defaultValue: `Génération en cours... (${pct}%)` })
+    return t('build.progress.generating', { pct, defaultValue: 'Génération en cours...' })
   }
   if (message.startsWith('export.done:')) {
     const parts = message.split(':')
@@ -1277,4 +1277,8 @@ function localizeBackendMessage(
     return t('build.progress.exportStarting', { defaultValue: 'Generating site...' })
   }
   return message
+}
+
+function formatBuildProgressMessage(message: string, progress: number): string {
+  return message.replace(new RegExp(`\\s*\\(${progress}%\\)\\s*$`), '')
 }

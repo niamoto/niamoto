@@ -63,7 +63,7 @@
     "phaseTransformLabel": "Transformations",
     "phaseExportLabel": "Site generation",
     "progress": {
-      "generating": "Generating... ({{pct}}%)",
+      "generating": "Generating...",
       "visualizations": "Creating visualizations...",
       "assets": "Optimizing assets...",
       "finalizing": "Finalizing...",

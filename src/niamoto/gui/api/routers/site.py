@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, ConfigDict
 import yaml
 import shutil
@@ -50,6 +50,18 @@ SITE_CONTENT_TEXT_EXTENSIONS = {
     ".yml",
     ".yaml",
 }
+_SCRIPT_SRC_WITHOUT_CROSSORIGIN_RE = re.compile(
+    r"(<script\b(?=[^>]*\bsrc\s*=)(?![^>]*\bcrossorigin\b)[^>]*)(>)",
+    re.IGNORECASE,
+)
+
+
+def _add_preview_script_crossorigin(html: str) -> str:
+    """Make sandboxed exported previews compatible with Vite dev CORS checks."""
+    return _SCRIPT_SRC_WITHOUT_CROSSORIGIN_RE.sub(
+        r'\1 crossorigin="anonymous"\2',
+        html,
+    )
 
 
 def _publish_upload_without_overwrite(
@@ -982,10 +994,20 @@ async def get_groups():
 async def preview_exported_site(requested_path: str = ""):
     """Serve exported preview files for the current instance."""
     preview_path = _resolve_exported_preview_path(requested_path)
-    headers = {"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"}
+    headers = {
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-store",
+        "Access-Control-Allow-Origin": "*",
+    }
     if preview_path.suffix.lower() in {".html", ".htm", ".svg", ".xml"}:
         headers["Content-Security-Policy"] = (
             "sandbox allow-scripts allow-popups allow-downloads"
+        )
+    if preview_path.suffix.lower() in {".html", ".htm"}:
+        html = preview_path.read_text(encoding="utf-8", errors="replace")
+        return HTMLResponse(
+            _add_preview_script_crossorigin(html),
+            headers=headers,
         )
     return FileResponse(preview_path, headers=headers)
 

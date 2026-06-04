@@ -230,6 +230,8 @@ describe('PublishOverview', () => {
     setSearchParamsSpy.mockReset()
     refetchSpy.mockReset()
     apiGetSpy.mockClear()
+    publishStoreState.currentBuild = null
+    publishStoreState.currentDeploy = null
     pipelineQueryState.value = {
       data: pipelineState.value,
       isLoading: false,
@@ -336,5 +338,31 @@ describe('PublishOverview', () => {
 
     expect(container.textContent).toContain('Pipeline status unavailable')
     expect(container.textContent).not.toContain('Open Site Builder')
+  })
+
+  it('does not repeat the build percentage in the generation message', async () => {
+    publishStoreState.currentBuild = {
+      id: 'build-1',
+      status: 'running',
+      progress: 97,
+      message: 'Site generation · Generation in progress... (97%)',
+      startedAt: '2026-06-04T18:00:00.000Z',
+    }
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await act(async () => {
+      root.render(<PublishOverview />)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const content = container.textContent ?? ''
+
+    expect(content).toContain('Site generation · Generation in progress...')
+    expect(content).not.toContain('(97%)')
+    expect(content).toContain('97%')
   })
 })

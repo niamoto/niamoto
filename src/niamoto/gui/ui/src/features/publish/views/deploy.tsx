@@ -95,7 +95,6 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
     savePlatformConfig,
     setPreferredPlatform,
     deletePlatformConfig,
-    cleanupOrphanDeploys,
   } = usePublishStore()
 
   const isDeploying = usePublishStore(selectIsDeploying)
@@ -119,11 +118,6 @@ export default function PublishDeploy({ embedded = false }: { embedded?: boolean
 
   // Configured platforms
   const configuredPlatforms = PLATFORM_ORDER.filter(p => platformConfigs[p])
-
-  // Cleanup orphan deploys on mount
-  useEffect(() => {
-    cleanupOrphanDeploys()
-  }, [cleanupOrphanDeploys])
 
   useEffect(() => {
     if (embedded) return

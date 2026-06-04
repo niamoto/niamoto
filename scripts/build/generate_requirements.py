@@ -3,6 +3,7 @@
 
 import subprocess
 import sys
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -23,6 +24,75 @@ def add_platform_markers(requirements_path: Path) -> None:
         updated_lines.append(line)
 
     requirements_path.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
+
+
+def ensure_requirements_has_packages(requirements_path: Path) -> None:
+    """Ensure a generated requirements file contains at least one package."""
+    lines = requirements_path.read_text(encoding="utf-8").splitlines()
+    has_package = any(
+        line and not line.startswith("#") and not line.startswith(" ") for line in lines
+    )
+    if not has_package:
+        raise RuntimeError(
+            f"Generated requirements file has no package entries: {requirements_path}"
+        )
+
+
+def command_with_output_path(cmd: list[str], output_path: Path) -> list[str]:
+    """Return a copy of a uv compile command that writes to output_path."""
+    if "-o" not in cmd:
+        raise ValueError("Command must include an -o output argument")
+
+    output_index = cmd.index("-o") + 1
+    if output_index >= len(cmd):
+        raise ValueError("Command -o argument must include an output path")
+
+    updated_cmd = [*cmd]
+    updated_cmd[output_index] = str(output_path)
+    return updated_cmd
+
+
+def restore_compile_command_output_path(
+    requirements_path: Path,
+    temp_output_path: Path,
+    original_cmd: list[str],
+) -> None:
+    """Keep uv's generated header stable when compiling through a temp file."""
+    if "-o" not in original_cmd:
+        return
+
+    output_index = original_cmd.index("-o") + 1
+    if output_index >= len(original_cmd):
+        return
+
+    original_output = original_cmd[output_index]
+    content = requirements_path.read_text(encoding="utf-8")
+    requirements_path.write_text(
+        content.replace(str(temp_output_path), original_output),
+        encoding="utf-8",
+    )
+
+
+def compile_requirements_file(cmd: list[str], output_path: Path) -> None:
+    """Compile requirements atomically without clobbering existing output."""
+    output_path = Path(output_path)
+    with tempfile.NamedTemporaryFile(
+        dir=output_path.parent,
+        prefix=f".{output_path.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as temp_file:
+        temp_path = Path(temp_file.name)
+
+    try:
+        run_command(command_with_output_path(cmd, temp_path))
+        restore_compile_command_output_path(temp_path, temp_path, cmd)
+        add_platform_markers(temp_path)
+        ensure_requirements_has_packages(temp_path)
+        temp_path.replace(output_path)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
 
 
 def run_command(cmd):
@@ -94,7 +164,7 @@ def main() -> int:
 
     # Generate main requirements.txt
     print("Generating main requirements.txt...")
-    run_command(
+    compile_requirements_file(
         [
             "uv",
             "pip",
@@ -103,13 +173,13 @@ def main() -> int:
             *resolution_args,
             "-o",
             "requirements.txt",
-        ]
+        ],
+        project_root / "requirements.txt",
     )
-    add_platform_markers(project_root / "requirements.txt")
 
     # Generate dev-requirements.txt from the shared development dependency group.
     print("Generating dev-requirements.txt...")
-    run_command(
+    compile_requirements_file(
         [
             "uv",
             "pip",
@@ -120,9 +190,9 @@ def main() -> int:
             *resolution_args,
             "-o",
             "dev-requirements.txt",
-        ]
+        ],
+        project_root / "dev-requirements.txt",
     )
-    add_platform_markers(project_root / "dev-requirements.txt")
 
     print("Requirements files generated successfully!")
     return 0
