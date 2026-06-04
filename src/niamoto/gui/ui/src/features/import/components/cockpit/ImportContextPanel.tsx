@@ -46,6 +46,19 @@ function displayMessage(
   return message
 }
 
+function displayDetailValue(
+  detail: ImportInventoryItem['details'][number],
+  t: (key: string, options?: { defaultValue?: string }) => string
+) {
+  if (detail.label === 'decision') {
+    return t(`cockpit.detailValues.decision.${detail.value}`, {
+      defaultValue: detail.value,
+    })
+  }
+
+  return detail.value
+}
+
 export function ImportContextPanel({
   item,
   phase,
@@ -151,7 +164,7 @@ export function ImportContextPanel({
                           detail.tone === 'error' && 'text-red-700 dark:text-red-300'
                         )}
                       >
-                        {detail.value}
+                        {displayDetailValue(detail, t)}
                       </div>
                     </div>
                   ))}

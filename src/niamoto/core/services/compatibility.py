@@ -1138,6 +1138,9 @@ class CompatibilityService:
             incoming_profile,
             transform_config,
             old_column_names=set(old_schema),
+            include_newly_available=(
+                target_kind == TargetKind.IMPORT_ENTITY or bool(old_schema)
+            ),
         )
 
         # 6-9. Compare and produce report
@@ -1439,6 +1442,7 @@ class CompatibilityService:
         transform_config: list[dict],
         *,
         old_column_names: set[str] | None = None,
+        include_newly_available: bool = True,
     ) -> WidgetCompatibilityReport:
         service = WidgetRecipeCompatibilityService(
             transform_config=transform_config,
@@ -1448,6 +1452,7 @@ class CompatibilityService:
             entity_name,
             incoming_profile,
             old_column_names=old_column_names,
+            include_newly_available=include_newly_available,
         )
 
     def _is_non_informative_type_change(self, old_type: str, new_type: str) -> bool:

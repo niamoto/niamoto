@@ -103,12 +103,25 @@
       "warning": "Attention",
       "opportunity": "Opportunité"
     },
+    "details": {
+      "missingColumn": "Colonne {{column}} absente du nouveau fichier.",
+      "newColumn": "Nouvelle colonne {{column}} pas encore dans la configuration.",
+      "typeChanged": "Type modifié : {{from}} → {{to}}."
+    },
     "widgetStatus": {
       "still_valid": "Toujours valide",
       "degraded": "Dégradé",
       "broken": "Cassé",
       "newly_available": "Nouveau champ",
       "unknown": "Inconnu"
+    },
+    "widgetDetails": {
+      "incomingFieldUnused": "Le champ entrant n’est pas utilisé par les widgets configurés.",
+      "donutTooManyCategories": "Trop de catégories pour un donut lisible ; vérifiez plutôt un widget en barres ou en classement.",
+      "barRequiresRanking": "La cardinalité entrante demande un classement, un regroupement ou du défilement avant affichage.",
+      "longLabels": "Les libellés entrants risquent d’être trop longs pour le graphique configuré.",
+      "lowCoverage": "Le champ entrant est trop peu rempli pour produire un widget utile.",
+      "stillValid": "Les champs nécessaires sont présents et les contrôles de lisibilité du graphique passent."
     }
   },
   "upload": {
@@ -251,7 +264,9 @@
     },
     "detailLabels": {
       "format": "Format",
+      "path": "Chemin",
       "size": "Taille",
+      "type": "Type",
       "checks": "Contrôles",
       "tips": "Conseils",
       "event": "Événement",
@@ -267,6 +282,15 @@
       "attached to": "Rattaché à",
       "relation": "Relation",
       "description": "Description"
+    },
+    "detailValues": {
+      "decision": {
+        "aligned": "Décision automatique confirmée",
+        "heuristic_only": "Décision heuristique",
+        "ml_override": "Décision influencée par le ML",
+        "conflict": "Décision à vérifier",
+        "mixed": "Signaux mixtes"
+      }
     },
     "review": {
       "advancedTitle": "Ajustements avancés",
@@ -1853,6 +1877,10 @@
       "hierarchyIdentifier": "Si cette hiérarchie doit être liée à des observations ou des stats, ajoutez un taxon_id, plot_id ou id stable.",
       "noRelationship": "Si ce dataset doit être lié à une référence, vérifiez que les deux fichiers partagent les mêmes valeurs d’identifiants."
     },
+    "dataset": {
+      "autoDetectedDescription": "Ce fichier sera importé comme table de données principale.",
+      "linkDescription": "Relation détectée : {{field}} du fichier → {{target}}."
+    },
     "detection": {
       "fileFormatRecognized": "Format {{format}} reconnu pour \"{{name}}\"",
       "idColumnFound": "Colonne ID trouvée : {{field}}",
@@ -1870,9 +1898,16 @@
     "auxiliary": {
       "attachedTo": "Rattachée à : {{target}}",
       "relation": "Relation : {{field}} → {{refField}}",
+      "autoDetectedDescription": "Ce fichier sera utilisé comme valeurs précalculées rattachées à {{target}}.",
+      "needsTargetDescription": "Ce fichier semble contenir des valeurs précalculées, mais la collection cible reste à confirmer avant l’import.",
+      "joinDescription": "Jointure : {{field}} du fichier → {{refField}} dans {{target}}.",
+      "targetUnknown": "cible à confirmer",
       "relationCompact": "rattaché à {{target}} • {{field}} → {{refField}}"
     },
     "reference": {
+      "autoDetectedDescription": "Ce fichier sera utilisé comme référentiel et cible d’agrégation.",
+      "derivedDescription": "Cette référence sera dérivée de {{source}} pendant l’import.",
+      "spatialDescription": "Ce fichier sera utilisé comme référentiel spatial pour les cartes et agrégations.",
       "derivedFrom": "Dérivé de : {{source}}",
       "sourceCount": "{{count}} source(s)",
       "levels": "Niveaux : {{levels}}",
@@ -1883,6 +1918,9 @@
       "aggregationReady": "Peut servir d'agrégation cible pour les pages générées",
       "linkedDatasets": "Datasets liés : {{datasets}}",
       "linkedAuxiliary": "Sources auxiliaires : {{names}}"
+    },
+    "layer": {
+      "autoDetectedDescription": "Ce fichier sera ajouté comme couche cartographique {{type}}."
     },
     "empty": {
       "noDatasetsDetected": "Aucun dataset détecté",

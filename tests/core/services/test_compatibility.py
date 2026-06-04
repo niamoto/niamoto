@@ -1545,6 +1545,8 @@ class TestCompatibilityService:
 
         report = service.check_compatibility("plot_stats", "imports/raw_plot_stats.csv")
         assert not any(i.level == ImpactLevel.OPPORTUNITY for i in report.impacts)
+        assert report.widget_impacts == []
+        assert report.widget_impact_summary.get("newly_available", 0) == 0
         assert report.info_message is not None
         assert "First check" in report.info_message
 

@@ -143,6 +143,7 @@ class WidgetRecipeCompatibilityService:
         incoming_profile: IncomingDataProfile,
         *,
         old_column_names: set[str] | None = None,
+        include_newly_available: bool = True,
     ) -> WidgetCompatibilityReport:
         """Classify configured widgets and simple new opportunities."""
 
@@ -154,14 +155,15 @@ class WidgetRecipeCompatibilityService:
         impacts = [
             self._classify_recipe(recipe, incoming_profile) for recipe in recipes
         ]
-        impacts.extend(
-            self._newly_available_impacts(
-                entity_name,
-                incoming_profile,
-                recipes,
-                old_column_names=old_column_names,
+        if include_newly_available:
+            impacts.extend(
+                self._newly_available_impacts(
+                    entity_name,
+                    incoming_profile,
+                    recipes,
+                    old_column_names=old_column_names,
+                )
             )
-        )
         return WidgetCompatibilityReport(
             entity_name=entity_name,
             impacts=impacts,

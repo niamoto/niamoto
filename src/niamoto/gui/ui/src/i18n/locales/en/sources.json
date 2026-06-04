@@ -103,12 +103,25 @@
       "warning": "Warning",
       "opportunity": "Opportunity"
     },
+    "details": {
+      "missingColumn": "Column {{column}} is missing from the new file.",
+      "newColumn": "New column {{column}} is not in the configuration yet.",
+      "typeChanged": "Type changed: {{from}} → {{to}}."
+    },
     "widgetStatus": {
       "still_valid": "Still valid",
       "degraded": "Degraded",
       "broken": "Broken",
       "newly_available": "New field",
       "unknown": "Unknown"
+    },
+    "widgetDetails": {
+      "incomingFieldUnused": "The incoming field is not used by configured widgets.",
+      "donutTooManyCategories": "Too many categories for a readable donut chart; review a bar or ranking widget instead.",
+      "barRequiresRanking": "The incoming cardinality requires ranking, grouping, or scrolling before rendering.",
+      "longLabels": "Incoming labels may be too long for the configured chart.",
+      "lowCoverage": "The incoming field has too little coverage to produce a useful widget.",
+      "stillValid": "Required fields are present and chart readability checks passed."
     }
   },
   "upload": {
@@ -251,7 +264,9 @@
     },
     "detailLabels": {
       "format": "Format",
+      "path": "Path",
       "size": "Size",
+      "type": "Type",
       "checks": "Checks",
       "tips": "Tips",
       "event": "Event",
@@ -267,6 +282,15 @@
       "attached to": "Attached to",
       "relation": "Relation",
       "description": "Description"
+    },
+    "detailValues": {
+      "decision": {
+        "aligned": "Automatic decision confirmed",
+        "heuristic_only": "Heuristic decision",
+        "ml_override": "ML-influenced decision",
+        "conflict": "Decision needs review",
+        "mixed": "Mixed signals"
+      }
     },
     "review": {
       "advancedTitle": "Advanced adjustments",
@@ -1853,6 +1877,10 @@
       "hierarchyIdentifier": "If this hierarchy must link to observations or stats, add a stable taxon_id, plot_id, or id.",
       "noRelationship": "If this dataset should link to a reference, make sure both files share matching identifier values."
     },
+    "dataset": {
+      "autoDetectedDescription": "This file will be imported as a primary data table.",
+      "linkDescription": "Detected relationship: {{field}} from the file → {{target}}."
+    },
     "detection": {
       "fileFormatRecognized": "{{format}} format recognized for \"{{name}}\"",
       "idColumnFound": "ID column found: {{field}}",
@@ -1870,9 +1898,16 @@
     "auxiliary": {
       "attachedTo": "Attached to: {{target}}",
       "relation": "Relation: {{field}} → {{refField}}",
+      "autoDetectedDescription": "This file will be used as precomputed values attached to {{target}}.",
+      "needsTargetDescription": "This file looks like precomputed values, but the target collection still needs confirmation before import.",
+      "joinDescription": "Join: {{field}} from the file → {{refField}} in {{target}}.",
+      "targetUnknown": "target to confirm",
       "relationCompact": "attached to {{target}} • {{field}} → {{refField}}"
     },
     "reference": {
+      "autoDetectedDescription": "This file will be used as a reference table and aggregation target.",
+      "derivedDescription": "This reference will be derived from {{source}} during import.",
+      "spatialDescription": "This file will be used as a spatial reference for maps and aggregations.",
       "derivedFrom": "Derived from: {{source}}",
       "sourceCount": "{{count}} source(s)",
       "levels": "Levels: {{levels}}",
@@ -1883,6 +1918,9 @@
       "aggregationReady": "Can serve as an aggregation target for generated pages",
       "linkedDatasets": "Linked datasets: {{datasets}}",
       "linkedAuxiliary": "Auxiliary sources: {{names}}"
+    },
+    "layer": {
+      "autoDetectedDescription": "This file will be added as a {{type}} map layer."
     },
     "empty": {
       "noDatasetsDetected": "No dataset detected",

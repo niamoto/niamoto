@@ -9,9 +9,17 @@ import type { ImportInventoryItem } from './importInventory'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
+const translations: Record<string, string> = {
+  'cockpit.detailLabels.path': 'Chemin',
+  'cockpit.detailLabels.type': 'Type',
+  'cockpit.detailLabels.decision': 'Décision',
+  'cockpit.detailValues.decision.aligned': 'Décision automatique confirmée',
+}
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
+    t: (key: string, options?: { defaultValue?: string }) =>
+      translations[key] ?? options?.defaultValue ?? key,
   }),
 }))
 
@@ -57,6 +65,26 @@ const itemWithDuplicateEventDetails: ImportInventoryItem = {
   tips: [],
 }
 
+const itemWithTechnicalDetails: ImportInventoryItem = {
+  id: 'selected:occurrences.csv',
+  name: 'occurrences.csv',
+  sourceFileName: 'occurrences.csv',
+  sourcePath: 'imports/occurrences.csv',
+  family: 'csv',
+  role: 'occurrences',
+  status: 'analysed',
+  quality: 'good',
+  primaryMessage: 'analysed',
+  summary: 'CSV',
+  details: [
+    { label: 'path', value: 'imports/occurrences.csv' },
+    { label: 'type', value: 'csv' },
+    { label: 'decision', value: 'aligned' },
+  ],
+  badges: [],
+  tips: [],
+}
+
 describe('ImportContextPanel', () => {
   afterEach(() => {
     vi.restoreAllMocks()
@@ -82,6 +110,25 @@ describe('ImportContextPanel', () => {
         )
       )
     ).toBe(false)
+
+    await harness.unmount()
+  })
+
+  it('localizes known detail labels and decision values', async () => {
+    const harness = createHarness()
+
+    await harness.render(
+      <ImportContextPanel
+        item={itemWithTechnicalDetails}
+        phase="reviewing"
+      />
+    )
+
+    expect(harness.container.textContent).toContain('Chemin')
+    expect(harness.container.textContent).toContain('Type')
+    expect(harness.container.textContent).toContain('Décision')
+    expect(harness.container.textContent).toContain('Décision automatique confirmée')
+    expect(harness.container.textContent).not.toContain('aligned')
 
     await harness.unmount()
   })

@@ -65,6 +65,62 @@ function sumWidgetStatus(reports: ImpactCheckResult[], status: WidgetImpactStatu
   return reports.reduce((total, report) => total + (report.widget_impact_summary?.[status] ?? 0), 0)
 }
 
+function translatePipelineDetail(
+  detail: string,
+  t: (key: string, options?: Record<string, string>) => string
+) {
+  const missingColumn = detail.match(/^Column '(.+)' missing in new file$/)
+  if (missingColumn) {
+    return t('impact.details.missingColumn', { column: missingColumn[1] })
+  }
+
+  const newColumn = detail.match(/^New column '(.+)' not yet in config$/)
+  if (newColumn) {
+    return t('impact.details.newColumn', { column: newColumn[1] })
+  }
+
+  const typeChanged = detail.match(/^Type changed: (.+) → (.+)$/)
+  if (typeChanged) {
+    return t('impact.details.typeChanged', {
+      from: typeChanged[1],
+      to: typeChanged[2],
+    })
+  }
+
+  return detail
+}
+
+function translateWidgetDetail(
+  detail: string,
+  t: (key: string) => string
+) {
+  if (detail === 'Incoming field is not used by current widget recipes.') {
+    return t('impact.widgetDetails.incomingFieldUnused')
+  }
+
+  if (detail.startsWith('Incoming cardinality is too high for a readable donut chart')) {
+    return t('impact.widgetDetails.donutTooManyCategories')
+  }
+
+  if (detail.startsWith('Incoming cardinality is high enough to require ranking')) {
+    return t('impact.widgetDetails.barRequiresRanking')
+  }
+
+  if (detail === 'Incoming labels may be too long for the configured chart.') {
+    return t('impact.widgetDetails.longLabels')
+  }
+
+  if (detail === 'Incoming field coverage is too low for a useful widget.') {
+    return t('impact.widgetDetails.lowCoverage')
+  }
+
+  if (detail === 'Required source fields are present and chart readability checks passed.') {
+    return t('impact.widgetDetails.stillValid')
+  }
+
+  return detail
+}
+
 export function ImportImpactPanel({
   reports,
   failedChecks = [],
@@ -164,7 +220,9 @@ export function ImportImpactPanel({
                       {t(`impact.level.${impact.level}`)}
                     </Badge>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{impact.detail}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {translatePipelineDetail(impact.detail, t)}
+                  </p>
                 </div>
               ))}
             </div>
@@ -186,7 +244,9 @@ export function ImportImpactPanel({
                       {t(`impact.widgetStatus.${impact.status}`)}
                     </Badge>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{impact.detail}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {translateWidgetDetail(impact.detail, t)}
+                  </p>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <Badge variant="secondary" className="text-[10px]">
                       {impact.collection}
