@@ -4,7 +4,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{Manager, State, Url};
@@ -25,8 +25,13 @@ const SERVER_STARTUP_RETRY_LIMIT: u32 = 3;
 const DEV_API_PORT: u16 = 8080;
 const DESKTOP_TOKEN_HEADER: &str = "x-niamoto-desktop-token";
 const APP_LOADER_CSS: &str = include_str!("../../src/niamoto/gui/ui/src/styles/app-loader.css");
+const LOADER_LOGO_LIGHT_PNG: &[u8] = include_bytes!("../icons/loader-logo-light.png");
+const LOADER_LOGO_DARK_PNG: &[u8] = include_bytes!("../icons/loader-logo-dark.png");
 const BUILT_FEEDBACK_WORKER_URL: Option<&str> = option_env!("NIAMOTO_FEEDBACK_WORKER_URL");
 const BUILT_FEEDBACK_API_KEY: Option<&str> = option_env!("NIAMOTO_FEEDBACK_API_KEY");
+
+static LOADER_LOGO_LIGHT_DATA_URL: OnceLock<String> = OnceLock::new();
+static LOADER_LOGO_DARK_DATA_URL: OnceLock<String> = OnceLock::new();
 
 /// Shared state to track the FastAPI server process
 struct ServerState {
@@ -422,9 +427,6 @@ fn launch_fastapi_server(
     Ok(child)
 }
 
-/// Icon PNG encoded as base64 (src-tauri/icons/128x128.png)
-const ICON_BASE64: &str = include_str!("../icons/icon_base64.txt");
-
 fn escape_html(value: &str) -> String {
     value
         .replace('&', "&amp;")
@@ -432,6 +434,27 @@ fn escape_html(value: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&#39;")
+}
+
+fn png_data_url(bytes: &[u8]) -> String {
+    use base64::Engine as _;
+
+    format!(
+        "data:image/png;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    )
+}
+
+fn loader_logo_light_data_url() -> &'static str {
+    LOADER_LOGO_LIGHT_DATA_URL
+        .get_or_init(|| png_data_url(LOADER_LOGO_LIGHT_PNG))
+        .as_str()
+}
+
+fn loader_logo_dark_data_url() -> &'static str {
+    LOADER_LOGO_DARK_DATA_URL
+        .get_or_init(|| png_data_url(LOADER_LOGO_DARK_PNG))
+        .as_str()
 }
 
 fn encode_data_url_component(value: &str) -> String {
@@ -474,7 +497,13 @@ fn startup_ready_url(
 
 /// Show a loading screen with status message
 fn show_loading_status(window: &tauri::WebviewWindow, _message: &str) {
-    let html = format!(
+    let html = loading_status_html();
+
+    navigate_inline_html(window, &html);
+}
+
+fn loading_status_html() -> String {
+    format!(
         r#"<!doctype html>
 <html lang="en">
   <head>
@@ -516,16 +545,18 @@ fn show_loading_status(window: &tauri::WebviewWindow, _message: &str) {
   </head>
   <body data-tauri-drag-region>
     <main class="shell niamoto-app-loader-shell" data-tauri-drag-region>
-      <img class="niamoto-app-loader-logo" alt="" src="data:image/png;base64,{icon}" />
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="{dark_logo}" />
+        <img class="niamoto-app-loader-logo" alt="" src="{light_logo}" />
+      </picture>
       <div class="niamoto-app-loader niamoto-app-loader--pulse-ring" aria-hidden="true"></div>
     </main>
   </body>
 </html>"#,
-        icon = ICON_BASE64.trim(),
+        light_logo = loader_logo_light_data_url(),
+        dark_logo = loader_logo_dark_data_url(),
         loader_css = APP_LOADER_CSS,
-    );
-
-    navigate_inline_html(window, &html);
+    )
 }
 
 /// Show an error screen
@@ -1016,6 +1047,9 @@ mod tests {
     use super::built_feedback_env_vars;
     use super::collect_configured_feedback_env_vars;
     use super::generate_startup_token;
+    use super::loader_logo_dark_data_url;
+    use super::loader_logo_light_data_url;
+    use super::loading_status_html;
     use super::startup_ready_url;
     use tauri::Url;
 
@@ -1043,6 +1077,17 @@ mod tests {
     fn startup_ready_url_requires_dev_url_in_hot_reload_mode() {
         let error = startup_ready_url(true, None, 8080).unwrap_err();
         assert!(error.contains("Missing devUrl"));
+    }
+
+    #[test]
+    fn loading_status_html_uses_theme_aware_loader_logos() {
+        let html = loading_status_html();
+
+        assert!(html.contains("<picture"));
+        assert!(html.contains("media=\"(prefers-color-scheme: dark)\""));
+        assert!(html.contains(loader_logo_light_data_url()));
+        assert!(html.contains(loader_logo_dark_data_url()));
+        assert_ne!(loader_logo_light_data_url(), loader_logo_dark_data_url());
     }
 
     #[test]
