@@ -490,8 +490,15 @@ export function AutoConfigDisplay({
   const decisionSummaries = result.decision_summary || {}
   const semanticEvidence = result.semantic_evidence || {}
   const isImporting = Boolean(importState?.active)
-  const reviewCount = Object.values(decisionSummaries).filter(
-    (summary) => summary?.review_required && summary?.final_entity_type !== 'auxiliary_source'
+  const configuredAuxiliaryEntities = new Set(
+    auxiliarySources.map((source) => sourceEntityName(source))
+  )
+  const reviewCount = Object.entries(decisionSummaries).filter(
+    ([name, summary]) => {
+      if (!summary?.review_required) return false
+      if (summary.final_entity_type !== 'auxiliary_source') return true
+      return !configuredAuxiliaryEntities.has(name)
+    }
   ).length
 
   // Build available references for dataset FK dropdowns

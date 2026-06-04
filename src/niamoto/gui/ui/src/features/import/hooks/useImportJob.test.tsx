@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useImportJob } from './useImportJob'
+import type { AutoConfigureResponse } from '@/features/import/api/smart-config'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
@@ -122,6 +123,7 @@ describe('useImportJob', () => {
     expect(createEntitiesBulk).toHaveBeenCalledWith({
       entities: autoConfigureResponse.entities,
       auxiliary_sources: [],
+      mode: 'merge',
     })
     expect(executeImportAll).toHaveBeenCalledWith(false)
     expect(harness.current.state.status).toBe('completed')
@@ -172,6 +174,40 @@ describe('useImportJob', () => {
       message: 'Constraint violation',
       error_type: 'ValidationError',
     })
+
+    await harness.unmount()
+  })
+
+  it('blocks unresolved auxiliary sources before saving import.yml', async () => {
+    const harness = createHookHarness(() =>
+      useImportJob({ timeoutMs: 100, pollIntervalMs: 1 })
+    )
+    await harness.render()
+
+    const unresolvedConfig: AutoConfigureResponse = {
+      ...autoConfigureResponse,
+      decision_summary: {
+        raw_metrics: {
+          final_entity_type: 'auxiliary_source',
+          review_required: true,
+          review_level: 'review',
+        },
+      },
+      auxiliary_sources: [],
+    }
+
+    let caughtError: unknown
+    await act(async () => {
+      await harness.current.start(unresolvedConfig).catch((error) => {
+        caughtError = error
+      })
+    })
+
+    expect(caughtError).toBeInstanceOf(Error)
+    expect((caughtError as Error).message).toContain('raw_metrics')
+    expect(createEntitiesBulk).not.toHaveBeenCalled()
+    expect(executeImportAll).not.toHaveBeenCalled()
+    expect(harness.current.state.status).toBe('failed')
 
     await harness.unmount()
   })

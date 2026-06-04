@@ -130,7 +130,7 @@
       "description_one": "{{count}} fichier existe déjà. Que souhaitez-vous faire ?",
       "description_other": "{{count}} fichiers existent déjà. Que souhaitez-vous faire ?",
       "useExisting": "Utiliser les existants",
-      "replaceAll": "Remplacer tout"
+      "replaceAll": "Remplacer ces fichiers"
     },
     "status": {
       "queued": "En attente d'analyse",
@@ -1812,9 +1812,9 @@
     },
     "actions": {
       "edit": "Éditer",
-      "moveToReferences": "Déplacer vers les références",
-      "moveToDatasets": "Déplacer vers les datasets",
-      "moveToAuxiliary": "Déplacer vers les sources auxiliaires",
+      "moveToReferences": "Classer comme référence",
+      "moveToDatasets": "Classer comme dataset",
+      "moveToAuxiliary": "Classer comme source auxiliaire",
       "viewDetails": "Détails",
       "hideDetails": "Masquer"
     },

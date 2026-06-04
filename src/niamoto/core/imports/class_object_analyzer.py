@@ -27,6 +27,11 @@ def _duckdb_string_literal(value: str | Path) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
+def _duckdb_identifier(value: str) -> str:
+    """Return a safely quoted DuckDB SQL identifier."""
+    return '"' + value.replace('"', '""') + '"'
+
+
 class ClassObjectCategory(str, Enum):
     """Fine-grained categorization of class_object types."""
 
@@ -105,8 +110,15 @@ class ClassObjectAnalyzer:
         "id",
     ]
 
-    def __init__(self, csv_path: Path):
+    def __init__(
+        self,
+        csv_path: Path,
+        entity_column: str | None = None,
+        require_entity_column: bool = True,
+    ):
         self.csv_path = csv_path
+        self.entity_column = entity_column
+        self.require_entity_column = require_entity_column
 
     def detect_delimiter(self) -> str:
         """Auto-detect CSV delimiter."""
@@ -135,7 +147,9 @@ class ClassObjectAnalyzer:
         # Read header to get columns
         with open(self.csv_path, "r", encoding="utf-8") as f:
             reader = csv.reader(f, delimiter=delimiter)
-            columns = [c.strip().lower() for c in next(reader)]
+            original_columns = [c.strip() for c in next(reader)]
+            columns = [c.lower() for c in original_columns]
+            column_lookup = dict(zip(columns, original_columns))
 
         # Validate required columns
         missing = self.REQUIRED_COLUMNS - set(columns)
@@ -144,12 +158,18 @@ class ClassObjectAnalyzer:
 
         # Find entity column
         entity_column = None
-        for candidate in self.ENTITY_COLUMN_CANDIDATES:
-            if candidate in columns:
-                entity_column = candidate
-                break
+        if self.entity_column:
+            selected = self.entity_column.strip().lower()
+            if selected in column_lookup:
+                entity_column = column_lookup[selected]
 
         if not entity_column:
+            for candidate in self.ENTITY_COLUMN_CANDIDATES:
+                if candidate in column_lookup:
+                    entity_column = column_lookup[candidate]
+                    break
+
+        if not entity_column and self.require_entity_column:
             errors.append(
                 f"Colonne d'entité manquante. Attendue: {', '.join(self.ENTITY_COLUMN_CANDIDATES)}"
             )
@@ -189,9 +209,13 @@ class ClassObjectAnalyzer:
             row_count = conn.execute("SELECT COUNT(*) FROM data").fetchone()[0]
 
             # Get entity count
-            entity_count = conn.execute(
-                f'SELECT COUNT(DISTINCT "{entity_column}") FROM data'
-            ).fetchone()[0]
+            if entity_column:
+                quoted_entity_column = _duckdb_identifier(entity_column)
+                entity_count = conn.execute(
+                    f"SELECT COUNT(DISTINCT {quoted_entity_column}) FROM data"
+                ).fetchone()[0]
+            else:
+                entity_count = 0
 
             # Validate class_value is numeric
             try:

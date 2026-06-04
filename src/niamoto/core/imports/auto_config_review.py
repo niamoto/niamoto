@@ -128,6 +128,10 @@ def build_auto_config_warnings(
 
     for entity_name, summary in decision_summary.items():
         if summary.get("final_entity_type") == "auxiliary_source":
+            if summary.get("review_required") and not summary.get("auxiliary_target"):
+                warnings.append(
+                    f'Review "{entity_name}": auxiliary source target is unresolved.'
+                )
             continue
         if summary.get("review_required"):
             joined = "; ".join(summary.get("review_reasons", [])[:2])

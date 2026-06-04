@@ -1429,7 +1429,7 @@ def test_impact_check_returns_skip_reason_for_vector_entity(monkeypatch, tmp_pat
             self.working_directory = working_directory
 
         def resolve_entity(self, filename: str):
-            assert filename == "geo.gpkg"
+            assert filename == "imports/geo.gpkg"
             return "geo"
 
         def check_compatibility(self, entity_name: str, file_path: str):
@@ -1473,7 +1473,7 @@ def test_impact_check_returns_info_message(monkeypatch, tmp_path):
             self.working_directory = working_directory
 
         def resolve_entity(self, filename: str):
-            assert filename == "raw_plot_stats.csv"
+            assert filename == "imports/raw_plot_stats.csv"
             return "plot_stats"
 
         def check_compatibility(self, entity_name: str, file_path: str):

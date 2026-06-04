@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import yaml
 
 from niamoto.core.imports.auto_config_service import AutoConfigService
 from niamoto.core.utils.column_detector import ColumnDetector
@@ -75,6 +76,340 @@ def test_auxiliary_stats_csv_skips_semantic_ml(tmp_path: Path, monkeypatch):
 
     assert analysis["ml_predictions"] == []
     assert AutoConfigService(tmp_path)._is_auxiliary_stats_candidate(analysis)
+
+
+def test_existing_auxiliary_stats_source_is_reused_when_reimported_alone(
+    tmp_path: Path,
+):
+    config_dir = tmp_path / "config"
+    imports_dir = tmp_path / "imports"
+    config_dir.mkdir()
+    imports_dir.mkdir()
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "version": "1.0",
+                "entities": {
+                    "datasets": {},
+                    "references": {
+                        "sites": {
+                            "connector": {
+                                "type": "file",
+                                "path": "imports/sites.csv",
+                            }
+                        }
+                    },
+                },
+                "auxiliary_sources": [
+                    {
+                        "name": "site_metrics",
+                        "data": "imports/raw_site_metrics.csv",
+                        "grouping": "sites",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "ref_field": "site_code",
+                            "match_field": "site_id",
+                        },
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (imports_dir / "raw_site_metrics.csv").write_text(
+        "site_id,class_object,class_name,class_value\ns1,canopy,closed,12\n",
+        encoding="utf-8",
+    )
+
+    result = AutoConfigService(tmp_path).auto_configure(
+        ["imports/raw_site_metrics.csv"]
+    )
+
+    assert result["entities"]["datasets"] == {}
+    assert result["entities"]["references"] == {}
+    assert result["decision_summary"]["raw_site_metrics"]["final_entity_type"] == (
+        "auxiliary_source"
+    )
+    assert result["auxiliary_sources"] == [
+        {
+            "name": "site_metrics",
+            "data": "imports/raw_site_metrics.csv",
+            "grouping": "sites",
+            "relation": {
+                "plugin": "stats_loader",
+                "key": "id",
+                "ref_field": "site_code",
+                "match_field": "site_id",
+            },
+            "source_entity": "raw_site_metrics",
+        }
+    ]
+
+
+def test_existing_auxiliary_stats_source_is_not_reused_when_match_field_is_missing(
+    tmp_path: Path,
+):
+    config_dir = tmp_path / "config"
+    imports_dir = tmp_path / "imports"
+    config_dir.mkdir()
+    imports_dir.mkdir()
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "version": "1.0",
+                "entities": {"datasets": {}, "references": {}},
+                "auxiliary_sources": [
+                    {
+                        "name": "site_metrics",
+                        "data": "imports/raw_site_metrics.csv",
+                        "grouping": "sites",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "ref_field": "site_code",
+                            "match_field": "site_id",
+                        },
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (imports_dir / "raw_site_metrics.csv").write_text(
+        "station_id,class_object,class_name,class_value\ns1,canopy,closed,12\n",
+        encoding="utf-8",
+    )
+
+    result = AutoConfigService(tmp_path).auto_configure(
+        ["imports/raw_site_metrics.csv"]
+    )
+
+    assert result["auxiliary_sources"] == []
+    assert result["decision_summary"]["raw_site_metrics"]["review_required"] is True
+
+
+def test_existing_transform_stats_source_is_reused_when_reimported_alone(
+    tmp_path: Path,
+):
+    config_dir = tmp_path / "config"
+    imports_dir = tmp_path / "imports"
+    config_dir.mkdir()
+    imports_dir.mkdir()
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "version": "1.0",
+                "entities": {
+                    "datasets": {},
+                    "references": {
+                        "sites": {
+                            "connector": {
+                                "type": "file",
+                                "path": "imports/sites.csv",
+                            }
+                        }
+                    },
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (config_dir / "transform.yml").write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "group_by": "sites",
+                    "sources": [
+                        {
+                            "name": "site_metrics",
+                            "data": "imports/raw_site_metrics.csv",
+                            "grouping": "sites",
+                            "relation": {
+                                "plugin": "stats_loader",
+                                "key": "id",
+                                "ref_field": "site_code",
+                                "match_field": "site_id",
+                            },
+                        }
+                    ],
+                }
+            ],
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (imports_dir / "raw_site_metrics.csv").write_text(
+        "site_id,class_object,class_name,class_value\ns1,canopy,closed,12\n",
+        encoding="utf-8",
+    )
+
+    result = AutoConfigService(tmp_path).auto_configure(
+        ["imports/raw_site_metrics.csv"]
+    )
+
+    assert result["entities"]["datasets"] == {}
+    assert result["entities"]["references"] == {}
+    assert result["decision_summary"]["raw_site_metrics"]["final_entity_type"] == (
+        "auxiliary_source"
+    )
+    assert result["auxiliary_sources"] == [
+        {
+            "name": "site_metrics",
+            "data": "imports/raw_site_metrics.csv",
+            "grouping": "sites",
+            "relation": {
+                "plugin": "stats_loader",
+                "key": "id",
+                "ref_field": "site_code",
+                "match_field": "site_id",
+            },
+            "source_entity": "raw_site_metrics",
+        }
+    ]
+
+
+def test_existing_auxiliary_source_reuse_prefers_exact_path_over_same_basename(
+    tmp_path: Path,
+):
+    config_dir = tmp_path / "config"
+    imports_a_dir = tmp_path / "imports" / "a"
+    imports_b_dir = tmp_path / "imports" / "b"
+    config_dir.mkdir()
+    imports_a_dir.mkdir(parents=True)
+    imports_b_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "version": "1.0",
+                "entities": {"datasets": {}, "references": {}},
+                "auxiliary_sources": [
+                    {
+                        "name": "alpha_metrics",
+                        "data": "imports/a/raw_metrics.csv",
+                        "grouping": "alpha_sites",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "ref_field": "alpha_code",
+                            "match_field": "site_id",
+                        },
+                    },
+                    {
+                        "name": "beta_metrics",
+                        "data": "imports/b/raw_metrics.csv",
+                        "grouping": "beta_sites",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "ref_field": "beta_code",
+                            "match_field": "site_id",
+                        },
+                    },
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (imports_b_dir / "raw_metrics.csv").write_text(
+        "site_id,class_object,class_name,class_value\nb1,canopy,closed,12\n",
+        encoding="utf-8",
+    )
+
+    result = AutoConfigService(tmp_path).auto_configure(["imports/b/raw_metrics.csv"])
+
+    assert result["auxiliary_sources"] == [
+        {
+            "name": "beta_metrics",
+            "data": "imports/b/raw_metrics.csv",
+            "grouping": "beta_sites",
+            "relation": {
+                "plugin": "stats_loader",
+                "key": "id",
+                "ref_field": "beta_code",
+                "match_field": "site_id",
+            },
+            "source_entity": "raw_metrics",
+        }
+    ]
+
+
+def test_existing_auxiliary_source_reuse_skips_same_entity_for_different_path(
+    tmp_path: Path,
+):
+    config_dir = tmp_path / "config"
+    imports_a_dir = tmp_path / "imports" / "a"
+    imports_b_dir = tmp_path / "imports" / "b"
+    config_dir.mkdir()
+    imports_a_dir.mkdir(parents=True)
+    imports_b_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "version": "1.0",
+                "entities": {"datasets": {}, "references": {}},
+                "auxiliary_sources": [
+                    {
+                        "name": "raw_metrics",
+                        "data": "imports/a/raw_metrics.csv",
+                        "grouping": "alpha_sites",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "ref_field": "alpha_code",
+                            "match_field": "site_id",
+                        },
+                        "source_entity": "raw_metrics",
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    (imports_b_dir / "raw_metrics.csv").write_text(
+        "site_id,class_object,class_name,class_value\nb1,canopy,closed,12\n",
+        encoding="utf-8",
+    )
+
+    result = AutoConfigService(tmp_path).auto_configure(["imports/b/raw_metrics.csv"])
+
+    assert result["auxiliary_sources"] == []
+    assert result["decision_summary"]["raw_metrics"]["final_entity_type"] == (
+        "auxiliary_source"
+    )
+    assert result["decision_summary"]["raw_metrics"]["review_required"] is True
+    assert result["warnings"] == [
+        'Review "raw_metrics": auxiliary source target is unresolved.',
+        "No references detected. Add taxonomy or lookup tables.",
+    ]
+
+
+def test_unmatched_class_object_csv_is_not_promoted_to_reference(tmp_path: Path):
+    imports_dir = tmp_path / "imports"
+    imports_dir.mkdir()
+    (imports_dir / "raw_metrics.csv").write_text(
+        "entity_id,class_object,class_name,class_value\n1,canopy,closed,12\n",
+        encoding="utf-8",
+    )
+
+    result = AutoConfigService(tmp_path).auto_configure(["imports/raw_metrics.csv"])
+
+    assert result["entities"]["datasets"] == {}
+    assert result["entities"]["references"] == {}
+    assert result["decision_summary"]["raw_metrics"]["final_entity_type"] == (
+        "auxiliary_source"
+    )
+    assert result["decision_summary"]["raw_metrics"]["review_required"] is True
+    assert result["warnings"] == [
+        'Review "raw_metrics": auxiliary source target is unresolved.',
+        "No references detected. Add taxonomy or lookup tables.",
+    ]
+    assert result["auxiliary_sources"] == []
 
 
 def test_build_simple_reference_config_sets_schema_name_field(tmp_path: Path):

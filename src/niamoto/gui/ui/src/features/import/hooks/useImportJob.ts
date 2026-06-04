@@ -55,6 +55,22 @@ const INITIAL_STATE: ImportJobState = {
   errorDetails: null,
 }
 
+function unresolvedAuxiliaryReviews(config: AutoConfigureResponse): string[] {
+  const configuredAuxiliaryEntities = new Set(
+    (config.auxiliary_sources || []).map((source) => (
+      source.source_entity || source.name
+    ))
+  )
+
+  return Object.entries(config.decision_summary || {})
+    .filter(([name, summary]) => (
+      summary?.review_required &&
+      summary?.final_entity_type === 'auxiliary_source' &&
+      !configuredAuxiliaryEntities.has(name)
+    ))
+    .map(([name]) => name)
+}
+
 export function useImportJob({
   timeoutMs = 600000,
   pollIntervalMs = 500,
@@ -83,6 +99,13 @@ export function useImportJob({
       let latestErrorDetails: ImportErrorDetails | null = null
 
       try {
+        const unresolvedAuxiliarySources = unresolvedAuxiliaryReviews(config)
+        if (unresolvedAuxiliarySources.length > 0) {
+          throw new Error(
+            `Resolve auxiliary source review before importing: ${unresolvedAuxiliarySources.join(', ')}`
+          )
+        }
+
         setState({
           status: 'running',
           error: null,
@@ -107,6 +130,7 @@ export function useImportJob({
         await createEntitiesBulk({
           entities: config.entities,
           auxiliary_sources: config.auxiliary_sources || [],
+          mode: 'merge',
         })
 
         setState((previous) => ({

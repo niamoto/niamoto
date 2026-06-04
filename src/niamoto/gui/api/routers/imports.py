@@ -1369,11 +1369,9 @@ class ImpactCheckResponse(BaseModel):
 async def impact_check(request: ImpactCheckRequest):
     """Check compatibility between a source file and existing configuration.
 
-    Resolves the entity from the file path basename, then runs the impact
+    Resolves the entity from the project-relative file path, then runs the impact
     check against import.yml + transform.yml.
     """
-    from pathlib import Path
-
     from ..context import get_working_directory
     from niamoto.core.services.compatibility import CompatibilityService
 
@@ -1387,8 +1385,7 @@ async def impact_check(request: ImpactCheckRequest):
         raise HTTPException(status_code=400, detail="Path outside project directory")
 
     service = CompatibilityService(work_dir)
-    filename = Path(request.file_path).name
-    entity_name = service.resolve_entity(filename)
+    entity_name = service.resolve_entity(request.file_path)
 
     if entity_name is None:
         return ImpactCheckResponse()

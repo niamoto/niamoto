@@ -5,6 +5,7 @@ to ensure file operations happen in the correct project directory.
 """
 
 import asyncio
+import copy
 import json
 import os
 import tempfile
@@ -927,6 +928,168 @@ class CreateEntitiesBulkRequest(BaseModel):
 
     entities: Dict[str, Any]  # Contains datasets, references, metadata
     auxiliary_sources: List[Dict[str, Any]] = []
+    mode: Literal["merge", "replace"] = "replace"
+
+
+def _load_existing_import_config(import_yml_path: Path) -> Dict[str, Any]:
+    """Load an existing import.yml as a dict, or return an empty base config."""
+    if not import_yml_path.exists():
+        return {}
+
+    with open(import_yml_path, encoding="utf-8") as f:
+        existing = yaml.safe_load(f) or {}
+
+    return existing if isinstance(existing, dict) else {}
+
+
+def _merge_named_items(
+    existing_items: List[Dict[str, Any]], incoming_items: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Merge lists of config items by name, replacing only matching items."""
+    merged = copy.deepcopy(existing_items)
+    index_by_name = {
+        item.get("name"): idx
+        for idx, item in enumerate(merged)
+        if isinstance(item, dict) and item.get("name")
+    }
+
+    for item in incoming_items:
+        if not isinstance(item, dict):
+            merged.append(copy.deepcopy(item))
+            continue
+
+        name = item.get("name")
+        if name and name in index_by_name:
+            merged[index_by_name[name]] = copy.deepcopy(item)
+        else:
+            if name:
+                index_by_name[name] = len(merged)
+            merged.append(copy.deepcopy(item))
+
+    return merged
+
+
+def _auxiliary_source_entity_aliases(source: Dict[str, Any]) -> set[str]:
+    """Return entity keys that would represent the auxiliary source as an entity."""
+    aliases: set[str] = set()
+    source_entity = source.get("source_entity")
+    if isinstance(source_entity, str) and source_entity:
+        aliases.add(source_entity)
+
+    data_path = source.get("data")
+    if isinstance(data_path, str) and data_path:
+        aliases.add(Path(data_path).stem)
+
+    return aliases
+
+
+def _remove_auxiliary_sources_for_entities(
+    auxiliary_sources: List[Dict[str, Any]],
+    entity_names: set[str],
+) -> List[Dict[str, Any]]:
+    """Drop auxiliary configs that are superseded by incoming real entities."""
+    if not entity_names:
+        return auxiliary_sources
+
+    return [
+        source
+        for source in auxiliary_sources
+        if not (
+            isinstance(source, dict)
+            and _auxiliary_source_entity_aliases(source) & entity_names
+        )
+    ]
+
+
+def _build_import_config_for_bulk_save(
+    *,
+    existing_config: Dict[str, Any],
+    request: CreateEntitiesBulkRequest,
+) -> Dict[str, Any]:
+    """Build import.yml content, merging only when explicitly requested."""
+    incoming_entities = request.entities or {}
+    incoming_datasets = incoming_entities.get("datasets", {}) or {}
+    incoming_references = incoming_entities.get("references", {}) or {}
+
+    if request.mode == "replace":
+        import_config: Dict[str, Any] = {
+            "version": "1.0",
+            "entities": {
+                "datasets": incoming_datasets,
+                "references": incoming_references,
+            },
+        }
+        if "metadata" in incoming_entities:
+            import_config["metadata"] = incoming_entities["metadata"]
+        if request.auxiliary_sources:
+            import_config["auxiliary_sources"] = request.auxiliary_sources
+        return import_config
+
+    import_config = copy.deepcopy(existing_config)
+    import_config["version"] = import_config.get("version", "1.0")
+
+    entities = import_config.setdefault("entities", {})
+    if not isinstance(entities, dict):
+        entities = {}
+        import_config["entities"] = entities
+
+    datasets = entities.setdefault("datasets", {})
+    if not isinstance(datasets, dict):
+        datasets = {}
+        entities["datasets"] = datasets
+    references = entities.setdefault("references", {})
+    if not isinstance(references, dict):
+        references = {}
+        entities["references"] = references
+
+    incoming_dataset_names = set(incoming_datasets)
+    incoming_reference_names = set(incoming_references)
+    for name in incoming_dataset_names:
+        references.pop(name, None)
+    for name in incoming_reference_names:
+        datasets.pop(name, None)
+
+    datasets.update(copy.deepcopy(incoming_datasets))
+    references.update(copy.deepcopy(incoming_references))
+
+    if "metadata" in incoming_entities:
+        metadata = import_config.get("metadata", {})
+        if isinstance(metadata, dict) and isinstance(
+            incoming_entities["metadata"], dict
+        ):
+            metadata.update(copy.deepcopy(incoming_entities["metadata"]))
+            import_config["metadata"] = metadata
+        else:
+            import_config["metadata"] = copy.deepcopy(incoming_entities["metadata"])
+
+    if request.auxiliary_sources:
+        stale_entity_names: set[str] = set()
+        for source in request.auxiliary_sources:
+            if isinstance(source, dict):
+                stale_entity_names.update(_auxiliary_source_entity_aliases(source))
+        for name in stale_entity_names:
+            datasets.pop(name, None)
+            references.pop(name, None)
+
+        existing_auxiliary = import_config.get("auxiliary_sources", [])
+        if not isinstance(existing_auxiliary, list):
+            existing_auxiliary = []
+        import_config["auxiliary_sources"] = _merge_named_items(
+            _remove_auxiliary_sources_for_entities(
+                existing_auxiliary,
+                incoming_dataset_names | incoming_reference_names,
+            ),
+            request.auxiliary_sources,
+        )
+    elif incoming_dataset_names or incoming_reference_names:
+        existing_auxiliary = import_config.get("auxiliary_sources", [])
+        if isinstance(existing_auxiliary, list):
+            import_config["auxiliary_sources"] = _remove_auxiliary_sources_for_entities(
+                existing_auxiliary,
+                incoming_dataset_names | incoming_reference_names,
+            )
+
+    return import_config
 
 
 @router.post("/management/entities/bulk")
@@ -961,20 +1124,15 @@ async def create_entities_bulk(
         _validate_bulk_config_paths(request.entities)
         _validate_bulk_config_paths(request.auxiliary_sources)
 
-        # Build the import.yml structure
-        import_config = {
-            "version": "1.0",
-            "entities": {
-                "datasets": request.entities.get("datasets", {}),
-                "references": request.entities.get("references", {}),
-            },
-        }
-
-        # Add metadata if present
-        if "metadata" in request.entities:
-            import_config["metadata"] = request.entities["metadata"]
-        if request.auxiliary_sources:
-            import_config["auxiliary_sources"] = request.auxiliary_sources
+        existing_config = (
+            _load_existing_import_config(import_yml_path)
+            if request.mode == "merge"
+            else {}
+        )
+        import_config = _build_import_config_for_bulk_save(
+            existing_config=existing_config,
+            request=request,
+        )
 
         temp_path: Path | None = None
         try:
@@ -1003,8 +1161,9 @@ async def create_entities_bulk(
                 temp_path.unlink(missing_ok=True)
             raise
 
-        dataset_count = len(request.entities.get("datasets", {}))
-        reference_count = len(request.entities.get("references", {}))
+        saved_entities = import_config.get("entities", {})
+        dataset_count = len(saved_entities.get("datasets", {}))
+        reference_count = len(saved_entities.get("references", {}))
 
         return {
             "success": True,

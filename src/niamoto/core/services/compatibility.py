@@ -403,18 +403,18 @@ class ConfigRefCollector:
     ) -> None:
         is_data_match = self._is_source_match(entity_name, source_name, data_entity)
 
-        if is_data_match and relation.get("key"):
-            self._add(
-                refs,
-                relation["key"],
-                f"{prefix} > relation.key",
-                ImpactLevel.BREAKS_TRANSFORM,
-            )
         if is_data_match and relation.get("match_field"):
             self._add(
                 refs,
                 relation["match_field"],
                 f"{prefix} > relation.match_field",
+                ImpactLevel.BREAKS_TRANSFORM,
+            )
+        elif is_data_match and relation.get("key"):
+            self._add(
+                refs,
+                relation["key"],
+                f"{prefix} > relation.key",
                 ImpactLevel.BREAKS_TRANSFORM,
             )
 
@@ -925,7 +925,14 @@ class EntityResolver:
         ``sources[].data`` values that are file paths (not entity names).
         """
         entities = import_config.get("entities", {})
-        matches: list[str] = []
+        requested_path = EntityResolver._normalize_config_path(filename)
+        requested_name = Path(requested_path).name
+        has_path_hint = "/" in requested_path
+        import_matches: list[str] = []
+        transform_matches: list[str] = []
+        exact_import_matches: list[str] = []
+        exact_auxiliary_matches: list[str] = []
+        exact_transform_matches: list[str] = []
 
         # 1. import.yml connector paths
         for section in ("datasets", "references"):
@@ -939,24 +946,81 @@ class EntityResolver:
                 ):
                     continue
                 path = connector.get("path")
-                if path and Path(path).name == filename:
-                    matches.append(name)
+                if not path:
+                    continue
+                normalized_path = EntityResolver._normalize_config_path(path)
+                if has_path_hint and normalized_path == requested_path:
+                    exact_import_matches.append(name)
+                if Path(normalized_path).name == requested_name:
+                    import_matches.append(name)
 
         # 1b. import.yml auxiliary_sources
         for source in import_config.get("auxiliary_sources", []) or []:
             path = source.get("data", "")
-            source_name = source.get("name", "")
-            if path and Path(path).name == filename and source_name not in matches:
-                matches.append(source_name)
+            if not path:
+                continue
+            normalized_path = EntityResolver._normalize_config_path(path)
+            source_name = (
+                source.get("source_entity")
+                or Path(normalized_path).stem
+                or source.get("name", "")
+            )
+            if has_path_hint and normalized_path == requested_path:
+                exact_auxiliary_matches.append(source_name)
+            if Path(normalized_path).name == requested_name:
+                transform_matches.append(source_name)
 
         # 2. transform.yml sources[].data that are file paths (contain /)
         for group in transform_config or []:
             for source in group.get("sources", []):
                 data = source.get("data", "")
-                if "/" in data and Path(data).name == filename:
+                if isinstance(data, dict):
+                    data = data.get("path", "")
+                if not isinstance(data, str) or not data:
+                    continue
+                normalized_path = EntityResolver._normalize_config_path(data)
+                if (
+                    "/" in normalized_path
+                    and Path(normalized_path).name == requested_name
+                ):
                     source_name = source.get("name", data)
-                    if source_name not in matches:
-                        matches.append(source_name)
+                    if has_path_hint and normalized_path == requested_path:
+                        exact_transform_matches.append(source_name)
+                    transform_matches.append(source_name)
+
+        if has_path_hint:
+            exact_auxiliary_matches = EntityResolver._unique(exact_auxiliary_matches)
+            exact_transform_matches = EntityResolver._unique(exact_transform_matches)
+            exact_import_matches = EntityResolver._unique(exact_import_matches)
+            if len(exact_auxiliary_matches) == 1:
+                return exact_auxiliary_matches[0]
+            if len(exact_auxiliary_matches) > 1:
+                logger.warning(
+                    "Ambiguous auxiliary source match for '%s': %s — skipping check",
+                    filename,
+                    exact_auxiliary_matches,
+                )
+                return None
+            if len(exact_transform_matches) == 1:
+                return exact_transform_matches[0]
+            if len(exact_transform_matches) > 1:
+                logger.warning(
+                    "Ambiguous transform source match for '%s': %s — skipping check",
+                    filename,
+                    exact_transform_matches,
+                )
+                return None
+            if len(exact_import_matches) == 1:
+                return exact_import_matches[0]
+            if len(exact_import_matches) > 1:
+                logger.warning(
+                    "Ambiguous import entity match for '%s': %s — skipping check",
+                    filename,
+                    exact_import_matches,
+                )
+                return None
+
+        matches = EntityResolver._unique(import_matches + transform_matches)
 
         if len(matches) == 1:
             return matches[0]
@@ -967,6 +1031,17 @@ class EntityResolver:
                 matches,
             )
         return None
+
+    @staticmethod
+    def _normalize_config_path(value: str) -> str:
+        normalized = Path(value).as_posix()
+        while normalized.startswith("./"):
+            normalized = normalized[2:]
+        return normalized
+
+    @staticmethod
+    def _unique(values: list[str]) -> list[str]:
+        return list(dict.fromkeys(values))
 
 
 # ---------------------------------------------------------------------------

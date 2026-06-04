@@ -7,10 +7,13 @@ focused on transport concerns while the product behavior lives in core.
 from __future__ import annotations
 
 import csv
+import copy
 import logging
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+import yaml
 
 from niamoto.core.imports.auto_config_decision import (
     build_entity_decision,
@@ -360,30 +363,61 @@ class AutoConfigService:
             ),
             has_shapes_reference=bool(shapes_sources),
         )
+        auxiliary_stats_entities = {
+            Path(filepath).stem
+            for filepath, analysis in csv_analyses.items()
+            if self._is_auxiliary_stats_candidate(analysis)
+        }
 
-        for entity_name, auxiliary in auxiliary_sources.items():
-            decision_summary[entity_name].update(
-                {
-                    "final_entity_type": "auxiliary_source",
-                    "review_required": False,
-                    "review_level": "stable",
-                    "review_reasons": [],
-                    "review_priority": "normal",
-                    "auxiliary_target": auxiliary["grouping"],
-                    "auxiliary_relation": auxiliary["relation"],
-                }
-            )
-            semantic_evidence.setdefault(entity_name, {})["auxiliary_target"] = (
-                auxiliary["grouping"]
-            )
-            semantic_evidence[entity_name]["auxiliary_relation"] = auxiliary["relation"]
-            self._emit_event(
-                "finding",
-                f"Attached auxiliary source {entity_name} to {auxiliary['grouping']}",
-                file=auxiliary["data"],
-                entity=entity_name,
-                details={"grouping": auxiliary["grouping"]},
-            )
+        for entity_name in auxiliary_stats_entities:
+            auxiliary = auxiliary_sources.get(entity_name)
+            decision_update: Dict[str, Any] = {
+                "final_entity_type": "auxiliary_source",
+                "review_required": auxiliary is None,
+                "review_level": "review" if auxiliary is None else "stable",
+                "review_reasons": (
+                    [
+                        (
+                            "Class/value stats source detected, but no target "
+                            "reference could be inferred from the current project."
+                        )
+                    ]
+                    if auxiliary is None
+                    else []
+                ),
+                "review_priority": "normal",
+            }
+            if auxiliary is not None:
+                decision_update["auxiliary_target"] = auxiliary["grouping"]
+                decision_update["auxiliary_relation"] = auxiliary["relation"]
+
+            decision_summary[entity_name].update(decision_update)
+
+            if auxiliary is not None:
+                semantic_evidence.setdefault(entity_name, {})["auxiliary_target"] = (
+                    auxiliary["grouping"]
+                )
+                semantic_evidence[entity_name]["auxiliary_relation"] = auxiliary[
+                    "relation"
+                ]
+                self._emit_event(
+                    "finding",
+                    f"Attached auxiliary source {entity_name} to {auxiliary['grouping']}",
+                    file=auxiliary["data"],
+                    entity=entity_name,
+                    details={"grouping": auxiliary["grouping"]},
+                )
+            else:
+                self._emit_event(
+                    "finding",
+                    f"Detected auxiliary stats source {entity_name} without a target",
+                    file=next(
+                        filepath
+                        for filepath in csv_analyses
+                        if Path(filepath).stem == entity_name
+                    ),
+                    entity=entity_name,
+                )
 
         references: Dict[str, Any] = {}
         datasets_to_create: Dict[str, Tuple[str, Dict[str, Any]]] = {}
@@ -393,7 +427,7 @@ class AutoConfigService:
 
         for filepath, analysis in csv_analyses.items():
             entity_name = Path(filepath).stem
-            if entity_name in auxiliary_sources:
+            if entity_name in auxiliary_stats_entities:
                 continue
 
             entity_type = decision_summary[entity_name]["final_entity_type"]
@@ -511,6 +545,7 @@ class AutoConfigService:
         has_shapes_reference: bool,
     ) -> Dict[str, Dict[str, Any]]:
         auxiliary_sources: Dict[str, Dict[str, Any]] = {}
+        existing_auxiliary_sources = self._load_existing_auxiliary_sources()
         reference_candidates = {
             Path(filepath).stem
             for filepath in csv_analyses
@@ -522,6 +557,18 @@ class AutoConfigService:
         for filepath, analysis in csv_analyses.items():
             entity_name = Path(filepath).stem
             if not self._is_auxiliary_stats_candidate(analysis):
+                continue
+
+            existing_source_config = self._find_existing_auxiliary_source_config(
+                filepath=filepath,
+                entity_name=entity_name,
+                existing_auxiliary_sources=existing_auxiliary_sources,
+            )
+            if existing_source_config and self._auxiliary_source_matches_schema(
+                existing_source_config,
+                analysis.get("columns", []),
+            ):
+                auxiliary_sources[entity_name] = existing_source_config
                 continue
 
             source_config = self._build_auxiliary_source_config(
@@ -540,6 +587,119 @@ class AutoConfigService:
             "Auto-config detected %d auxiliary source(s)", len(auxiliary_sources)
         )
         return auxiliary_sources
+
+    def _load_existing_auxiliary_sources(self) -> List[Dict[str, Any]]:
+        sources: List[Dict[str, Any]] = []
+        import_path = self.working_directory / "config" / "import.yml"
+        if import_path.exists():
+            try:
+                with open(import_path, encoding="utf-8") as f:
+                    import_config = yaml.safe_load(f) or {}
+                auxiliary_sources = import_config.get("auxiliary_sources", [])
+                if isinstance(auxiliary_sources, list):
+                    sources.extend(
+                        copy.deepcopy(source)
+                        for source in auxiliary_sources
+                        if isinstance(source, dict)
+                    )
+            except Exception:
+                logger.warning(
+                    "Could not read existing import.yml for auxiliary sources"
+                )
+
+        transform_path = self.working_directory / "config" / "transform.yml"
+        if transform_path.exists():
+            try:
+                with open(transform_path, encoding="utf-8") as f:
+                    transform_config = yaml.safe_load(f) or []
+                if isinstance(transform_config, list):
+                    for group in transform_config:
+                        if not isinstance(group, dict):
+                            continue
+                        group_by = group.get("group_by")
+                        for source in group.get("sources", []) or []:
+                            if not isinstance(source, dict):
+                                continue
+                            data_path = source.get("data")
+                            relation = source.get("relation", {})
+                            if (
+                                isinstance(data_path, str)
+                                and data_path.lower().endswith(".csv")
+                                and isinstance(relation, dict)
+                                and relation.get("plugin", "stats_loader")
+                                == "stats_loader"
+                            ):
+                                existing = copy.deepcopy(source)
+                                if group_by and not existing.get("grouping"):
+                                    existing["grouping"] = group_by
+                                sources.append(existing)
+            except Exception:
+                logger.warning(
+                    "Could not read existing transform.yml for auxiliary sources"
+                )
+
+        return sources
+
+    def _find_existing_auxiliary_source_config(
+        self,
+        *,
+        filepath: str,
+        entity_name: str,
+        existing_auxiliary_sources: List[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        normalized_filepath = self._normalize_config_path(filepath)
+        candidates = [
+            source for source in existing_auxiliary_sources if isinstance(source, dict)
+        ]
+
+        for source in candidates:
+            existing_data = source.get("data", "")
+            if (
+                isinstance(existing_data, str)
+                and self._normalize_config_path(existing_data) == normalized_filepath
+            ):
+                return self._reuse_auxiliary_source_config(
+                    source,
+                    filepath=filepath,
+                    entity_name=entity_name,
+                )
+
+        return None
+
+    @staticmethod
+    def _normalize_config_path(path: str) -> str:
+        normalized = path.replace("\\", "/")
+        while normalized.startswith("./"):
+            normalized = normalized[2:]
+        return normalized
+
+    @staticmethod
+    def _reuse_auxiliary_source_config(
+        source: Dict[str, Any],
+        *,
+        filepath: str,
+        entity_name: str,
+    ) -> Dict[str, Any]:
+        reused = copy.deepcopy(source)
+        reused["data"] = filepath
+        reused["source_entity"] = entity_name
+        return reused
+
+    @staticmethod
+    def _auxiliary_source_matches_schema(
+        source: Dict[str, Any],
+        columns: List[str],
+    ) -> bool:
+        relation = source.get("relation", {})
+        if not isinstance(relation, dict):
+            return False
+
+        source_field = relation.get("match_field") or relation.get("key")
+        if not isinstance(source_field, str) or not source_field:
+            return False
+
+        normalized_columns = {column.lower() for column in columns}
+        return source_field.lower() in normalized_columns
 
     def _collect_derived_reference_candidates(
         self,

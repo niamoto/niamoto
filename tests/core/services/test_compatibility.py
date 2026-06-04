@@ -270,8 +270,8 @@ class TestConfigRefCollector:
         refs = self.collector.collect(
             "plot_stats", SAMPLE_IMPORT_CONFIG, SAMPLE_TRANSFORM_CONFIG
         )
-        assert "id" in refs
         assert "plot_id" in refs
+        assert "id" not in refs
         transform_refs = [(p, lvl) for p, lvl in refs["plot_id"] if "transform" in p]
         assert any("relation.match_field" in path for path, _ in transform_refs)
 
@@ -868,7 +868,7 @@ class TestEntityResolver:
             ],
         }
         result = EntityResolver.resolve("raw_shape_stats.csv", config, [])
-        assert result == "shape_stats"
+        assert result == "raw_shape_stats"
 
     def test_does_not_match_vector_entity_path(self):
         """VECTOR entities have paths but should be skipped by the resolver."""
@@ -1024,6 +1024,235 @@ class TestCompatibilityService:
             i for i in report.impacts if i.level == ImpactLevel.BREAKS_TRANSFORM
         ]
         assert any(i.column == "id_taxonref" for i in breaking)
+
+    def test_reports_transform_column_missing_from_current_config(self, tmp_path):
+        service = self._make_service(tmp_path)
+        report = service._compare(
+            entity_name="occurrences",
+            file_path="imports/occurrences.csv",
+            new_schema={"id": "integer", "tax_fam": "string"},
+            old_schema={"id": "integer", "tax_fam": "string"},
+            config_refs={
+                "plot_id": [
+                    (
+                        "transform.yml > group raw_plot_stats > source "
+                        "occurrences > relation.match_field",
+                        ImpactLevel.BREAKS_TRANSFORM,
+                    )
+                ]
+            },
+            target_kind=TargetKind.IMPORT_ENTITY,
+        )
+
+        assert any(i.column == "plot_id" for i in report.impacts)
+        assert report.has_warnings
+
+    def test_auxiliary_source_match_field_supersedes_relation_key(self, tmp_path):
+        csv = tmp_path / "imports" / "raw_plot_stats.csv"
+        service = self._make_service(
+            tmp_path,
+            import_cfg={
+                "entities": {"datasets": {}, "references": {}},
+                "auxiliary_sources": [
+                    {
+                        "name": "plot_stats",
+                        "data": "imports/raw_plot_stats.csv",
+                        "grouping": "plots",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "ref_field": "id_liste_plots",
+                            "match_field": "plot_id",
+                        },
+                    }
+                ],
+            },
+        )
+        pd.DataFrame(
+            {
+                "plot_id": [1, 2],
+                "class_object": ["nbe_stem", "nbe_stem"],
+                "class_name": ["NA", "NA"],
+                "class_value": [356, 408],
+            }
+        ).to_csv(csv, index=False)
+
+        report = service.check_compatibility("plot_stats", "imports/raw_plot_stats.csv")
+
+        assert not any(i.column == "id" for i in report.impacts)
+        assert report.info_message
+
+    def test_resolve_entity_prefers_auxiliary_file_identity_for_exact_path_collision(
+        self, tmp_path
+    ):
+        service = self._make_service(
+            tmp_path,
+            import_cfg={
+                "entities": {
+                    "datasets": {},
+                    "references": {
+                        "raw_site_metrics": {
+                            "connector": {
+                                "type": "file",
+                                "path": "imports/raw_site_metrics.csv",
+                            }
+                        }
+                    },
+                },
+                "auxiliary_sources": [
+                    {
+                        "name": "site_metrics",
+                        "data": "imports/raw_site_metrics.csv",
+                        "grouping": "sites",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "match_field": "site_id",
+                        },
+                    }
+                ],
+            },
+        )
+
+        assert (
+            service.resolve_entity("imports/raw_site_metrics.csv") == "raw_site_metrics"
+        )
+
+    def test_resolve_entity_uses_auxiliary_source_identity_when_name_collides(
+        self, tmp_path
+    ):
+        service = self._make_service(
+            tmp_path,
+            import_cfg={
+                "entities": {
+                    "datasets": {},
+                    "references": {
+                        "sites": {
+                            "connector": {
+                                "type": "file",
+                                "path": "imports/sites.csv",
+                            }
+                        }
+                    },
+                },
+                "auxiliary_sources": [
+                    {
+                        "name": "sites",
+                        "data": "imports/raw_site_metrics.csv",
+                        "grouping": "sites",
+                        "source_entity": "raw_site_metrics",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "match_field": "site_id",
+                        },
+                    }
+                ],
+            },
+        )
+
+        assert (
+            service.resolve_entity("imports/raw_site_metrics.csv") == "raw_site_metrics"
+        )
+
+    def test_resolve_entity_prefers_auxiliary_identity_when_transform_also_matches(
+        self, tmp_path
+    ):
+        service = self._make_service(
+            tmp_path,
+            import_cfg={
+                "entities": {"datasets": {}, "references": {}},
+                "auxiliary_sources": [
+                    {
+                        "name": "plot_stats",
+                        "data": "imports/raw_plot_stats.csv",
+                        "grouping": "plots",
+                        "source_entity": "raw_plot_stats",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "match_field": "plot_id",
+                        },
+                    }
+                ],
+            },
+            transform_cfg=[
+                {
+                    "group_by": "plots",
+                    "sources": [
+                        {
+                            "name": "plot_stats",
+                            "data": "imports/raw_plot_stats.csv",
+                            "grouping": "plots",
+                            "relation": {
+                                "plugin": "stats_loader",
+                                "key": "id",
+                                "match_field": "plot_id",
+                            },
+                        }
+                    ],
+                }
+            ],
+        )
+
+        assert service.resolve_entity("imports/raw_plot_stats.csv") == "raw_plot_stats"
+
+    def test_resolve_entity_skips_non_string_transform_source_data(self, tmp_path):
+        service = self._make_service(
+            tmp_path,
+            import_cfg={
+                "entities": {
+                    "datasets": {
+                        "occurrences": {
+                            "connector": {
+                                "type": "file",
+                                "path": "imports/occurrences.csv",
+                            }
+                        }
+                    },
+                    "references": {},
+                }
+            },
+            transform_cfg=[
+                {
+                    "group_by": "plots",
+                    "sources": [
+                        {
+                            "name": "structured_source",
+                            "data": {"type": "csv", "path": "imports/other.csv"},
+                        }
+                    ],
+                }
+            ],
+        )
+
+        assert service.resolve_entity("imports/occurrences.csv") == "occurrences"
+
+    def test_resolve_entity_keeps_basename_ambiguous_when_no_exact_path(self, tmp_path):
+        service = self._make_service(
+            tmp_path,
+            import_cfg={
+                "entities": {
+                    "datasets": {
+                        "north_sites": {
+                            "connector": {
+                                "type": "file",
+                                "path": "imports/north/sites.csv",
+                            }
+                        },
+                        "south_sites": {
+                            "connector": {
+                                "type": "file",
+                                "path": "imports/south/sites.csv",
+                            }
+                        },
+                    },
+                    "references": {},
+                }
+            },
+        )
+
+        assert service.resolve_entity("sites.csv") is None
 
     def test_detects_new_columns_as_opportunity(self, tmp_path):
         csv = tmp_path / "imports" / "occurrences.csv"
