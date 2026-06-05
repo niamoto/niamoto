@@ -1177,6 +1177,227 @@ def test_widget_candidate_dataset_collection_groups_by_backing_dataset(tmp_path)
     }
 
 
+def test_collection_widget_candidates_include_auxiliary_class_object_sources(
+    tmp_path,
+):
+    imports_dir = tmp_path / "imports"
+    imports_dir.mkdir()
+    (imports_dir / "raw_plot_stats.csv").write_text(
+        "\n".join(
+            [
+                "id,plot_id,class_object,class_name,class_value",
+                "1,p1,nbe_stem,,42",
+                "2,p1,richness,,12",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    source_relation = {
+        "plugin": "stats_loader",
+        "key": "id",
+        "ref_field": "plots_id",
+        "match_field": "plot_id",
+    }
+    service = CollectionWidgetProposalService(
+        work_dir=tmp_path,
+        db_path=None,
+        import_config={
+            "entities": {
+                "datasets": {
+                    "occurrences": {
+                        "schema": {"id_field": "occurrence_id"},
+                    }
+                },
+                "references": {
+                    "plots": {
+                        "relation": {
+                            "dataset": "occurrences",
+                            "foreign_key": "plot_id",
+                            "reference_key": "plots_id",
+                        },
+                        "schema": {"id_field": "plots_id", "name_field": "full_name"},
+                    }
+                },
+            },
+            "auxiliary_sources": [
+                {
+                    "name": "plot_stats",
+                    "data": "imports/raw_plot_stats.csv",
+                    "grouping": "plots",
+                    "relation": source_relation,
+                }
+            ],
+        },
+        transform_config=[
+            {
+                "group_by": "plots",
+                "sources": [
+                    {
+                        "name": "occurrences",
+                        "data": "occurrences",
+                        "grouping": "plots",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "plots_id",
+                            "ref_field": "plot_id",
+                        },
+                    },
+                    {
+                        "name": "plot_stats",
+                        "data": "imports/raw_plot_stats.csv",
+                        "grouping": "plots",
+                        "relation": source_relation,
+                    },
+                ],
+                "widgets_data": {},
+            }
+        ],
+        export_config={},
+    )
+
+    groups = service.get_proposals("plots")
+
+    proposal = next(
+        (
+            item
+            for item in groups.recommended
+            if item.candidate.source_name == "plot_stats"
+        ),
+        None,
+    )
+    assert proposal is not None
+    assert proposal.candidate.origin == "class_object"
+    assert proposal.candidate.transformer_plugin == "class_object_field_aggregator"
+    assert set(proposal.candidate.field_names) == {"nbe_stem", "richness"}
+    assert proposal.recipe["transformer"]["params"]["source"] == "plot_stats"
+    assert proposal.recipe["widget"]["plugin"] == "info_grid"
+
+
+def test_collection_widget_candidates_include_derived_connector_source(tmp_path):
+    db_dir = tmp_path / "db"
+    db_dir.mkdir()
+    db_path = db_dir / "niamoto.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE dataset_plots_source (
+                id_liste_plots INTEGER,
+                plot_name VARCHAR,
+                locality_name VARCHAR,
+                country VARCHAR,
+                method VARCHAR,
+                nbe_stem INTEGER,
+                prop_det_genus DOUBLE
+            )
+            """
+        )
+        conn.executemany(
+            """
+            INSERT INTO dataset_plots_source
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (1, "Plot A", "North", "A", "transect", 10, 0.8),
+                (2, "Plot B", "North", "A", "transect", 15, 0.9),
+                (3, "Plot C", "South", "B", "quadrat", 21, 0.7),
+                (4, "Plot D", "South", "B", "quadrat", 34, 0.6),
+                (5, "Plot E", "East", "C", "transect", 55, 0.5),
+            ],
+        )
+    finally:
+        conn.close()
+
+    service = CollectionWidgetProposalService(
+        work_dir=tmp_path,
+        db_path=db_path,
+        import_config={
+            "entities": {
+                "datasets": {
+                    "plots_source": {},
+                    "occurrences": {},
+                },
+                "references": {
+                    "plots": {
+                        "kind": "hierarchical",
+                        "connector": {
+                            "type": "derived",
+                            "source": "plots_source",
+                            "extraction": {"id_column": "id_liste_plots"},
+                        },
+                        "schema": {"id_field": "id", "name_field": "full_name"},
+                        "relation": {
+                            "dataset": "occurrences",
+                            "foreign_key": "plot_fk",
+                            "reference_key": "plots_id",
+                        },
+                    }
+                },
+            }
+        },
+        transform_config=[
+            {
+                "group_by": "plots",
+                "sources": [
+                    {
+                        "name": "occurrences",
+                        "data": "occurrences",
+                        "grouping": "plots",
+                        "relation": {
+                            "plugin": "nested_set",
+                            "key": "plot_fk",
+                            "ref_key": "plots_id",
+                        },
+                    }
+                ],
+                "widgets_data": {},
+            }
+        ],
+        export_config={},
+    )
+
+    groups = service.get_proposals("plots")
+
+    connector_proposal = next(
+        (
+            item
+            for item in groups.recommended
+            if item.candidate.source_name == "plots_source"
+        ),
+        None,
+    )
+    assert connector_proposal is not None
+    assert connector_proposal.applyability == "applicable"
+    assert connector_proposal.recipe["transformer"]["params"]["source"] == (
+        "plots_source"
+    )
+
+    collection = service.catalog_service.get_collection("plots")
+    source_config = service._source_config_for_collection(  # noqa: SLF001 - regression for derived reference source relations
+        collection,
+        "plots_source",
+        existing_sources=[],
+    )
+    assert source_config == {
+        "name": "plots_source",
+        "data": "plots_source",
+        "grouping": "plots",
+        "relation": {
+            "plugin": "nested_set",
+            "key": "id_liste_plots",
+            "ref_key": "plots_id",
+            "fields": {"parent": "parent_id", "left": "lft", "right": "rght"},
+        },
+    }
+    transform_widget, _ = service._config_for_proposal(connector_proposal)  # noqa: SLF001 - regression for apply source merging
+    merged_sources = service._merged_sources_for_transform_widgets(  # noqa: SLF001 - regression for apply source merging
+        service._existing_sources_for_collection("plots"),
+        "plots",
+        [transform_widget],
+    )
+    assert any(source.get("name") == "plots_source" for source in merged_sources)
+
+
 def test_navigation_proposal_uses_context_hierarchy_fields(tmp_path):
     service = CollectionWidgetProposalService(
         work_dir=tmp_path,

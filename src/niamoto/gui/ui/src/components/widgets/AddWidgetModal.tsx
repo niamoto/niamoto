@@ -70,6 +70,7 @@ import { PreviewTile } from '@/components/preview'
 import { PreviewPane } from '@/components/preview'
 import type { PreviewDescriptor } from '@/lib/preview/types'
 import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
+import { candidateMatchesSuggestion } from './addWidgetCandidateMatching'
 import { shouldUseCandidateApplyPath } from './addWidgetApplyMode'
 import {
   type WidgetCandidate,
@@ -474,31 +475,6 @@ function suggestionToRecipe(suggestion: TemplateSuggestion, customization?: Cust
       },
     },
   }
-}
-
-function candidateMatchesSuggestion(
-  candidate: WidgetCandidate,
-  suggestion: TemplateSuggestion,
-): boolean {
-  const sameTitle = normalizeMatchText(candidate.title) === normalizeMatchText(suggestion.name)
-  if (sameTitle) return true
-
-  const sameTransformer = candidate.transformer_plugin === suggestion.plugin
-  const sameWidget = !candidate.widget_plugin || candidate.widget_plugin === suggestion.widget_plugin
-  const sameField =
-    !suggestion.matched_column ||
-    candidate.source_fields.length === 0 ||
-    candidate.source_fields.includes(suggestion.matched_column)
-
-  return sameTransformer && sameWidget && sameField
-}
-
-function normalizeMatchText(value: string | null | undefined): string {
-  return (value || '')
-    .toLowerCase()
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
 }
 
 function candidatePreviewNeedsConfirmation(preview: WidgetCandidatePreviewResponse): boolean {
