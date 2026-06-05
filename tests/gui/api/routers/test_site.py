@@ -1793,6 +1793,56 @@ class TestSiteGroups:
             assert response.headers["content-security-policy"].startswith("sandbox")
             assert response.headers["x-content-type-options"] == "nosniff"
             assert response.headers["cache-control"] == "no-store"
+            assert "access-control-allow-origin" not in response.headers
+
+    def test_preview_exported_site_serves_sandboxed_scripts_with_cors(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir)
+            exports = project / "exports" / "web"
+            exports.mkdir(parents=True, exist_ok=True)
+            (exports / "index.html").write_text(
+                (
+                    '<script src="assets/app.js"></script>'
+                    '<script src="assets/vendor.js" crossorigin="use-credentials"></script>'
+                ),
+                encoding="utf-8",
+            )
+            assets = exports / "assets"
+            assets.mkdir()
+            (assets / "app.js").write_text("console.log('ok')", encoding="utf-8")
+
+            with patch(
+                "niamoto.gui.api.routers.site.get_working_directory",
+                return_value=project,
+            ):
+                client = TestClient(create_app())
+                html_response = client.get("/api/site/preview-exported/index.html")
+                script_response = client.get(
+                    "/api/site/preview-exported/assets/app.js",
+                    headers={"Origin": "null", "Sec-Fetch-Dest": "script"},
+                )
+                blocked_response = client.get(
+                    "/api/site/preview-exported/assets/app.js",
+                    headers={
+                        "Origin": "https://example.com",
+                        "Sec-Fetch-Dest": "script",
+                    },
+                )
+
+            assert html_response.status_code == 200, html_response.text
+            assert (
+                '<script src="assets/app.js" crossorigin="anonymous"></script>'
+                in html_response.text
+            )
+            assert (
+                '<script src="assets/vendor.js" crossorigin="use-credentials"></script>'
+                in html_response.text
+            )
+            assert "access-control-allow-origin" not in html_response.headers
+            assert script_response.status_code == 200, script_response.text
+            assert script_response.headers["access-control-allow-origin"] == "null"
+            assert blocked_response.status_code == 200, blocked_response.text
+            assert "access-control-allow-origin" not in blocked_response.headers
 
     def test_assets_route_serves_vendor_js_with_cors_and_cache_headers(self):
         response = TestClient(create_app()).get(

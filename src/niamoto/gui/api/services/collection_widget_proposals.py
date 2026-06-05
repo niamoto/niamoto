@@ -125,6 +125,50 @@ class CollectionWidgetProposalService:
             multi_field_patterns=analysis.multi_field_patterns,
             existing_proposal_keys=existing_keys,
         )
+        seen_source_names = {source_name}
+        for secondary_source_name in self._secondary_source_names_for_collection(
+            collection,
+            source_name,
+        ):
+            if secondary_source_name in seen_source_names:
+                continue
+            seen_source_names.add(secondary_source_name)
+            secondary_analysis = self._analysis_for_source(secondary_source_name)
+            if not (
+                secondary_analysis.profiles
+                or secondary_analysis.class_objects
+                or secondary_analysis.multi_field_patterns
+            ):
+                continue
+            secondary_groups = self.proposal_service.generate_for_collection(
+                collection=collection.name,
+                source_name=secondary_source_name,
+                profiles=secondary_analysis.profiles,
+                class_objects=secondary_analysis.class_objects,
+                multi_field_patterns=secondary_analysis.multi_field_patterns,
+                existing_proposal_keys=existing_keys,
+            )
+            for proposal in secondary_groups.all_proposals():
+                self._append_proposal(groups, proposal)
+            groups.messages.extend(secondary_groups.messages)
+        for (
+            auxiliary_source_name,
+            auxiliary_analysis,
+        ) in self._auxiliary_source_analyses_for_collection(
+            collection.name,
+            source_name,
+        ):
+            auxiliary_groups = self.proposal_service.generate_for_collection(
+                collection=collection.name,
+                source_name=auxiliary_source_name,
+                profiles=auxiliary_analysis.profiles,
+                class_objects=auxiliary_analysis.class_objects,
+                multi_field_patterns=auxiliary_analysis.multi_field_patterns,
+                existing_proposal_keys=existing_keys,
+            )
+            for proposal in auxiliary_groups.all_proposals():
+                self._append_proposal(groups, proposal)
+            groups.messages.extend(auxiliary_groups.messages)
         for proposal in self._foundational_widget_proposals(
             collection,
             source_name,
@@ -249,18 +293,11 @@ class CollectionWidgetProposalService:
                 group = find_or_create_transform_group(
                     transform_config, collection_name
                 )
-                if any(
-                    self._transform_requires_source_relation(
-                        collection_name,
-                        change.transform_widget,
-                    )
-                    for change in transform_changes
-                ):
-                    group["sources"] = self._merged_sources(
-                        group.get("sources", []), collection_name
-                    )
-                else:
-                    group.setdefault("sources", group.get("sources", []))
+                group["sources"] = self._merged_sources_for_transform_widgets(
+                    group.get("sources", []),
+                    collection_name,
+                    [change.transform_widget for change in transform_changes],
+                )
                 widgets_data = group.setdefault("widgets_data", {})
 
                 for change in transform_changes:
@@ -331,16 +368,26 @@ class CollectionWidgetProposalService:
             )
 
         transform_widget, export_widget = self._config_for_proposal(proposal)
-        if source_relation_error and self._transform_requires_source_relation(
+        source_error = self._source_relation_error_for_transform_widget(
             proposal.collection,
             transform_widget,
+        )
+        if (
+            not source_error
+            and source_relation_error
+            and self._transform_requires_source_relation(
+                proposal.collection,
+                transform_widget,
+            )
         ):
+            source_error = source_relation_error
+        if source_error:
             return WidgetProposalConfigChange(
                 proposal_id=proposal.id,
                 widget_id=widget_id,
                 title=proposal.title,
                 action="invalid",
-                reason=source_relation_error,
+                reason=source_error,
             )
 
         if widget_id in existing_widgets and selection.replacement != "replace":
@@ -395,27 +442,79 @@ class CollectionWidgetProposalService:
         collection_name: str,
         transform_widget: dict[str, Any] | None,
     ) -> bool:
-        if not transform_widget:
-            return False
+        return bool(
+            self._required_source_names_for_transform_widget(
+                collection_name,
+                transform_widget,
+            )
+        )
 
-        plugin = transform_widget.get("plugin")
-        if plugin != "field_aggregator":
-            return True
+    def _required_source_names_for_transform_widget(
+        self,
+        collection_name: str,
+        transform_widget: dict[str, Any] | None,
+    ) -> list[str]:
+        if not transform_widget:
+            return []
 
         collection = self.catalog_service.get_collection(collection_name)
         group_sources = {collection.name, collection.source_name, None, ""}
+        source_names: list[str] = []
         params = transform_widget.get("params") or {}
+        plugin = transform_widget.get("plugin")
+
+        if plugin != "field_aggregator":
+            source = params.get("source")
+            if isinstance(source, str) and source not in group_sources:
+                source_names.append(source)
+            return source_names
+
         fields = params.get("fields") or []
         if not isinstance(fields, list):
-            return True
+            return []
 
         for field in fields:
             if not isinstance(field, dict):
                 continue
             source = field.get("source")
             if source not in group_sources:
-                return True
-        return False
+                source_names.append(str(source))
+        return list(dict.fromkeys(source_names))
+
+    def _source_relation_error_for_transform_widget(
+        self,
+        collection_name: str,
+        transform_widget: dict[str, Any] | None,
+    ) -> str | None:
+        source_names = self._required_source_names_for_transform_widget(
+            collection_name,
+            transform_widget,
+        )
+        if not source_names:
+            return None
+
+        collection = self.catalog_service.get_collection(collection_name)
+        existing_sources = self._existing_sources_for_collection(collection_name)
+        for source_name in source_names:
+            if any(
+                isinstance(source, dict) and source.get("name") == source_name
+                for source in existing_sources
+            ):
+                continue
+            if (
+                self._source_config_for_collection(
+                    collection,
+                    source_name,
+                    existing_sources,
+                )
+                is not None
+            ):
+                continue
+            return (
+                f"No transform source relation could be derived for {source_name}; "
+                "review or configure the collection source before applying widget proposals."
+            )
+        return None
 
     def _foundational_widget_proposals(
         self,
@@ -1073,6 +1172,67 @@ class CollectionWidgetProposalService:
             _SOURCE_ANALYSIS_CACHE[cache_key] = analysis
         return analysis
 
+    def _auxiliary_source_analyses_for_collection(
+        self,
+        collection_name: str,
+        primary_source_name: str,
+    ) -> list[tuple[str, _SourceAnalysis]]:
+        analyses: list[tuple[str, _SourceAnalysis]] = []
+        seen_source_names = {primary_source_name}
+        for source in self._existing_sources_for_collection(collection_name):
+            if not isinstance(source, dict):
+                continue
+
+            source_name = source.get("name")
+            if not source_name:
+                continue
+            source_name = str(source_name)
+            if source_name in seen_source_names:
+                continue
+            seen_source_names.add(source_name)
+
+            csv_path = self._csv_path_for_source(source)
+            if csv_path is None:
+                continue
+
+            analysis = self._analysis_for_csv_source(csv_path)
+            if analysis.class_objects:
+                analyses.append((source_name, analysis))
+        return analyses
+
+    def _csv_path_for_source(self, source: dict[str, Any]) -> Path | None:
+        data = source.get("data")
+        if not isinstance(data, str) or not data.strip():
+            return None
+
+        path = Path(data)
+        if path.suffix.lower() != ".csv":
+            return None
+
+        csv_path = path if path.is_absolute() else self.work_dir / path
+        if not csv_path.is_file():
+            return None
+        return csv_path
+
+    def _analysis_for_csv_source(self, csv_path: Path) -> _SourceAnalysis:
+        try:
+            sample_df = pd.read_csv(
+                csv_path,
+                sep=None,
+                engine="python",
+                nrows=5000,
+            )
+        except Exception:
+            return _SourceAnalysis([], [], [])
+
+        if sample_df.empty:
+            return _SourceAnalysis([], [], [])
+        return _SourceAnalysis(
+            profiles=[],
+            class_objects=self._class_objects_for_sample(sample_df),
+            multi_field_patterns=[],
+        )
+
     def _sample_columns_for_table(self, db: Database, table_name: str) -> list[str]:
         try:
             describe_df = pd.read_sql(
@@ -1209,6 +1369,36 @@ class CollectionWidgetProposalService:
             result[name] = mapping.get(name.lower(), _slug_key(name))
         return result
 
+    def _secondary_source_names_for_collection(
+        self,
+        collection: CollectionCatalogEntry,
+        primary_source_name: str,
+    ) -> list[str]:
+        if collection.source_type != "reference":
+            return []
+
+        references = self.import_config.get("entities", {}).get("references", {})
+        reference_config = references.get(collection.source_name, {})
+        if not isinstance(reference_config, dict):
+            return []
+
+        source_names: list[str] = []
+        relation = reference_config.get("relation", {})
+        if isinstance(relation, dict) and relation.get("dataset"):
+            source_names.append(str(relation["dataset"]))
+        connector = reference_config.get("connector", {})
+        if isinstance(connector, dict) and connector.get("source"):
+            source_names.append(str(connector["source"]))
+
+        seen = {primary_source_name}
+        result: list[str] = []
+        for source_name in source_names:
+            if source_name in seen:
+                continue
+            seen.add(source_name)
+            result.append(source_name)
+        return result
+
     def _source_name_for_collection(self, collection: CollectionCatalogEntry) -> str:
         if collection.source_type == "dataset":
             return collection.source_name
@@ -1216,12 +1406,12 @@ class CollectionWidgetProposalService:
         references = self.import_config.get("entities", {}).get("references", {})
         reference_config = references.get(collection.source_name, {})
         if isinstance(reference_config, dict):
-            relation = reference_config.get("relation", {})
-            if isinstance(relation, dict) and relation.get("dataset"):
-                return str(relation["dataset"])
             connector = reference_config.get("connector", {})
             if isinstance(connector, dict) and connector.get("source"):
                 return str(connector["source"])
+            relation = reference_config.get("relation", {})
+            if isinstance(relation, dict) and relation.get("dataset"):
+                return str(relation["dataset"])
 
         return collection.source_name
 
@@ -1309,20 +1499,62 @@ class CollectionWidgetProposalService:
     ) -> list[dict[str, Any]]:
         collection = self.catalog_service.get_collection(collection_name)
         source_name = self._source_name_for_collection(collection)
-        if any(source.get("name") == source_name for source in existing_sources):
-            return existing_sources
-
-        source_config = self._source_config_for_collection(
-            collection,
-            source_name,
+        return self._merged_sources_for_source_names(
             existing_sources,
+            collection_name,
+            [source_name],
         )
-        if source_config is None:
-            raise ValueError(
-                f"Cannot apply widget proposals for {collection_name}: no transform source relation could be derived for {source_name}."
-            )
 
-        return [*existing_sources, source_config]
+    def _merged_sources_for_transform_widgets(
+        self,
+        existing_sources: list[dict[str, Any]],
+        collection_name: str,
+        transform_widgets: Sequence[dict[str, Any] | None],
+    ) -> list[dict[str, Any]]:
+        required_source_names: list[str] = []
+        for transform_widget in transform_widgets:
+            required_source_names.extend(
+                self._required_source_names_for_transform_widget(
+                    collection_name,
+                    transform_widget,
+                )
+            )
+        return self._merged_sources_for_source_names(
+            existing_sources,
+            collection_name,
+            required_source_names,
+        )
+
+    def _merged_sources_for_source_names(
+        self,
+        existing_sources: list[dict[str, Any]],
+        collection_name: str,
+        source_names: Sequence[str],
+    ) -> list[dict[str, Any]]:
+        collection = self.catalog_service.get_collection(collection_name)
+        merged_sources = list(existing_sources)
+        existing_names = {
+            source.get("name") for source in merged_sources if isinstance(source, dict)
+        }
+
+        for source_name in dict.fromkeys(source_names):
+            if source_name in existing_names:
+                continue
+
+            source_config = self._source_config_for_collection(
+                collection,
+                source_name,
+                merged_sources,
+            )
+            if source_config is None:
+                raise ValueError(
+                    f"Cannot apply widget proposals for {collection_name}: no transform source relation could be derived for {source_name}."
+                )
+
+            merged_sources.append(source_config)
+            existing_names.add(source_name)
+
+        return merged_sources
 
     def _source_config_for_collection(
         self,
@@ -1341,6 +1573,13 @@ class CollectionWidgetProposalService:
         auxiliary_source = self._auxiliary_source_config(collection.name, source_name)
         if auxiliary_source:
             return auxiliary_source
+
+        connector_source = self._reference_connector_source_config(
+            collection,
+            source_name,
+        )
+        if connector_source:
+            return connector_source
 
         relation = self._reference_relation_config(collection, source_name)
         if relation:
@@ -1415,6 +1654,55 @@ class CollectionWidgetProposalService:
             source_config.setdefault("grouping", collection_name)
             return source_config
         return None
+
+    def _reference_connector_source_config(
+        self,
+        collection: CollectionCatalogEntry,
+        source_name: str,
+    ) -> dict[str, Any] | None:
+        references = self.import_config.get("entities", {}).get("references", {})
+        reference_config = references.get(collection.source_name, {})
+        if not isinstance(reference_config, dict):
+            return None
+
+        connector = reference_config.get("connector", {})
+        if not isinstance(connector, dict) or connector.get("source") != source_name:
+            return None
+
+        relation = reference_config.get("relation", {})
+        relation = relation if isinstance(relation, dict) else {}
+        extraction = connector.get("extraction", {})
+        extraction = extraction if isinstance(extraction, dict) else {}
+
+        key = extraction.get("id_column")
+        ref_key = relation.get("reference_key") or f"{collection.name}_id"
+        if not key or not ref_key:
+            return None
+
+        if reference_config.get("kind") == "hierarchical":
+            relation_config: dict[str, Any] = {
+                "plugin": "nested_set",
+                "key": key,
+                "ref_key": ref_key,
+                "fields": {
+                    "parent": "parent_id",
+                    "left": "lft",
+                    "right": "rght",
+                },
+            }
+        else:
+            relation_config = {
+                "plugin": "direct_reference",
+                "key": key,
+                "ref_key": ref_key,
+            }
+
+        return {
+            "name": source_name,
+            "data": source_name,
+            "grouping": collection.name,
+            "relation": relation_config,
+        }
 
     def _reference_relation_config(
         self,

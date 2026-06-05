@@ -55,6 +55,8 @@ repos:
         name: Generate Requirements Files
         entry: python scripts/build/generate_requirements.py
         language: python
+        pass_filenames: false
+        files: ^(pyproject\.toml|uv\.lock|scripts/build/generate_requirements\.py)$
     -   id: ui-pnpm-lint
         name: UI pnpm lint
         entry: pnpm --dir src/niamoto/gui/ui lint

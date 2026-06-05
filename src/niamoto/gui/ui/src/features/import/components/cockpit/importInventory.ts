@@ -182,13 +182,21 @@ function statusFromPreflight(status?: FilePreflightSummary['status']): ImportInv
 
 function qualityFromReview(level?: ReviewLevel, reviewRequired?: boolean): ImportInventoryQuality {
   if (reviewRequired || level === 'review') return 'review'
-  if (level === 'notice') return 'review'
-  if (level === 'info') return 'info'
+  if (level === 'notice' || level === 'info') return 'info'
   return 'good'
 }
 
 function statusFromReview(level?: ReviewLevel, reviewRequired?: boolean): ImportInventoryStatus {
-  return qualityFromReview(level, reviewRequired) === 'review' ? 'needs_attention' : 'analysed'
+  return reviewRequired || level === 'review' ? 'needs_attention' : 'analysed'
+}
+
+function reviewDetailLabel(level?: ReviewLevel): 'notice' | 'review' {
+  return level === 'notice' ? 'notice' : 'review'
+}
+
+function reviewDetailTone(level?: ReviewLevel, quality?: ImportInventoryQuality) {
+  if (level === 'notice') return 'info'
+  return quality === 'review' ? 'review' : undefined
 }
 
 function detail(label: string, value: unknown, tone?: ImportInventoryQuality): ImportInventoryDetail | null {
@@ -421,7 +429,11 @@ function buildDatasetItem(
       detail('format', connector.format),
       detail('rows', rowCount),
       detail('decision', summary?.alignment),
-      detail('review', summary?.review_reasons?.join(', '), quality === 'review' ? 'review' : undefined),
+      detail(
+        reviewDetailLabel(summary?.review_level),
+        summary?.review_reasons?.join(', '),
+        reviewDetailTone(summary?.review_level, quality)
+      ),
     ].filter(Boolean) as ImportInventoryDetail[],
     badges: summary?.review_reasons ?? [],
     tips: summary?.review_required ? summary.review_reasons ?? [] : [],
@@ -460,7 +472,11 @@ function buildReferenceItem(
       detail('kind', config.kind),
       detail('hierarchy', levels),
       detail('decision', summary?.alignment),
-      detail('review', summary?.review_reasons?.join(', '), quality === 'review' ? 'review' : undefined),
+      detail(
+        reviewDetailLabel(summary?.review_level),
+        summary?.review_reasons?.join(', '),
+        reviewDetailTone(summary?.review_level, quality)
+      ),
     ].filter(Boolean) as ImportInventoryDetail[],
     badges: summary?.review_reasons ?? [],
     tips: summary?.review_required ? summary.review_reasons ?? [] : [],

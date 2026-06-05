@@ -220,7 +220,11 @@ export function ImportCockpit({
             />
 
             {sourceControls}
-            {detailPanel}
+            {detailPanel && (
+              <div className="mt-3">
+                {detailPanel}
+              </div>
+            )}
           </div>
 
           {footer && (

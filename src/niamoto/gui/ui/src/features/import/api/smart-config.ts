@@ -240,6 +240,7 @@ export async function createEntitiesBulk(entities: {
     metadata?: Record<string, unknown>
   }
   auxiliary_sources?: AuxiliarySource[]
+  mode?: 'merge' | 'replace'
 }): Promise<Record<string, unknown>> {
   const response = await apiClient.post<Record<string, unknown>>('/smart/management/entities/bulk', entities)
   return response.data

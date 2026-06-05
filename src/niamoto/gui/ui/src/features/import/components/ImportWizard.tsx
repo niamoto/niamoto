@@ -50,7 +50,6 @@ import { useReferences } from '@/features/import/hooks/useReferences'
 import type { UploadedFileInfo } from '@/features/import/api/upload'
 import { invalidateAllPreviews } from '@/lib/preview/usePreviewFrame'
 import {
-  buildCollectionWidgetReviewPath,
   refreshImportDependentQueries,
 } from './importWizardCache'
 
@@ -413,13 +412,6 @@ export function ImportWizard() {
     ]
   )
 
-  const reviewCollectionWidgets = useCallback(
-    (collection: string) => {
-      navigate(buildCollectionWidgetReviewPath(collection))
-    },
-    [navigate]
-  )
-
   useEffect(() => {
     if (cockpitItems.length === 0) {
       if (selectedInventoryItemId) setSelectedInventoryItemId(null)
@@ -621,14 +613,6 @@ export function ImportWizard() {
                     : autoConfigureJob.stage || t('autoConfig.loading.description')
                 }
                 introGuidance={<PreImportGuidance variant="compact" />}
-                detailPanel={
-                  <ImportImpactPanel
-                    reports={compatibilityCheck.matched}
-                    failedChecks={compatibilityCheck.failed}
-                    isChecking={compatibilityCheck.isChecking}
-                    onReviewCollection={reviewCollectionWidgets}
-                  />
-                }
               />
             </div>
           )}
@@ -659,7 +643,7 @@ export function ImportWizard() {
                       reports={compatibilityCheck.matched}
                       failedChecks={compatibilityCheck.failed}
                       isChecking={compatibilityCheck.isChecking}
-                      onReviewCollection={reviewCollectionWidgets}
+                      compact
                     />
                     <Collapsible
                       open={showAdvancedReview}

@@ -24,6 +24,7 @@ GITHUB_API_WRITE_DELAY_SECONDS = 1.0
 DEFAULT_GIT_AUTHOR_NAME = "Niamoto Deploy"
 DEFAULT_GIT_AUTHOR_EMAIL = "deploy@niamoto.local"
 PROTECTED_DEPLOY_BRANCHES = frozenset({"main", "master", "trunk", "develop", "dev"})
+DEDICATED_PAGES_BRANCHES = frozenset({"gh-pages"})
 
 
 @register("github")
@@ -70,7 +71,12 @@ class GitHubDeployer(DeployerPlugin):
             yield self.sse_error(default_branch_error)
             yield self.sse_done()
             return
-        if self._is_protected_deploy_branch(config, branch, default_branch):
+        if self._is_protected_deploy_branch(
+            config,
+            branch,
+            default_branch,
+            allow_default_pages_branch=True,
+        ):
             yield self.sse_error(f"Refusing to deploy to protected branch '{branch}'.")
             yield self.sse_done()
             return
@@ -511,7 +517,11 @@ class GitHubDeployer(DeployerPlugin):
 
     @staticmethod
     def _is_protected_deploy_branch(
-        config: DeployConfig, branch: str, default_branch: str | None = None
+        config: DeployConfig,
+        branch: str,
+        default_branch: str | None = None,
+        *,
+        allow_default_pages_branch: bool = False,
     ) -> bool:
         """Return whether a deploy branch is too likely to be source code."""
         if config.extra.get("allow_protected_branch_deploy") is True:
@@ -520,10 +530,14 @@ class GitHubDeployer(DeployerPlugin):
         if normalized in PROTECTED_DEPLOY_BRANCHES:
             return True
         if default_branch:
-            return (
-                normalized
-                == GitHubDeployer._normalize_branch_name(default_branch).lower()
-            )
+            default_normalized = GitHubDeployer._normalize_branch_name(
+                default_branch
+            ).lower()
+            if normalized == default_normalized:
+                return not (
+                    allow_default_pages_branch
+                    and normalized in DEDICATED_PAGES_BRANCHES
+                )
         return False
 
     @staticmethod

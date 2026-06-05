@@ -1773,6 +1773,510 @@ class TestCreateEntitiesBulk:
 
         assert yaml_data["auxiliary_sources"][0]["grouping"] == "plots"
 
+    def test_create_entities_bulk_merges_auxiliary_source_with_existing_import(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        import_yml = working_directory / "config" / "import.yml"
+        import_yml.write_text(
+            yaml.safe_dump(
+                {
+                    "version": "1.0",
+                    "entities": {
+                        "datasets": {
+                            "occurrences": {
+                                "connector": {
+                                    "type": "file",
+                                    "path": "imports/occurrences.csv",
+                                }
+                            }
+                        },
+                        "references": {
+                            "plots": {
+                                "connector": {
+                                    "type": "file",
+                                    "path": "imports/plots.csv",
+                                }
+                            }
+                        },
+                    },
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+        response = test_client.post(
+            "/api/smart/management/entities/bulk",
+            json={
+                "entities": {},
+                "mode": "merge",
+                "auxiliary_sources": [
+                    {
+                        "name": "plot_stats",
+                        "data": "imports/raw_plot_stats.csv",
+                        "grouping": "plots",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "ref_field": "id_plot",
+                            "match_field": "plot_id",
+                        },
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 200
+
+        with open(import_yml, encoding="utf-8") as f:
+            yaml_data = yaml.safe_load(f)
+
+        assert "occurrences" in yaml_data["entities"]["datasets"]
+        assert "plots" in yaml_data["entities"]["references"]
+        assert yaml_data["auxiliary_sources"] == [
+            {
+                "name": "plot_stats",
+                "data": "imports/raw_plot_stats.csv",
+                "grouping": "plots",
+                "relation": {
+                    "plugin": "stats_loader",
+                    "key": "id",
+                    "ref_field": "id_plot",
+                    "match_field": "plot_id",
+                },
+            }
+        ]
+
+    def test_create_entities_bulk_updates_matching_auxiliary_without_duplicate(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        import_yml = working_directory / "config" / "import.yml"
+        import_yml.write_text(
+            yaml.safe_dump(
+                {
+                    "version": "1.0",
+                    "entities": {"datasets": {}, "references": {}},
+                    "auxiliary_sources": [
+                        {
+                            "name": "plot_stats",
+                            "data": "imports/raw_plot_stats.csv",
+                            "grouping": "plots",
+                            "relation": {
+                                "plugin": "stats_loader",
+                                "key": "id",
+                                "ref_field": "old_id",
+                                "match_field": "old_plot_id",
+                            },
+                        }
+                    ],
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+        response = test_client.post(
+            "/api/smart/management/entities/bulk",
+            json={
+                "entities": {},
+                "mode": "merge",
+                "auxiliary_sources": [
+                    {
+                        "name": "plot_stats",
+                        "data": "imports/raw_plot_stats.csv",
+                        "grouping": "plots",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "ref_field": "id_liste_plots",
+                            "match_field": "plot_id",
+                        },
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 200
+
+        with open(import_yml, encoding="utf-8") as f:
+            yaml_data = yaml.safe_load(f)
+
+        assert len(yaml_data["auxiliary_sources"]) == 1
+        assert (
+            yaml_data["auxiliary_sources"][0]["relation"]["ref_field"]
+            == "id_liste_plots"
+        )
+
+    def test_create_entities_bulk_preserves_auxiliary_when_adding_later_entity(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        import_yml = working_directory / "config" / "import.yml"
+        import_yml.write_text(
+            yaml.safe_dump(
+                {
+                    "version": "1.0",
+                    "entities": {
+                        "datasets": {
+                            "occurrences": {
+                                "connector": {
+                                    "type": "file",
+                                    "path": "imports/occurrences.csv",
+                                }
+                            }
+                        },
+                        "references": {},
+                    },
+                    "auxiliary_sources": [
+                        {
+                            "name": "plot_stats",
+                            "data": "imports/raw_plot_stats.csv",
+                            "grouping": "plots",
+                            "relation": {
+                                "plugin": "stats_loader",
+                                "key": "id",
+                                "ref_field": "id_plot",
+                                "match_field": "plot_id",
+                            },
+                        }
+                    ],
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+        response = test_client.post(
+            "/api/smart/management/entities/bulk",
+            json={
+                "mode": "merge",
+                "entities": {
+                    "references": {
+                        "taxons": {
+                            "connector": {
+                                "type": "file",
+                                "path": "imports/taxons.csv",
+                            }
+                        }
+                    }
+                },
+            },
+        )
+
+        assert response.status_code == 200
+
+        with open(import_yml, encoding="utf-8") as f:
+            yaml_data = yaml.safe_load(f)
+
+        assert "occurrences" in yaml_data["entities"]["datasets"]
+        assert "taxons" in yaml_data["entities"]["references"]
+        assert yaml_data["auxiliary_sources"][0]["name"] == "plot_stats"
+
+    def test_create_entities_bulk_removes_stale_entity_when_source_becomes_auxiliary(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        import_yml = working_directory / "config" / "import.yml"
+        import_yml.write_text(
+            yaml.safe_dump(
+                {
+                    "version": "1.0",
+                    "entities": {
+                        "datasets": {},
+                        "references": {
+                            "raw_site_metrics": {
+                                "connector": {
+                                    "type": "file",
+                                    "path": "imports/raw_site_metrics.csv",
+                                }
+                            },
+                            "sites": {
+                                "connector": {
+                                    "type": "file",
+                                    "path": "imports/sites.csv",
+                                }
+                            },
+                        },
+                    },
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+        response = test_client.post(
+            "/api/smart/management/entities/bulk",
+            json={
+                "entities": {},
+                "mode": "merge",
+                "auxiliary_sources": [
+                    {
+                        "name": "site_metrics",
+                        "data": "imports/raw_site_metrics.csv",
+                        "grouping": "sites",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "ref_field": "site_code",
+                            "match_field": "site_id",
+                        },
+                        "source_entity": "raw_site_metrics",
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 200
+
+        with open(import_yml, encoding="utf-8") as f:
+            yaml_data = yaml.safe_load(f)
+
+        assert "raw_site_metrics" not in yaml_data["entities"]["references"]
+        assert "sites" in yaml_data["entities"]["references"]
+        assert yaml_data["auxiliary_sources"][0]["name"] == "site_metrics"
+
+    def test_create_entities_bulk_keeps_reference_named_like_auxiliary_source(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        import_yml = working_directory / "config" / "import.yml"
+        import_yml.write_text(
+            yaml.safe_dump(
+                {
+                    "version": "1.0",
+                    "entities": {
+                        "datasets": {},
+                        "references": {
+                            "sites": {
+                                "connector": {
+                                    "type": "file",
+                                    "path": "imports/sites.csv",
+                                }
+                            },
+                        },
+                    },
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+        response = test_client.post(
+            "/api/smart/management/entities/bulk",
+            json={
+                "entities": {},
+                "mode": "merge",
+                "auxiliary_sources": [
+                    {
+                        "name": "sites",
+                        "data": "imports/raw_site_metrics.csv",
+                        "grouping": "sites",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "ref_field": "site_code",
+                            "match_field": "site_id",
+                        },
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 200
+
+        with open(import_yml, encoding="utf-8") as f:
+            yaml_data = yaml.safe_load(f)
+
+        assert "sites" in yaml_data["entities"]["references"]
+        assert yaml_data["auxiliary_sources"][0]["name"] == "sites"
+
+    def test_create_entities_bulk_moves_entity_between_dataset_and_reference_sections(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        import_yml = working_directory / "config" / "import.yml"
+        import_yml.write_text(
+            yaml.safe_dump(
+                {
+                    "version": "1.0",
+                    "entities": {
+                        "datasets": {
+                            "sites": {
+                                "connector": {
+                                    "type": "file",
+                                    "path": "imports/sites.csv",
+                                }
+                            }
+                        },
+                        "references": {},
+                    },
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+        response = test_client.post(
+            "/api/smart/management/entities/bulk",
+            json={
+                "mode": "merge",
+                "entities": {
+                    "references": {
+                        "sites": {
+                            "connector": {
+                                "type": "file",
+                                "path": "imports/sites.csv",
+                            }
+                        }
+                    }
+                },
+            },
+        )
+
+        assert response.status_code == 200
+
+        with open(import_yml, encoding="utf-8") as f:
+            yaml_data = yaml.safe_load(f)
+
+        assert "sites" not in yaml_data["entities"]["datasets"]
+        assert "sites" in yaml_data["entities"]["references"]
+
+    def test_create_entities_bulk_replaces_source_file_without_dropping_derived_reference(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        import_yml = working_directory / "config" / "import.yml"
+        import_yml.write_text(
+            yaml.safe_dump(
+                {
+                    "version": "1.0",
+                    "entities": {
+                        "datasets": {
+                            "occurrences": {
+                                "connector": {
+                                    "type": "file",
+                                    "path": "imports/occurrences.csv",
+                                },
+                                "schema": {
+                                    "id_field": "id",
+                                    "fields": [
+                                        {"name": "id"},
+                                        {"name": "id_taxonref"},
+                                        {"name": "family"},
+                                        {"name": "genus"},
+                                        {"name": "species"},
+                                    ],
+                                },
+                            }
+                        },
+                        "references": {
+                            "taxons": {
+                                "kind": "hierarchical",
+                                "connector": {
+                                    "type": "derived",
+                                    "source": "occurrences",
+                                    "extraction": {
+                                        "id_column": "id_taxonref",
+                                        "name_column": "taxaname",
+                                        "levels": [
+                                            {"name": "family", "column": "family"},
+                                            {"name": "genus", "column": "genus"},
+                                            {"name": "species", "column": "species"},
+                                        ],
+                                    },
+                                },
+                            }
+                        },
+                    },
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+        response = test_client.post(
+            "/api/smart/management/entities/bulk",
+            json={
+                "mode": "merge",
+                "entities": {
+                    "datasets": {
+                        "occurrences": {
+                            "connector": {
+                                "type": "file",
+                                "path": "imports/occurrences_revised.csv",
+                            },
+                            "schema": {
+                                "id_field": "id",
+                                "fields": [
+                                    {"name": "id"},
+                                    {"name": "id_taxonref"},
+                                    {"name": "family"},
+                                    {"name": "genus"},
+                                    {"name": "species"},
+                                    {"name": "dbh"},
+                                ],
+                            },
+                        }
+                    }
+                },
+            },
+        )
+
+        assert response.status_code == 200
+
+        with open(import_yml, encoding="utf-8") as f:
+            yaml_data = yaml.safe_load(f)
+
+        assert (
+            yaml_data["entities"]["datasets"]["occurrences"]["connector"]["path"]
+            == "imports/occurrences_revised.csv"
+        )
+        assert yaml_data["entities"]["references"]["taxons"]["connector"] == {
+            "type": "derived",
+            "source": "occurrences",
+            "extraction": {
+                "id_column": "id_taxonref",
+                "name_column": "taxaname",
+                "levels": [
+                    {"name": "family", "column": "family"},
+                    {"name": "genus", "column": "genus"},
+                    {"name": "species", "column": "species"},
+                ],
+            },
+        }
+
+    def test_create_entities_bulk_merges_metadata_without_dropping_existing_keys(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        import_yml = working_directory / "config" / "import.yml"
+        import_yml.write_text(
+            yaml.safe_dump(
+                {
+                    "version": "1.0",
+                    "metadata": {"project": "Existing", "owner": "Team"},
+                    "entities": {"datasets": {}, "references": {}},
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+        response = test_client.post(
+            "/api/smart/management/entities/bulk",
+            json={
+                "mode": "merge",
+                "entities": {
+                    "metadata": {"project": "Updated", "description": "Added later"}
+                },
+            },
+        )
+
+        assert response.status_code == 200
+
+        with open(import_yml, encoding="utf-8") as f:
+            yaml_data = yaml.safe_load(f)
+
+        assert yaml_data["metadata"] == {
+            "project": "Updated",
+            "owner": "Team",
+            "description": "Added later",
+        }
+
     def test_create_entities_creates_config_dir_if_missing(
         self, test_client: TestClient, working_directory: Path
     ):
@@ -1806,10 +2310,10 @@ class TestCreateEntitiesBulk:
         assert data["dataset_count"] == 0
         assert data["reference_count"] == 0
 
-    def test_create_entities_overwrites_existing_yaml(
+    def test_create_entities_replaces_existing_yaml_in_replace_mode(
         self, test_client: TestClient, working_directory: Path
     ):
-        """Test bulk creation overwrites existing import.yml."""
+        """Test bulk creation overwrites existing import.yml in replace mode."""
         # Create existing import.yml
         import_yml = working_directory / "config" / "import.yml"
         import_yml.write_text("old_config: old_value\n")
@@ -1819,7 +2323,8 @@ class TestCreateEntitiesBulk:
         }
 
         response = test_client.post(
-            "/api/smart/management/entities/bulk", json={"entities": entities_config}
+            "/api/smart/management/entities/bulk",
+            json={"entities": entities_config, "mode": "replace"},
         )
 
         assert response.status_code == 200
@@ -1831,6 +2336,41 @@ class TestCreateEntitiesBulk:
         assert "old_config" not in yaml_data
         assert "entities" in yaml_data
         assert "datasets" in yaml_data["entities"]
+        assert "new_data" in yaml_data["entities"]["datasets"]
+
+    def test_create_entities_replaces_existing_yaml_when_mode_is_omitted(
+        self, test_client: TestClient, working_directory: Path
+    ):
+        """Omitted mode keeps the historical replacement behavior."""
+        import_yml = working_directory / "config" / "import.yml"
+        import_yml.write_text(
+            yaml.safe_dump(
+                {
+                    "version": "1.0",
+                    "entities": {
+                        "datasets": {"old_data": {"source": "old.csv"}},
+                        "references": {},
+                    },
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+
+        response = test_client.post(
+            "/api/smart/management/entities/bulk",
+            json={
+                "entities": {
+                    "datasets": {"new_data": {"source": "new.csv", "fields": {}}}
+                }
+            },
+        )
+
+        assert response.status_code == 200
+        with open(import_yml, encoding="utf-8") as f:
+            yaml_data = yaml.safe_load(f)
+
+        assert "old_data" not in yaml_data["entities"]["datasets"]
         assert "new_data" in yaml_data["entities"]["datasets"]
 
     def test_create_entities_preserves_existing_yaml_when_write_fails(

@@ -150,6 +150,72 @@ class TestClassObjectAnalyzer:
         analysis2 = analyze_csv(valid_csv_semicolon)
         assert analysis2.entity_column == "shape_id"
 
+    def test_custom_entity_column_override(self, tmp_path):
+        """A selected project-specific entity column should validate."""
+        csv_path = tmp_path / "custom_entity.csv"
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f, delimiter=";")
+            writer.writerow(
+                [
+                    "sampling_unit_code",
+                    "class_object",
+                    "class_name",
+                    "class_value",
+                ]
+            )
+            writer.writerow(["SU-1", "cover_forest", "forest", 12])
+            writer.writerow(["SU-2", "cover_forest", "non_forest", 4])
+
+        analysis = ClassObjectAnalyzer(
+            csv_path, entity_column="sampling_unit_code"
+        ).analyze()
+
+        assert analysis.is_valid is True
+        assert analysis.entity_column == "sampling_unit_code"
+        assert analysis.entity_count == 2
+
+    def test_custom_entity_column_with_quote_is_escaped(self, tmp_path):
+        """Custom entity columns are quoted safely in DuckDB queries."""
+        csv_path = tmp_path / "quoted_entity.csv"
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f, delimiter=";")
+            writer.writerow(
+                ['sampling"unit', "class_object", "class_name", "class_value"]
+            )
+            writer.writerow(["SU-1", "cover_forest", "forest", 12])
+
+        analysis = ClassObjectAnalyzer(
+            csv_path, entity_column='sampling"unit'
+        ).analyze()
+
+        assert analysis.is_valid is True
+        assert analysis.entity_column == 'sampling"unit'
+        assert analysis.entity_count == 1
+
+    def test_missing_entity_column_can_be_deferred(self, tmp_path):
+        """Upload-time validation can defer entity-column selection."""
+        csv_path = tmp_path / "deferred_entity.csv"
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f, delimiter=";")
+            writer.writerow(
+                [
+                    "sampling_unit_code",
+                    "class_object",
+                    "class_name",
+                    "class_value",
+                ]
+            )
+            writer.writerow(["SU-1", "cover_forest", "forest", 12])
+
+        analysis = ClassObjectAnalyzer(csv_path, require_entity_column=False).analyze()
+
+        assert analysis.is_valid is True
+        assert analysis.entity_column is None
+        assert analysis.entity_count == 0
+        assert [class_object.name for class_object in analysis.class_objects] == [
+            "cover_forest"
+        ]
+
 
 class TestPluginSuggestion:
     """Test plugin suggestion logic."""

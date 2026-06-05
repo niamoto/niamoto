@@ -3,7 +3,6 @@
  *
  * Displays detected datasets, references, links, and metadata layers
  * Supports:
- * - Reclassification via buttons
  * - Sheet-based editing for each entity (not inline)
  */
 
@@ -11,7 +10,6 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   CheckCircle2,
   AlertCircle,
@@ -22,7 +20,6 @@ import {
   Sparkles,
   Globe2,
   Layers,
-  ArrowRightLeft,
   FileSpreadsheet,
   Key,
   GitBranch,
@@ -46,11 +43,12 @@ import type {
 import { AutoConfigEditorSheet } from '@/features/import/components/auto-config/AutoConfigEditorSheet'
 import { AutoConfigEntryCard } from '@/features/import/components/auto-config/AutoConfigEntryCard'
 import { AutoConfigLoadingState } from '@/features/import/components/auto-config/AutoConfigLoadingState'
+import { formatAutoConfigReviewText } from '@/features/import/utils/autoConfigReviewText'
 
 interface AutoConfigDisplayProps {
   result: AutoConfigureResponse | null
   isLoading?: boolean
-  /** Callback when the auto-config result is reclassified or edited */
+  /** Callback when the auto-config result is edited */
   onReclassify?: (updatedResult: AutoConfigureResponse) => void
   /** Whether editing is enabled */
   editable?: boolean
@@ -112,87 +110,6 @@ export function AutoConfigDisplay({
     return detectedColumns[sourceEntity] || detectedColumns[source.name] || []
   }
 
-  const getAuxiliaryTargets = () => {
-    if (!result) return []
-    return [
-      ...Object.keys(result.entities.references || {}),
-      ...Object.keys(result.entities.datasets || {}),
-    ].filter((value, index, values) => value && values.indexOf(value) === index)
-  }
-
-  const inferAuxiliaryMatchField = (columns: string[]) => {
-    const preferred = [
-      'plot_id',
-      'taxon_id',
-      'shape_id',
-      'entity_id',
-      'id_liste_plots',
-      'id_taxonref',
-      'id',
-    ]
-    const lowered = new Map(columns.map((column) => [column.toLowerCase(), column]))
-    return preferred.map((field) => lowered.get(field)).find(Boolean) || columns[0] || 'id'
-  }
-
-  const inferAuxiliaryTarget = (name: string, columns: string[]) => {
-    const targets = getAuxiliaryTargets()
-    const loweredColumns = columns.map((column) => column.toLowerCase())
-    const targetForToken = (token: string) =>
-      targets.find((target) => target.toLowerCase().includes(token))
-
-    if (loweredColumns.some((column) => column.includes('taxon'))) {
-      return targetForToken('taxon') || targetForToken('taxa') || ''
-    }
-    if (loweredColumns.some((column) => column.includes('plot'))) {
-      return targetForToken('plot') || ''
-    }
-    if (loweredColumns.some((column) => column.includes('shape'))) {
-      return targetForToken('shape') || ''
-    }
-
-    const normalizedName = name.toLowerCase()
-    return targets.find((target) => normalizedName.includes(target.toLowerCase())) || targets[0] || ''
-  }
-
-  const inferAuxiliaryRefField = (target: string, matchField: string) => {
-    const targetColumns = detectedColumns[target] || []
-    const lowered = targetColumns.map((column) => column.toLowerCase())
-
-    if (target.toLowerCase().includes('taxon')) return 'taxons_id'
-    if (matchField.toLowerCase().includes('plot')) {
-      const plotId = targetColumns.find((_column, index) => {
-        const lower = lowered[index]
-        return lower.includes('id') && lower.includes('plot')
-      })
-      if (plotId) return plotId
-    }
-
-    return targetColumns.find((column) => column.toLowerCase() === 'id') || 'id'
-  }
-
-  const buildAuxiliarySource = (
-    name: string,
-    path: string,
-    columns: string[]
-  ): AuxiliarySource => {
-    const sourceName = name.startsWith('raw_') ? name.slice(4) : name
-    const matchField = inferAuxiliaryMatchField(columns)
-    const grouping = inferAuxiliaryTarget(name, columns)
-
-    return {
-      name: sourceName,
-      data: path,
-      grouping,
-      relation: {
-        plugin: 'stats_loader',
-        key: 'id',
-        ref_field: inferAuxiliaryRefField(grouping, matchField),
-        match_field: matchField,
-      },
-      source_entity: name,
-    }
-  }
-
   const decisionSummaryWith = (
     name: string,
     updates: Partial<DecisionSummary>
@@ -248,159 +165,6 @@ export function AutoConfigDisplay({
       ...previous,
       [entryId]: !previous[entryId],
     }))
-  }
-
-  // Handle moving entity from dataset to reference
-  const moveToReference = (name: string) => {
-    if (!result || !onReclassify) return
-
-    const datasetConfig = result.entities.datasets?.[name]
-    if (!datasetConfig) return
-
-    const newDatasets = { ...result.entities.datasets }
-    delete newDatasets[name]
-
-    const newReferences = {
-      ...result.entities.references,
-      [name]: {
-        kind: 'generic',
-        connector: datasetConfig.connector,
-        schema: datasetConfig.schema || { id_field: 'id', fields: [] },
-      },
-    }
-
-    emitResult({
-      ...result,
-      entities: {
-        ...result.entities,
-        datasets: newDatasets,
-        references: newReferences,
-      },
-      decision_summary: decisionSummaryWith(name, { final_entity_type: 'reference' }),
-    })
-  }
-
-  // Handle moving entity from reference to dataset
-  const moveToDataset = (name: string) => {
-    if (!result || !onReclassify) return
-
-    const refConfig = result.entities.references?.[name]
-    if (!refConfig) return
-
-    const newReferences = { ...result.entities.references }
-    delete newReferences[name]
-
-    const newDatasets = {
-      ...result.entities.datasets,
-      [name]: { connector: refConfig.connector },
-    }
-
-    emitResult({
-      ...result,
-      entities: {
-        ...result.entities,
-        datasets: newDatasets,
-        references: newReferences,
-      },
-      decision_summary: decisionSummaryWith(name, { final_entity_type: 'dataset' }),
-    })
-  }
-
-  const moveEntityToAuxiliary = (name: string, entityType: 'dataset' | 'reference') => {
-    if (!result || !onReclassify) return
-
-    const sourceConfig =
-      entityType === 'dataset'
-        ? result.entities.datasets?.[name]
-        : result.entities.references?.[name]
-    if (!sourceConfig) return
-
-    const connector = (sourceConfig as unknown as DatasetConfig | ReferenceConfig).connector
-    const path = connector?.path || `imports/${name}.csv`
-    const columns = detectedColumns[name] || []
-    const auxiliary = buildAuxiliarySource(name, path, columns)
-    const newDatasets = { ...result.entities.datasets }
-    const newReferences = { ...result.entities.references }
-
-    if (entityType === 'dataset') {
-      delete newDatasets[name]
-    } else {
-      delete newReferences[name]
-    }
-
-    emitResult({
-      ...result,
-      entities: {
-        ...result.entities,
-        datasets: newDatasets,
-        references: newReferences,
-      },
-      auxiliary_sources: [...(result.auxiliary_sources || []), auxiliary],
-      decision_summary: decisionSummaryWith(name, {
-        final_entity_type: 'auxiliary_source',
-        auxiliary_target: auxiliary.grouping,
-        auxiliary_relation: auxiliary.relation,
-      }),
-    })
-  }
-
-  const moveAuxiliaryToDataset = (index: number, source: AuxiliarySource) => {
-    if (!result || !onReclassify) return
-
-    const sourceEntity = sourceEntityName(source)
-    const sources = [...(result.auxiliary_sources || [])]
-    sources.splice(index, 1)
-
-    emitResult({
-      ...result,
-      entities: {
-        ...result.entities,
-        datasets: {
-          ...result.entities.datasets,
-          [sourceEntity]: {
-            connector: {
-              type: 'file',
-              format: 'csv',
-              path: source.data,
-            },
-          },
-        },
-      },
-      auxiliary_sources: sources,
-      decision_summary: decisionSummaryWith(sourceEntity, { final_entity_type: 'dataset' }),
-    })
-  }
-
-  const moveAuxiliaryToReference = (index: number, source: AuxiliarySource) => {
-    if (!result || !onReclassify) return
-
-    const sourceEntity = sourceEntityName(source)
-    const sources = [...(result.auxiliary_sources || [])]
-    sources.splice(index, 1)
-
-    emitResult({
-      ...result,
-      entities: {
-        ...result.entities,
-        references: {
-          ...result.entities.references,
-          [sourceEntity]: {
-            kind: 'generic',
-            connector: {
-              type: 'file',
-              format: 'csv',
-              path: source.data,
-            },
-            schema: {
-              id_field: source.relation.match_field || 'id',
-              fields: [],
-            },
-          },
-        },
-      },
-      auxiliary_sources: sources,
-      decision_summary: decisionSummaryWith(sourceEntity, { final_entity_type: 'reference' }),
-    })
   }
 
   // Handle dataset config update
@@ -490,8 +254,15 @@ export function AutoConfigDisplay({
   const decisionSummaries = result.decision_summary || {}
   const semanticEvidence = result.semantic_evidence || {}
   const isImporting = Boolean(importState?.active)
-  const reviewCount = Object.values(decisionSummaries).filter(
-    (summary) => summary?.review_required && summary?.final_entity_type !== 'auxiliary_source'
+  const configuredAuxiliaryEntities = new Set(
+    auxiliarySources.map((source) => sourceEntityName(source))
+  )
+  const reviewCount = Object.entries(decisionSummaries).filter(
+    ([name, summary]) => {
+      if (!summary?.review_required) return false
+      if (summary.final_entity_type !== 'auxiliary_source') return true
+      return !configuredAuxiliaryEntities.has(name)
+    }
   ).length
 
   // Build available references for dataset FK dropdowns
@@ -641,7 +412,7 @@ export function AutoConfigDisplay({
         {summary?.review_reasons && summary.review_reasons.length > 0 && (
           <ul className={`mt-1 space-y-0.5 ${getReasonToneClass(summary?.review_level)}`}>
             {summary.review_reasons.map((reason) => (
-              <li key={reason}>• {reason}</li>
+              <li key={reason}>• {formatAutoConfigReviewText(reason, t)}</li>
             ))}
           </ul>
         )}
@@ -937,6 +708,28 @@ export function AutoConfigDisplay({
     }
   }
 
+  const formatWarning = (warning: string) => {
+    const missingDatasetRelation = warning.match(
+      /^Derived hierarchy "(.+)" has no inferred dataset relation\. Preview and transform links will require manual configuration\.$/
+    )
+    if (missingDatasetRelation) {
+      return t('autoConfig.warnings.derivedHierarchyNoDatasetRelation', {
+        name: missingDatasetRelation[1],
+      })
+    }
+
+    const missingTaxonIdentifier = warning.match(
+      /^Derived hierarchy "(.+)" has no taxon identifier compatible with the detected taxonomy columns\. Preview and transform links will require manual configuration\.$/
+    )
+    if (missingTaxonIdentifier) {
+      return t('autoConfig.warnings.derivedHierarchyNoTaxonIdentifier', {
+        name: missingTaxonIdentifier[1],
+      })
+    }
+
+    return formatAutoConfigReviewText(warning, t)
+  }
+
   const getCompactSummary = (entry: ListEntry) => {
     switch (entry.type) {
       case 'dataset': {
@@ -1004,46 +797,32 @@ export function AutoConfigDisplay({
   }
 
   const renderEntryDetails = (entry: ListEntry) => {
-    const datasetLinks: Array<{ field: string; entity: string }> =
+    const datasetLinks: Array<{ field: string; entity: string; target_field?: string }> =
       entry.type === 'dataset'
-        ? ((entry.config as { links?: Array<{ field: string; entity: string }> }).links ?? [])
+        ? ((entry.config as {
+            links?: Array<{ field: string; entity: string; target_field?: string }>
+          }).links ?? [])
         : []
 
     if (entry.type === 'auxiliary') {
+      const target = entry.source.grouping || t('autoConfig.auxiliary.targetUnknown')
+      const hasTarget = Boolean(entry.source.grouping)
+
       return (
         <div className="space-y-2 text-xs text-muted-foreground">
           <div className="truncate">{entry.source.data}</div>
-          <div className="text-violet-600">
-            {t('autoConfig.auxiliary.attachedTo', { target: entry.source.grouping })}
+          <div className="rounded-md border border-violet-200 bg-violet-50/70 px-2 py-1 text-violet-800 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-200">
+            {hasTarget
+              ? t('autoConfig.auxiliary.autoDetectedDescription', { target })
+              : t('autoConfig.auxiliary.needsTargetDescription')}
           </div>
           <div>
-            {t('autoConfig.auxiliary.relation', {
+            {t('autoConfig.auxiliary.joinDescription', {
               field: entry.source.relation.match_field,
               refField: entry.source.relation.ref_field,
+              target,
             })}
           </div>
-          {editable && onReclassify && !isImporting && (
-            <div className="flex flex-wrap gap-2 border-t pt-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1 px-2 text-xs"
-                onClick={() => moveAuxiliaryToDataset(entry.index, entry.source)}
-              >
-                <ArrowRightLeft className="h-3 w-3" />
-                {t('autoConfig.actions.moveToDatasets')}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1 px-2 text-xs"
-                onClick={() => moveAuxiliaryToReference(entry.index, entry.source)}
-              >
-                <ArrowRightLeft className="h-3 w-3" />
-                {t('autoConfig.actions.moveToReferences')}
-              </Button>
-            </div>
-          )}
         </div>
       )
     }
@@ -1051,17 +830,36 @@ export function AutoConfigDisplay({
     if (entry.type === 'layer') {
       return (
         <div className="space-y-2 text-xs text-muted-foreground">
+          <div className="rounded-md border border-orange-200 bg-orange-50/70 px-2 py-1 text-orange-800 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-200">
+            {t('autoConfig.layer.autoDetectedDescription', { type: entry.config.type })}
+          </div>
           <div>{entry.config.path}</div>
           {entry.config.description && <div>{entry.config.description}</div>}
         </div>
       )
     }
 
+    const referenceDecision =
+      entry.type === 'reference'
+        ? entry.config.connector?.type === 'derived'
+          ? t('autoConfig.reference.derivedDescription', {
+              source: entry.config.connector.source,
+            })
+          : entry.config.kind === 'spatial'
+            ? t('autoConfig.reference.spatialDescription')
+            : t('autoConfig.reference.autoDetectedDescription')
+        : null
+
     return (
-        <div className="space-y-3">
+      <div className="space-y-3">
         {entry.type === 'reference' && (
           <div className="rounded-md border border-green-200 bg-green-50/70 px-2 py-1 text-xs text-green-800 dark:border-green-900 dark:bg-green-950/30 dark:text-green-200">
-            {t('autoConfig.reference.aggregationReady')}
+            {referenceDecision}
+          </div>
+        )}
+        {entry.type === 'dataset' && (
+          <div className="rounded-md border border-blue-200 bg-blue-50/70 px-2 py-1 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+            {t('autoConfig.dataset.autoDetectedDescription')}
           </div>
         )}
         <div className="space-y-1 text-xs text-muted-foreground">
@@ -1106,66 +904,23 @@ export function AutoConfigDisplay({
             )
           })()}
           {entry.type === 'dataset' && datasetLinks.length > 0 && (
-              <div className="space-y-1">
-                {datasetLinks.map((link) => (
-                  <div key={`${entry.name}-${link.field}-${link.entity}`} className="flex items-center gap-1">
-                    <Link2 className="h-3.5 w-3.5" />
-                    {link.field} → {link.entity}
-                  </div>
-                ))}
-              </div>
-            )}
-        </div>
-        {renderDecisionInsight(entry.name)}
-        {editable && onReclassify && !isImporting && entry.type === 'dataset' && (
-          <div className="flex flex-wrap gap-2 border-t pt-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1 px-2 text-xs"
-              onClick={() => moveToReference(entry.name)}
-            >
-              <ArrowRightLeft className="h-3 w-3" />
-              {t('autoConfig.actions.moveToReferences')}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1 px-2 text-xs"
-              onClick={() => moveEntityToAuxiliary(entry.name, 'dataset')}
-            >
-              <ArrowRightLeft className="h-3 w-3" />
-              {t('autoConfig.actions.moveToAuxiliary')}
-            </Button>
-          </div>
-        )}
-        {editable &&
-          onReclassify &&
-          !isImporting &&
-          entry.type === 'reference' &&
-          entry.config.connector?.type !== 'derived' &&
-          entry.config.kind !== 'hierarchical' && (
-            <div className="flex flex-wrap gap-2 border-t pt-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1 px-2 text-xs"
-                onClick={() => moveToDataset(entry.name)}
-              >
-                <ArrowRightLeft className="h-3 w-3" />
-                {t('autoConfig.actions.moveToDatasets')}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1 px-2 text-xs"
-                onClick={() => moveEntityToAuxiliary(entry.name, 'reference')}
-              >
-                <ArrowRightLeft className="h-3 w-3" />
-                {t('autoConfig.actions.moveToAuxiliary')}
-              </Button>
+            <div className="space-y-1">
+              {datasetLinks.map((link) => (
+                <div
+                  key={`${entry.name}-${link.field}-${link.entity}`}
+                  className="flex items-center gap-1"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                  {t('autoConfig.dataset.linkDescription', {
+                    field: link.field,
+                    target: link.entity,
+                  })}
+                </div>
+              ))}
             </div>
           )}
+        </div>
+        {renderDecisionInsight(entry.name)}
       </div>
     )
   }
@@ -1228,7 +983,7 @@ export function AutoConfigDisplay({
               <ul className="list-inside list-disc space-y-1">
                 {result.warnings.map((warning, i) => (
                   <li key={i} className="text-sm">
-                    {warning}
+                    {formatWarning(warning)}
                   </li>
                 ))}
               </ul>

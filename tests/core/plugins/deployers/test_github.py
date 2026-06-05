@@ -218,6 +218,46 @@ def test_github_deployer_refuses_repository_default_deploy_branch(
     assert lines[-1].strip() == "data: DONE"
 
 
+def test_github_deployer_allows_default_gh_pages_deploy_branch(monkeypatch, tmp_path):
+    exports_dir = tmp_path / "exports"
+    exports_dir.mkdir()
+    (exports_dir / "index.html").write_text("ok", encoding="utf-8")
+    captured = {}
+
+    async def fake_deploy_with_api(self, **kwargs):
+        captured["branch"] = kwargs["branch"]
+        yield "data: SUCCESS: deployed"
+        yield "data: DONE"
+
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.github.CredentialService.get",
+        lambda platform, key: "github_pat_test",
+    )
+    monkeypatch.setattr(
+        "niamoto.core.plugins.deployers.github.shutil.which", lambda name: None
+    )
+    monkeypatch.setattr(
+        GitHubDeployer,
+        "_get_repository_default_branch",
+        staticmethod(lambda owner, repo, token: _async_default_branch("gh-pages")),
+    )
+    monkeypatch.setattr(GitHubDeployer, "_deploy_with_api", fake_deploy_with_api)
+
+    deployer = GitHubDeployer()
+    config = DeployConfig(
+        platform="github",
+        exports_dir=exports_dir,
+        project_name="niamoto-test",
+        extra={"repo": "arsis-dev/niamoto-test", "branch": "gh-pages"},
+    )
+
+    lines = asyncio.run(_collect_lines(deployer.deploy(config)))
+
+    assert captured["branch"] == "gh-pages"
+    assert not any("Refusing to deploy to protected branch" in line for line in lines)
+    assert lines[-1].strip() == "data: DONE"
+
+
 def test_github_deployer_refuses_dangerous_unpublish_branch(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "niamoto.core.plugins.deployers.github.CredentialService.get",

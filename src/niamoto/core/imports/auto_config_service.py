@@ -7,10 +7,13 @@ focused on transport concerns while the product behavior lives in core.
 from __future__ import annotations
 
 import csv
+import copy
 import logging
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+import yaml
 
 from niamoto.core.imports.auto_config_decision import (
     build_entity_decision,
@@ -119,7 +122,7 @@ class AutoConfigService:
         analysis["row_count"] = row_count
         analysis["sample_size"] = len(sample_rows)
         if include_sample_rows:
-            analysis["_sample_rows"] = sample_rows[: self.ANALYSIS_SAMPLE_ROWS]
+            analysis["_sample_rows"] = sample_rows
         return analysis
 
     def detect_hierarchy(self, filepath: str) -> Dict[str, Any]:
@@ -170,7 +173,7 @@ class AutoConfigService:
 
         try:
             source_columns, source_sample, _ = self._read_csv_columns_and_rows(
-                source_path, max_rows=100, count_all_rows=False
+                source_path, max_rows=self.MAX_SAMPLE_ROWS, count_all_rows=False
             )
         except UnicodeDecodeError as exc:
             raise ValueError(
@@ -185,7 +188,7 @@ class AutoConfigService:
 
             try:
                 target_columns, target_sample, _ = self._read_csv_columns_and_rows(
-                    target_path, max_rows=100, count_all_rows=False
+                    target_path, max_rows=self.MAX_SAMPLE_ROWS, count_all_rows=False
                 )
             except UnicodeDecodeError as exc:
                 raise ValueError(
@@ -319,6 +322,10 @@ class AutoConfigService:
                 },
             )
 
+        promoted_reference_sources = self._collect_promoted_reference_hierarchy_sources(
+            csv_analyses,
+            decision_summary,
+        )
         shapes_sources = []
         layers_info = []
         for filepath, analysis in gpkg_analyses.items():
@@ -357,33 +364,65 @@ class AutoConfigService:
             derived_reference_candidates=self._collect_derived_reference_candidates(
                 csv_analyses,
                 decision_summary,
+                promoted_reference_sources=promoted_reference_sources,
             ),
             has_shapes_reference=bool(shapes_sources),
         )
+        auxiliary_stats_entities = {
+            Path(filepath).stem
+            for filepath, analysis in csv_analyses.items()
+            if self._is_auxiliary_stats_candidate(analysis)
+        }
 
-        for entity_name, auxiliary in auxiliary_sources.items():
-            decision_summary[entity_name].update(
-                {
-                    "final_entity_type": "auxiliary_source",
-                    "review_required": False,
-                    "review_level": "stable",
-                    "review_reasons": [],
-                    "review_priority": "normal",
-                    "auxiliary_target": auxiliary["grouping"],
-                    "auxiliary_relation": auxiliary["relation"],
-                }
-            )
-            semantic_evidence.setdefault(entity_name, {})["auxiliary_target"] = (
-                auxiliary["grouping"]
-            )
-            semantic_evidence[entity_name]["auxiliary_relation"] = auxiliary["relation"]
-            self._emit_event(
-                "finding",
-                f"Attached auxiliary source {entity_name} to {auxiliary['grouping']}",
-                file=auxiliary["data"],
-                entity=entity_name,
-                details={"grouping": auxiliary["grouping"]},
-            )
+        for entity_name in auxiliary_stats_entities:
+            auxiliary = auxiliary_sources.get(entity_name)
+            decision_update: Dict[str, Any] = {
+                "final_entity_type": "auxiliary_source",
+                "review_required": auxiliary is None,
+                "review_level": "review" if auxiliary is None else "stable",
+                "review_reasons": (
+                    [
+                        (
+                            "Class/value stats source detected, but no target "
+                            "reference could be inferred from the current project."
+                        )
+                    ]
+                    if auxiliary is None
+                    else []
+                ),
+                "review_priority": "normal",
+            }
+            if auxiliary is not None:
+                decision_update["auxiliary_target"] = auxiliary["grouping"]
+                decision_update["auxiliary_relation"] = auxiliary["relation"]
+
+            decision_summary[entity_name].update(decision_update)
+
+            if auxiliary is not None:
+                semantic_evidence.setdefault(entity_name, {})["auxiliary_target"] = (
+                    auxiliary["grouping"]
+                )
+                semantic_evidence[entity_name]["auxiliary_relation"] = auxiliary[
+                    "relation"
+                ]
+                self._emit_event(
+                    "finding",
+                    f"Attached auxiliary source {entity_name} to {auxiliary['grouping']}",
+                    file=auxiliary["data"],
+                    entity=entity_name,
+                    details={"grouping": auxiliary["grouping"]},
+                )
+            else:
+                self._emit_event(
+                    "finding",
+                    f"Detected auxiliary stats source {entity_name} without a target",
+                    file=next(
+                        filepath
+                        for filepath in csv_analyses
+                        if Path(filepath).stem == entity_name
+                    ),
+                    entity=entity_name,
+                )
 
         references: Dict[str, Any] = {}
         datasets_to_create: Dict[str, Tuple[str, Dict[str, Any]]] = {}
@@ -393,7 +432,7 @@ class AutoConfigService:
 
         for filepath, analysis in csv_analyses.items():
             entity_name = Path(filepath).stem
-            if entity_name in auxiliary_sources:
+            if entity_name in auxiliary_stats_entities:
                 continue
 
             entity_type = decision_summary[entity_name]["final_entity_type"]
@@ -402,12 +441,28 @@ class AutoConfigService:
                     filepath, analysis, csv_analyses
                 )
             elif entity_type == "reference":
-                references[entity_name] = self._build_simple_reference_config(
-                    filepath,
-                    analysis,
-                    referenced_by.get(entity_name),
-                    decision_summary,
-                )
+                promoted_source = promoted_reference_sources.get(entity_name)
+                if promoted_source:
+                    datasets_to_create[promoted_source] = (filepath, analysis)
+                    (
+                        references[entity_name],
+                        hierarchy_warning,
+                    ) = self._build_derived_hierarchy_reference(
+                        promoted_source,
+                        analysis,
+                        relation_info=referenced_by.get(entity_name),
+                        decision_summary=decision_summary,
+                        reference_name=entity_name,
+                    )
+                    if hierarchy_warning:
+                        derived_hierarchy_warnings.append(hierarchy_warning)
+                else:
+                    references[entity_name] = self._build_simple_reference_config(
+                        filepath,
+                        analysis,
+                        referenced_by.get(entity_name),
+                        decision_summary,
+                    )
             elif entity_type == "dataset":
                 datasets_to_create[entity_name] = (filepath, analysis)
 
@@ -464,10 +519,18 @@ class AutoConfigService:
             Path(filepath).stem: analysis.get("columns", [])
             for filepath, analysis in csv_analyses.items()
         }
+        for filepath, analysis in csv_analyses.items():
+            promoted_source = promoted_reference_sources.get(Path(filepath).stem)
+            if promoted_source:
+                detected_columns[promoted_source] = analysis.get("columns", [])
         ml_predictions = {
             Path(filepath).stem: analysis.get("ml_predictions", [])
             for filepath, analysis in csv_analyses.items()
         }
+        for filepath, analysis in csv_analyses.items():
+            promoted_source = promoted_reference_sources.get(Path(filepath).stem)
+            if promoted_source:
+                ml_predictions[promoted_source] = analysis.get("ml_predictions", [])
 
         entities: Dict[str, Any] = {"datasets": datasets, "references": references}
         if layers_info:
@@ -511,6 +574,7 @@ class AutoConfigService:
         has_shapes_reference: bool,
     ) -> Dict[str, Dict[str, Any]]:
         auxiliary_sources: Dict[str, Dict[str, Any]] = {}
+        existing_auxiliary_sources = self._load_existing_auxiliary_sources()
         reference_candidates = {
             Path(filepath).stem
             for filepath in csv_analyses
@@ -518,10 +582,29 @@ class AutoConfigService:
             in {"reference", "hierarchical_reference"}
             and not self._is_auxiliary_stats_candidate(csv_analyses[filepath])
         }
+        reference_candidates.difference_update(derived_reference_candidates.keys())
+        valid_auxiliary_targets = reference_candidates | set(
+            derived_reference_candidates.keys()
+        )
+        if has_shapes_reference:
+            valid_auxiliary_targets.add("shapes")
 
         for filepath, analysis in csv_analyses.items():
             entity_name = Path(filepath).stem
             if not self._is_auxiliary_stats_candidate(analysis):
+                continue
+
+            existing_source_config = self._find_existing_auxiliary_source_config(
+                filepath=filepath,
+                entity_name=entity_name,
+                existing_auxiliary_sources=existing_auxiliary_sources,
+                valid_groupings=valid_auxiliary_targets,
+            )
+            if existing_source_config and self._auxiliary_source_matches_schema(
+                existing_source_config,
+                analysis.get("columns", []),
+            ):
+                auxiliary_sources[entity_name] = existing_source_config
                 continue
 
             source_config = self._build_auxiliary_source_config(
@@ -541,24 +624,152 @@ class AutoConfigService:
         )
         return auxiliary_sources
 
+    def _load_existing_auxiliary_sources(self) -> List[Dict[str, Any]]:
+        sources: List[Dict[str, Any]] = []
+        import_path = self.working_directory / "config" / "import.yml"
+        if import_path.exists():
+            try:
+                with open(import_path, encoding="utf-8") as f:
+                    import_config = yaml.safe_load(f) or {}
+                auxiliary_sources = import_config.get("auxiliary_sources", [])
+                if isinstance(auxiliary_sources, list):
+                    sources.extend(
+                        copy.deepcopy(source)
+                        for source in auxiliary_sources
+                        if isinstance(source, dict)
+                    )
+            except Exception:
+                logger.warning(
+                    "Could not read existing import.yml for auxiliary sources"
+                )
+
+        transform_path = self.working_directory / "config" / "transform.yml"
+        if transform_path.exists():
+            try:
+                with open(transform_path, encoding="utf-8") as f:
+                    transform_config = yaml.safe_load(f) or []
+                if isinstance(transform_config, list):
+                    for group in transform_config:
+                        if not isinstance(group, dict):
+                            continue
+                        group_by = group.get("group_by")
+                        for source in group.get("sources", []) or []:
+                            if not isinstance(source, dict):
+                                continue
+                            data_path = source.get("data")
+                            relation = source.get("relation", {})
+                            if (
+                                isinstance(data_path, str)
+                                and data_path.lower().endswith(".csv")
+                                and isinstance(relation, dict)
+                                and relation.get("plugin", "stats_loader")
+                                == "stats_loader"
+                            ):
+                                existing = copy.deepcopy(source)
+                                if group_by and not existing.get("grouping"):
+                                    existing["grouping"] = group_by
+                                sources.append(existing)
+            except Exception:
+                logger.warning(
+                    "Could not read existing transform.yml for auxiliary sources"
+                )
+
+        return sources
+
+    def _find_existing_auxiliary_source_config(
+        self,
+        *,
+        filepath: str,
+        entity_name: str,
+        existing_auxiliary_sources: List[Dict[str, Any]],
+        valid_groupings: set[str],
+    ) -> Optional[Dict[str, Any]]:
+        normalized_filepath = self._normalize_config_path(filepath)
+        candidates = [
+            source for source in existing_auxiliary_sources if isinstance(source, dict)
+        ]
+
+        for source in candidates:
+            grouping = source.get("grouping")
+            if valid_groupings and (
+                not isinstance(grouping, str) or grouping not in valid_groupings
+            ):
+                continue
+            existing_data = source.get("data", "")
+            if (
+                isinstance(existing_data, str)
+                and self._normalize_config_path(existing_data) == normalized_filepath
+            ):
+                return self._reuse_auxiliary_source_config(
+                    source,
+                    filepath=filepath,
+                    entity_name=entity_name,
+                )
+
+        return None
+
+    @staticmethod
+    def _normalize_config_path(path: str) -> str:
+        normalized = path.replace("\\", "/")
+        while normalized.startswith("./"):
+            normalized = normalized[2:]
+        return normalized
+
+    @staticmethod
+    def _reuse_auxiliary_source_config(
+        source: Dict[str, Any],
+        *,
+        filepath: str,
+        entity_name: str,
+    ) -> Dict[str, Any]:
+        reused = copy.deepcopy(source)
+        reused["data"] = filepath
+        reused["source_entity"] = entity_name
+        return reused
+
+    @staticmethod
+    def _auxiliary_source_matches_schema(
+        source: Dict[str, Any],
+        columns: List[str],
+    ) -> bool:
+        relation = source.get("relation", {})
+        if not isinstance(relation, dict):
+            return False
+
+        source_field = relation.get("match_field") or relation.get("key")
+        if not isinstance(source_field, str) or not source_field:
+            return False
+
+        normalized_columns = {column.lower() for column in columns}
+        return source_field.lower() in normalized_columns
+
     def _collect_derived_reference_candidates(
         self,
         csv_analyses: Dict[str, Dict[str, Any]],
         decision_summary: Dict[str, Dict[str, Any]],
+        *,
+        promoted_reference_sources: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Dict[str, Any]]:
         """Collect references that will be generated from dataset hierarchies."""
         candidates: Dict[str, Dict[str, Any]] = {}
+        promoted_reference_sources = promoted_reference_sources or {}
         for filepath, analysis in csv_analyses.items():
             entity_name = Path(filepath).stem
             decision = decision_summary.get(entity_name, {})
-            if decision.get("final_entity_type") != "dataset":
-                continue
             if not analysis.get("extract_hierarchy_as_reference", False):
                 continue
             if not analysis.get("hierarchy", {}).get("detected"):
                 continue
 
-            reference_name = self._infer_reference_name(entity_name, analysis)
+            if entity_name in promoted_reference_sources:
+                reference_name = entity_name
+                source_dataset = promoted_reference_sources[entity_name]
+            elif decision.get("final_entity_type") == "dataset":
+                reference_name = self._infer_reference_name(entity_name, analysis)
+                source_dataset = entity_name
+            else:
+                continue
+
             ref_field = (
                 f"{reference_name}_id"
                 if self._is_taxonomic_hierarchy(analysis)
@@ -566,12 +777,61 @@ class AutoConfigService:
             )
             candidates[reference_name] = {
                 "target": reference_name,
-                "source_dataset": entity_name,
+                "source_dataset": source_dataset,
                 "ref_field": ref_field,
                 "hierarchy_type": analysis.get("hierarchy", {}).get("hierarchy_type"),
             }
 
         return candidates
+
+    def _collect_promoted_reference_hierarchy_sources(
+        self,
+        csv_analyses: Dict[str, Dict[str, Any]],
+        decision_summary: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, str]:
+        """Map hierarchy-bearing references to hidden technical source datasets."""
+        promoted: Dict[str, str] = {}
+        reserved_names = {Path(filepath).stem for filepath in csv_analyses}
+
+        for filepath, analysis in csv_analyses.items():
+            entity_name = Path(filepath).stem
+            decision = decision_summary.get(entity_name, {})
+            if not self._should_promote_reference_hierarchy(analysis, decision):
+                continue
+
+            source_name = self._unique_technical_source_name(
+                entity_name,
+                reserved_names | set(promoted.values()),
+            )
+            promoted[entity_name] = source_name
+            reserved_names.add(source_name)
+
+        return promoted
+
+    @staticmethod
+    def _should_promote_reference_hierarchy(
+        analysis: Dict[str, Any],
+        decision: Dict[str, Any],
+    ) -> bool:
+        """Return True when a reference should be exposed as its derived hierarchy."""
+        if decision.get("final_entity_type") != "reference":
+            return False
+        if not analysis.get("extract_hierarchy_as_reference", False):
+            return False
+        return bool(analysis.get("hierarchy", {}).get("detected"))
+
+    @staticmethod
+    def _unique_technical_source_name(
+        entity_name: str,
+        reserved_names: set[str],
+    ) -> str:
+        base_name = f"{entity_name}_source"
+        candidate = base_name
+        suffix = 2
+        while candidate in reserved_names:
+            candidate = f"{base_name}_{suffix}"
+            suffix += 1
+        return candidate
 
     def _detect_referenced_by(
         self, csv_analyses: Dict[str, Dict[str, Any]]

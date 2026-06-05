@@ -17,6 +17,7 @@ import {
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { formatAutoConfigReviewText } from '@/features/import/utils/autoConfigReviewText'
 import { cn } from '@/lib/utils'
 import type {
   ImportInventoryItem,
@@ -129,7 +130,7 @@ function displayMessage(
   if (message === 'not_configured') {
     return t('cockpit.messages.not_configured')
   }
-  return message
+  return message ? formatAutoConfigReviewText(message, t) : message
 }
 
 export function ImportInventoryList({

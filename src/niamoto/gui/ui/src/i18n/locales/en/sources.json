@@ -103,12 +103,25 @@
       "warning": "Warning",
       "opportunity": "Opportunity"
     },
+    "details": {
+      "missingColumn": "Column {{column}} is missing from the new file.",
+      "newColumn": "New column {{column}} is not in the configuration yet.",
+      "typeChanged": "Type changed: {{from}} → {{to}}."
+    },
     "widgetStatus": {
       "still_valid": "Still valid",
       "degraded": "Degraded",
       "broken": "Broken",
       "newly_available": "New field",
       "unknown": "Unknown"
+    },
+    "widgetDetails": {
+      "incomingFieldUnused": "The incoming field is not used by configured widgets.",
+      "donutTooManyCategories": "Too many categories for a readable donut chart; review a bar or ranking widget instead.",
+      "barRequiresRanking": "The incoming cardinality requires ranking, grouping, or scrolling before rendering.",
+      "longLabels": "Incoming labels may be too long for the configured chart.",
+      "lowCoverage": "The incoming field has too little coverage to produce a useful widget.",
+      "stillValid": "Required fields are present and chart readability checks passed."
     }
   },
   "upload": {
@@ -130,7 +143,7 @@
       "description_one": "{{count}} file already exists. What do you want to do?",
       "description_other": "{{count}} files already exist. What do you want to do?",
       "useExisting": "Use existing files",
-      "replaceAll": "Replace all"
+      "replaceAll": "Replace these files"
     },
     "status": {
       "queued": "Queued for analysis",
@@ -214,7 +227,7 @@
       "dataset": "Data tables",
       "reference": "Reference tables",
       "auxiliary": "Attached tables",
-      "supporting_table": "Supporting tables",
+      "supporting_table": "Other tables",
       "unknown": "To classify"
     },
     "status": {
@@ -251,7 +264,9 @@
     },
     "detailLabels": {
       "format": "Format",
+      "path": "Path",
       "size": "Size",
+      "type": "Type",
       "checks": "Checks",
       "tips": "Tips",
       "event": "Event",
@@ -260,13 +275,23 @@
       "source": "Source",
       "id field": "Identifier",
       "rows": "Rows",
-      "decision": "Decision",
-      "review": "Needs review",
-      "kind": "Type",
+            "decision": "Decision",
+            "review": "Needs review",
+            "notice": "Note",
+            "kind": "Type",
       "hierarchy": "Hierarchy",
       "attached to": "Attached to",
       "relation": "Relation",
       "description": "Description"
+    },
+    "detailValues": {
+      "decision": {
+        "aligned": "Automatic decision confirmed",
+        "heuristic_only": "Heuristic decision",
+        "ml_override": "ML-influenced decision",
+        "conflict": "Decision needs review",
+        "mixed": "Mixed signals"
+      }
     },
     "review": {
       "advancedTitle": "Advanced adjustments",
@@ -402,7 +427,7 @@
     "formats": {
       "csv": {
         "title": "CSV tables",
-        "description": "Delimited tables for datasets, references, metadata, and supporting values."
+        "description": "Delimited tables for datasets, references, metadata, and complementary values."
       },
       "vector": {
         "title": "Vector layers",
@@ -963,20 +988,20 @@
   "dashboard": {
     "title": "Imported data",
     "overviewNav": "Overview",
-    "description": "Explore the aggregation collections and supporting sources now available in your workspace.",
+    "description": "Explore the aggregation collections and imported files now available in your workspace.",
     "noData": "No data imported",
     "noDataHint": "Start by importing your data files to inspect their structure and begin exploring them.",
     "importData": "Import data",
     "import": "Import",
     "importedWorkspace": "Imported workspace",
     "workspaceTitle": "Explore what your import made available",
-    "workspaceDescription": "Aggregation collections are the main entry points for pages, navigation, and enrichment in Niamoto. Start from these collections, then inspect the supporting sources when you need more detail.",
+    "workspaceDescription": "Aggregation collections are the main entry points for pages, navigation, and enrichment in Niamoto. Start from these collections, then inspect the imported files when you need more detail.",
     "emptyState": {
       "badge": "Data workspace",
       "title": "Import your data",
       "description": "Start by adding your CSV, taxonomy, and spatial files. Niamoto will analyze them and help you configure the project.",
       "dropzoneTitle": "Drop files to begin",
-      "dropzoneDescription": "CSV, GeoPackage, GeoJSON, TIFF, and related support files.",
+      "dropzoneDescription": "CSV, GeoPackage, GeoJSON, TIFF, and related files.",
       "openWorkspace": "Open import workspace",
       "points": {
         "detect": "We detect datasets, references, and layers automatically.",
@@ -1017,7 +1042,7 @@
       "enrichmentSummary": "{{count}} have enrichment available",
       "readySummary": "{{count}} ready for pages"
     },
-    "supportingSourcesTitle": "Supporting sources",
+    "supportingSourcesTitle": "Imported files",
     "supportingSourcesDescription": "Datasets and imported layers remain available for direct inspection, updates, and configuration changes.",
     "datasetFallbackDescription": "Raw source data available for direct exploration.",
     "layerFallbackDescription": "Imported spatial source available for exploration and mapping workflows.",
@@ -1785,8 +1810,8 @@
     },
     "sections": {
       "autoDetection": "Automatic detection",
-      "aggregationCandidates": "Aggregation candidates ({{count}})",
-      "supportingSources": "Supporting sources ({{count}})",
+      "aggregationCandidates": "Suggested collections ({{count}})",
+      "supportingSources": "Imported files ({{count}})",
       "datasets": "Datasets ({{count}})",
       "references": "References ({{count}})",
       "auxiliarySources": "Auxiliary sources ({{count}})",
@@ -1812,9 +1837,9 @@
     },
     "actions": {
       "edit": "Edit",
-      "moveToReferences": "Move to references",
-      "moveToDatasets": "Move to datasets",
-      "moveToAuxiliary": "Move to auxiliary sources",
+      "moveToReferences": "Classify as reference",
+      "moveToDatasets": "Classify as dataset",
+      "moveToAuxiliary": "Classify as auxiliary source",
       "viewDetails": "Details",
       "hideDetails": "Hide"
     },
@@ -1847,11 +1872,29 @@
     },
     "actionableTips": {
       "title": "What to check",
-      "lowConfidence": "Open the details and confirm whether this file should be a dataset, a reference, or a supporting source.",
+      "lowConfidence": "Open the details and confirm whether this file should be a dataset, a reference, or a complementary file.",
       "classificationConflict": "The signals disagree; check the detected role before importing.",
       "missingIdentifier": "Choose or add a stable identifier column so this table can be linked later.",
       "hierarchyIdentifier": "If this hierarchy must link to observations or stats, add a stable taxon_id, plot_id, or id.",
       "noRelationship": "If this dataset should link to a reference, make sure both files share matching identifier values."
+    },
+    "warnings": {
+      "derivedHierarchyNoDatasetRelation": "Derived hierarchy \"{{name}}\" has no detected relation to a dataset. Preview and transform links will require manual configuration.",
+      "derivedHierarchyNoTaxonIdentifier": "Derived hierarchy \"{{name}}\" has no taxon identifier compatible with the detected taxonomy columns. Preview and transform links will require manual configuration."
+    },
+    "reviewReasons": {
+      "referenceEnrichedDatasetSignals": "Reference enriched with measurements or geometry; ML also saw dataset-like signals ({{confidence}}).",
+      "mlSuggestsDifferentRole": "ML suggests {{mlEntityType}} ({{confidence}}) while final decision is {{finalEntityType}}.",
+      "lowHeuristicConfidence": "Heuristic confidence is low for this file.",
+      "observationSignalsInEnrichedReference": "Observation-like signals were detected, but the file still behaves like an enriched reference.",
+      "observationSignalsInReference": "Observation-like signals were detected in a file classified as reference.",
+      "hierarchyHeavyDataset": "The file looks hierarchy-heavy for a dataset; taxonomy extraction should be checked.",
+      "referencedByEntityKeptDataset": "Referenced by another entity and kept as a dataset.",
+      "mlObservationSignals": "ML found observation-oriented signals such as measurements, time, or geometry."
+    },
+    "dataset": {
+      "autoDetectedDescription": "This file will be imported as a primary data table.",
+      "linkDescription": "Detected relationship: {{field}} from the file → {{target}}."
     },
     "detection": {
       "fileFormatRecognized": "{{format}} format recognized for \"{{name}}\"",
@@ -1870,9 +1913,16 @@
     "auxiliary": {
       "attachedTo": "Attached to: {{target}}",
       "relation": "Relation: {{field}} → {{refField}}",
+      "autoDetectedDescription": "This file will be used as precomputed values attached to {{target}}.",
+      "needsTargetDescription": "This file looks like precomputed values, but the target collection still needs confirmation before import.",
+      "joinDescription": "Join: {{field}} from the file → {{refField}} in {{target}}.",
+      "targetUnknown": "target to confirm",
       "relationCompact": "attached to {{target}} • {{field}} → {{refField}}"
     },
     "reference": {
+      "autoDetectedDescription": "This file will be used as a reference table and aggregation target.",
+      "derivedDescription": "This reference will be derived from {{source}} during import.",
+      "spatialDescription": "This file will be used as a spatial reference for maps and aggregations.",
       "derivedFrom": "Derived from: {{source}}",
       "sourceCount": "{{count}} source(s)",
       "levels": "Levels: {{levels}}",
@@ -1883,6 +1933,9 @@
       "aggregationReady": "Can serve as an aggregation target for generated pages",
       "linkedDatasets": "Linked datasets: {{datasets}}",
       "linkedAuxiliary": "Auxiliary sources: {{names}}"
+    },
+    "layer": {
+      "autoDetectedDescription": "This file will be added as a {{type}} map layer."
     },
     "empty": {
       "noDatasetsDetected": "No dataset detected",

@@ -406,8 +406,10 @@ async def upload_precalc_source(
         if file_path.stat().st_size == 0:
             raise HTTPException(status_code=400, detail="CSV file is empty")
 
-        analyzer = ClassObjectAnalyzer(file_path)
+        analyzer = ClassObjectAnalyzer(file_path, require_entity_column=False)
         analysis = analyzer.analyze()
+        if not analysis.is_valid and file_path.exists():
+            file_path.unlink()
 
         class_objects_info = [
             ClassObjectInfo(
@@ -574,6 +576,24 @@ async def save_source_config(
             detail=f"Column '{request.entity_id_column}' not found in CSV",
         )
 
+    try:
+        analysis = ClassObjectAnalyzer(
+            csv_path, entity_column=selected_entity_column
+        ).analyze()
+    except Exception as exc:
+        logger.exception("Error validating class_object CSV: %s", exc)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to validate class_object CSV: {exc}",
+        ) from exc
+
+    if not analysis.is_valid:
+        errors = "; ".join(analysis.validation_errors) or "invalid structure"
+        raise HTTPException(
+            status_code=400,
+            detail=f"CSV does not match the class_object format: {errors}",
+        )
+
     # Use smart detection to find best ref_field and match_field
     ref_field, match_field, _ = detect_relation_fields(
         work_dir,
@@ -687,10 +707,13 @@ async def remove_source_config(
             group_config = groups[reference_name]
 
             sources = group_config.get("sources", [])
-            source_to_remove = next(
-                (s for s in sources if s.get("name") == source_name),
-                None,
-            )
+            source_index_to_remove = None
+            source_to_remove = None
+            for idx, source in enumerate(sources):
+                if source.get("name") == source_name:
+                    source_index_to_remove = idx
+                    source_to_remove = source
+                    break
             if source_to_remove is None:
                 raise HTTPException(
                     status_code=404,
@@ -707,7 +730,7 @@ async def remove_source_config(
             _resolve_imports_source_path(work_dir, source_to_remove.get("data", ""))
 
             group_config["sources"] = [
-                s for s in sources if s.get("name") != source_name
+                s for idx, s in enumerate(sources) if idx != source_index_to_remove
             ]
 
             _save_transform_config(work_dir, config)

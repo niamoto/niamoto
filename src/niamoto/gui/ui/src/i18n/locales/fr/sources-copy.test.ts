@@ -9,4 +9,15 @@ describe('French source copy', () => {
     expect(description).toContain("données d'occurrences")
     expect(description).not.toContain('relevés')
   })
+
+  it('uses plain French labels for auto-configuration sections', () => {
+    expect(sources.autoConfig.sections.aggregationCandidates).toBe(
+      'Collections proposées ({{count}})'
+    )
+    expect(sources.autoConfig.sections.supportingSources).toBe(
+      'Fichiers importés ({{count}})'
+    )
+    expect(sources.autoConfig.sections.aggregationCandidates).not.toContain('candidates')
+    expect(sources.autoConfig.sections.supportingSources).not.toContain('support')
+  })
 })

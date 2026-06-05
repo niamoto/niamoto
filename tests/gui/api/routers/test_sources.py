@@ -150,6 +150,46 @@ def test_upload_rejects_empty_csv_and_removes_saved_file(
     assert not (gui_duckdb_context / "imports" / "raw_empty_stats.csv").exists()
 
 
+def test_upload_removes_file_when_class_object_validation_fails(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    response = gui_duckdb_client.post(
+        "/api/sources/taxons/upload",
+        params={"source_name": "invalid_stats"},
+        files={"file": ("stats.csv", b"taxon_id,value\n101,12\n", "text/csv")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert not (gui_duckdb_context / "imports" / "raw_invalid_stats.csv").exists()
+
+
+def test_upload_accepts_custom_entity_column_before_selection(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    response = gui_duckdb_client.post(
+        "/api/sources/taxons/upload",
+        params={"source_name": "sampling_stats"},
+        files={
+            "file": (
+                "stats.csv",
+                b"sampling_unit_code;class_object;class_name;class_value\n"
+                b"SU-1;cover_forest;forest;12\n",
+                "text/csv",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is True
+    assert body["entity_column"] is None
+    assert body["class_objects"][0]["name"] == "cover_forest"
+    assert (gui_duckdb_context / "imports" / "raw_sampling_stats.csv").exists()
+
+
 def test_save_source_uses_selected_entity_column_and_reference_key(
     gui_duckdb_context: Path,
 ):
@@ -216,6 +256,89 @@ def test_save_source_uses_selected_entity_column_and_reference_key(
     )
     assert source["relation"]["ref_field"] == "taxons_id"
     assert source["relation"]["match_field"] == "taxon_id"
+
+
+def test_save_source_accepts_custom_entity_column(
+    monkeypatch,
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    work_dir = gui_duckdb_context
+    imports_dir = work_dir / "imports"
+    imports_dir.mkdir(exist_ok=True)
+    (imports_dir / "raw_sampling_stats.csv").write_text(
+        "\n".join(
+            [
+                "sampling_unit_code;class_object;class_name;class_value",
+                "SU-1;cover_forest;forest;12",
+                "SU-2;cover_forest;non_forest;4",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        sources_router,
+        "detect_relation_fields",
+        lambda *_args, **_kwargs: ("id", "sampling_unit_code", 1.0),
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/sources/taxons/save",
+        json={
+            "source_name": "sampling_stats",
+            "file_path": "imports/raw_sampling_stats.csv",
+            "entity_id_column": "sampling_unit_code",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    transform_config = yaml.safe_load(
+        (work_dir / "config" / "transform.yml").read_text(encoding="utf-8")
+    )
+    taxons_group = next(
+        group for group in transform_config if group.get("group_by") == "taxons"
+    )
+    source = next(
+        configured
+        for configured in taxons_group.get("sources", [])
+        if configured.get("name") == "sampling_stats"
+    )
+    assert source["relation"]["match_field"] == "sampling_unit_code"
+
+
+def test_save_source_rejects_invalid_class_object_csv_without_writing_transform(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    work_dir = gui_duckdb_context
+    imports_dir = work_dir / "imports"
+    imports_dir.mkdir(exist_ok=True)
+    (imports_dir / "raw_taxa_stats.csv").write_text(
+        "taxon_id,value\n101,12\n",
+        encoding="utf-8",
+    )
+    transform_path = work_dir / "config" / "transform.yml"
+    before = (
+        transform_path.read_text(encoding="utf-8") if transform_path.exists() else None
+    )
+
+    response = gui_duckdb_client.post(
+        "/api/sources/taxons/save",
+        json={
+            "source_name": "taxa_stats",
+            "file_path": "imports/raw_taxa_stats.csv",
+            "entity_id_column": "taxon_id",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "class_object" in response.json()["detail"]
+    after = (
+        transform_path.read_text(encoding="utf-8") if transform_path.exists() else None
+    )
+    assert after == before
 
 
 def test_save_source_rejects_empty_csv(
@@ -669,6 +792,56 @@ def test_remove_source_rejects_non_csv_source_without_mutating_config(
         "Source 'occurrences' is not a removable pre-calculated CSV source"
     )
     assert yaml.safe_load(transform_path.read_text(encoding="utf-8")) == original_config
+
+
+def test_remove_source_only_removes_the_validated_csv_source(
+    gui_duckdb_client: TestClient,
+    gui_duckdb_context: Path,
+):
+    work_dir = gui_duckdb_context
+    imports_dir = work_dir / "imports"
+    imports_dir.mkdir(exist_ok=True)
+    (imports_dir / "raw_taxa_stats.csv").write_text(
+        "taxon_id;class_object;class_name;class_value\n"
+        "101;nbe_source_dataset;network;12\n",
+        encoding="utf-8",
+    )
+    transform_path = work_dir / "config" / "transform.yml"
+    transform_path.write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "group_by": "taxons",
+                    "sources": [
+                        {
+                            "name": "taxa_stats",
+                            "data": "imports/raw_taxa_stats.csv",
+                            "grouping": "taxons",
+                            "relation": {"plugin": "stats_loader", "key": "taxon_id"},
+                        },
+                        {
+                            "name": "taxa_stats",
+                            "data": "occurrences",
+                            "grouping": "taxons",
+                            "relation": {"plugin": "direct_reference", "key": "id"},
+                        },
+                    ],
+                    "widgets_data": {},
+                }
+            ],
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = gui_duckdb_client.delete("/api/sources/taxons/sources/taxa_stats")
+
+    assert response.status_code == 200
+    transform_config = yaml.safe_load(transform_path.read_text(encoding="utf-8"))
+    sources = transform_config[0]["sources"]
+    assert len(sources) == 1
+    assert sources[0]["name"] == "taxa_stats"
+    assert sources[0]["data"] == "occurrences"
 
 
 def test_analyze_existing_source_rejects_paths_outside_imports(
