@@ -1793,6 +1793,7 @@ class TestSiteGroups:
             assert response.headers["content-security-policy"].startswith("sandbox")
             assert response.headers["x-content-type-options"] == "nosniff"
             assert response.headers["cache-control"] == "no-store"
+            assert "access-control-allow-origin" not in response.headers
 
     def test_preview_exported_site_serves_sandboxed_scripts_with_cors(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1816,7 +1817,17 @@ class TestSiteGroups:
             ):
                 client = TestClient(create_app())
                 html_response = client.get("/api/site/preview-exported/index.html")
-                script_response = client.get("/api/site/preview-exported/assets/app.js")
+                script_response = client.get(
+                    "/api/site/preview-exported/assets/app.js",
+                    headers={"Origin": "null", "Sec-Fetch-Dest": "script"},
+                )
+                blocked_response = client.get(
+                    "/api/site/preview-exported/assets/app.js",
+                    headers={
+                        "Origin": "https://example.com",
+                        "Sec-Fetch-Dest": "script",
+                    },
+                )
 
             assert html_response.status_code == 200, html_response.text
             assert (
@@ -1827,9 +1838,11 @@ class TestSiteGroups:
                 '<script src="assets/vendor.js" crossorigin="use-credentials"></script>'
                 in html_response.text
             )
-            assert html_response.headers["access-control-allow-origin"] == "*"
+            assert "access-control-allow-origin" not in html_response.headers
             assert script_response.status_code == 200, script_response.text
-            assert script_response.headers["access-control-allow-origin"] == "*"
+            assert script_response.headers["access-control-allow-origin"] == "null"
+            assert blocked_response.status_code == 200, blocked_response.text
+            assert "access-control-allow-origin" not in blocked_response.headers
 
     def test_assets_route_serves_vendor_js_with_cors_and_cache_headers(self):
         response = TestClient(create_app()).get(

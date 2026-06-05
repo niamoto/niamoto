@@ -1177,6 +1177,53 @@ def test_widget_candidate_dataset_collection_groups_by_backing_dataset(tmp_path)
     }
 
 
+def test_widget_candidate_derived_source_defaults_to_collection_reference_key(
+    tmp_path,
+):
+    service = CollectionWidgetProposalService(
+        work_dir=tmp_path,
+        db_path=None,
+        import_config={
+            "entities": {
+                "references": {
+                    "plots": {
+                        "kind": "hierarchical",
+                        "connector": {
+                            "type": "derived",
+                            "source": "plots_source",
+                            "extraction": {"id_column": "id_liste_plots"},
+                        },
+                        "schema": {"id_field": "id", "name_field": "full_name"},
+                        "relation": {
+                            "dataset": "occurrences",
+                            "foreign_key": "plot_fk",
+                        },
+                    }
+                }
+            }
+        },
+        transform_config=[],
+        export_config={},
+    )
+    collection = CollectionCatalogEntry(
+        name="plots",
+        label="Plots",
+        source_type="reference",
+        source_name="plots",
+        grain="plot",
+        roles=["site"],
+    )
+
+    source_config = service._source_config_for_collection(  # noqa: SLF001 - regression for derived reference source relations
+        collection,
+        "plots_source",
+        existing_sources=[],
+    )
+
+    assert source_config is not None
+    assert source_config["relation"]["ref_key"] == "plots_id"
+
+
 def test_collection_widget_candidates_include_auxiliary_class_object_sources(
     tmp_path,
 ):

@@ -1669,15 +1669,13 @@ class CollectionWidgetProposalService:
         if not isinstance(connector, dict) or connector.get("source") != source_name:
             return None
 
-        schema = reference_config.get("schema", {})
-        schema = schema if isinstance(schema, dict) else {}
         relation = reference_config.get("relation", {})
         relation = relation if isinstance(relation, dict) else {}
         extraction = connector.get("extraction", {})
         extraction = extraction if isinstance(extraction, dict) else {}
 
         key = extraction.get("id_column")
-        ref_key = relation.get("reference_key") or schema.get("id_field")
+        ref_key = relation.get("reference_key") or f"{collection.name}_id"
         if not key or not ref_key:
             return None
 

@@ -54,6 +54,17 @@ _SCRIPT_SRC_WITHOUT_CROSSORIGIN_RE = re.compile(
     r"(<script\b(?=[^>]*\bsrc\s*=)(?![^>]*\bcrossorigin\b)[^>]*)(>)",
     re.IGNORECASE,
 )
+_PREVIEW_CORS_FETCH_DESTINATIONS = {"font", "script", "style"}
+_PREVIEW_CORS_FILE_EXTENSIONS = {
+    ".css",
+    ".eot",
+    ".js",
+    ".mjs",
+    ".otf",
+    ".ttf",
+    ".woff",
+    ".woff2",
+}
 
 
 def _add_preview_script_crossorigin(html: str) -> str:
@@ -62,6 +73,22 @@ def _add_preview_script_crossorigin(html: str) -> str:
         r'\1 crossorigin="anonymous"\2',
         html,
     )
+
+
+def _preview_exported_cors_headers(
+    request: Request, preview_path: Path
+) -> dict[str, str]:
+    if request.headers.get("origin") != "null":
+        return {}
+
+    fetch_destination = request.headers.get("sec-fetch-dest", "").lower()
+    if fetch_destination not in _PREVIEW_CORS_FETCH_DESTINATIONS:
+        return {}
+
+    if preview_path.suffix.lower() not in _PREVIEW_CORS_FILE_EXTENSIONS:
+        return {}
+
+    return {"Access-Control-Allow-Origin": "null", "Vary": "Origin"}
 
 
 def _publish_upload_without_overwrite(
@@ -991,14 +1018,14 @@ async def get_groups():
 
 @router.get("/preview-exported", include_in_schema=False)
 @router.get("/preview-exported/{requested_path:path}", include_in_schema=False)
-async def preview_exported_site(requested_path: str = ""):
+async def preview_exported_site(request: Request, requested_path: str = ""):
     """Serve exported preview files for the current instance."""
     preview_path = _resolve_exported_preview_path(requested_path)
     headers = {
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "no-store",
-        "Access-Control-Allow-Origin": "*",
     }
+    headers.update(_preview_exported_cors_headers(request, preview_path))
     if preview_path.suffix.lower() in {".html", ".htm", ".svg", ".xml"}:
         headers["Content-Security-Policy"] = (
             "sandbox allow-scripts allow-popups allow-downloads"

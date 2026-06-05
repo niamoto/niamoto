@@ -145,7 +145,37 @@ describe('useCompatibilityCheck', () => {
     await harness.unmount()
   })
 
-  it('keeps matched results when widget compatibility has impacts', async () => {
+  it('drops informational-only compatibility results', async () => {
+    impactCheck.mockResolvedValue({
+      entity_name: 'plot_stats',
+      matched_columns: [],
+      impacts: [],
+      info_message: 'First check for auxiliary source',
+      has_blockers: false,
+      has_warnings: false,
+      has_opportunities: false,
+      widget_impacts: [],
+      widget_impact_summary: {},
+      widget_repair_context: {},
+    })
+
+    const harness = createHookHarness(() => useCompatibilityCheck())
+    await harness.render()
+
+    let result: Awaited<ReturnType<typeof harness.current.check>> | undefined
+    await act(async () => {
+      result = await harness.current.check([
+        { name: 'raw_plot_stats.csv', path: 'imports/raw_plot_stats.csv' },
+      ])
+    })
+
+    expect(result).toEqual({ matched: [], unmatched: [], failed: [] })
+    expect(harness.current.matched).toEqual([])
+
+    await harness.unmount()
+  })
+
+  it('ignores widget readability-only compatibility results', async () => {
     impactCheck.mockResolvedValue({
       entity_name: 'plots',
       matched_columns: [],
@@ -165,6 +195,43 @@ describe('useCompatibilityCheck', () => {
         },
       ],
       widget_impact_summary: { degraded: 1 },
+      widget_repair_context: { entity: 'plots' },
+    })
+
+    const harness = createHookHarness(() => useCompatibilityCheck())
+    await harness.render()
+
+    let result: Awaited<ReturnType<typeof harness.current.check>> | undefined
+    await act(async () => {
+      result = await harness.current.check([{ name: 'plots.csv', path: 'imports/plots.csv' }])
+    })
+
+    expect(result).toEqual({ matched: [], unmatched: [], failed: [] })
+    expect(harness.current.matched).toEqual([])
+
+    await harness.unmount()
+  })
+
+  it('keeps matched results when widget compatibility has actionable impacts', async () => {
+    impactCheck.mockResolvedValue({
+      entity_name: 'plots',
+      matched_columns: [],
+      impacts: [],
+      has_blockers: false,
+      has_warnings: false,
+      has_opportunities: false,
+      widget_impacts: [
+        {
+          widget_id: 'plots_by_habitat',
+          collection: 'plots',
+          status: 'broken',
+          detail: 'Required source field is missing in the incoming data.',
+          affected_columns: ['habitat'],
+          transformer_plugin: 'categorical_distribution',
+          widget_plugin: 'bar_plot',
+        },
+      ],
+      widget_impact_summary: { broken: 1 },
       widget_repair_context: { entity: 'plots' },
     })
 

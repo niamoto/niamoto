@@ -1053,6 +1053,7 @@ class CompatibilityService:
     """Pre-import impact check: analyse new CSV against existing pipeline config."""
 
     _TYPELESS_SAMPLE_TYPES = {"unknown"}
+    _NUMERIC_SAMPLE_TYPES = {"float", "integer"}
     _SKIPPABLE_CONNECTORS = {
         ConnectorType.DERIVED.value: "Derived entity — check the source dataset instead",
         ConnectorType.API.value: "External connector — cannot check locally",
@@ -1459,6 +1460,10 @@ class CompatibilityService:
         return (
             old_type in self._TYPELESS_SAMPLE_TYPES
             or new_type in self._TYPELESS_SAMPLE_TYPES
+            or (
+                old_type in self._NUMERIC_SAMPLE_TYPES
+                and new_type in self._NUMERIC_SAMPLE_TYPES
+            )
         )
 
     def _resolve_target_kind(

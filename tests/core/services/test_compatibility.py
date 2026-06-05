@@ -1300,6 +1300,28 @@ class TestCompatibilityService:
         assert report.matched_columns[0].new_type == "unknown"
         assert not report.has_warnings
 
+    def test_ignores_numeric_family_type_warning(self, tmp_path):
+        service = self._make_service(tmp_path)
+        report = service._compare(
+            entity_name="occurrences",
+            file_path="imports/occurrences.csv",
+            new_schema={"plot_id": "integer"},
+            old_schema={"plot_id": "float"},
+            config_refs={
+                "plot_id": [
+                    (
+                        "transform.yml > group plots > source occurrences > relation.key",
+                        ImpactLevel.BREAKS_TRANSFORM,
+                    )
+                ]
+            },
+            target_kind=TargetKind.IMPORT_ENTITY,
+        )
+
+        assert report.matched_columns[0].old_type == "float"
+        assert report.matched_columns[0].new_type == "integer"
+        assert not report.has_warnings
+
     def test_returns_error_for_unreadable_file(self, tmp_path):
         service = self._make_service(
             tmp_path,

@@ -16,6 +16,7 @@ interface ImportImpactPanelProps {
   reports: ImpactCheckResult[]
   failedChecks?: CompatibilityCheckFailure[]
   isChecking?: boolean
+  compact?: boolean
   onReviewCollection?: (collection: string) => void
 }
 
@@ -125,6 +126,7 @@ export function ImportImpactPanel({
   reports,
   failedChecks = [],
   isChecking = false,
+  compact = false,
   onReviewCollection,
 }: ImportImpactPanelProps) {
   const { t } = useTranslation(['sources'])
@@ -135,11 +137,73 @@ export function ImportImpactPanel({
   const newWidgetFields = sumWidgetStatus(reports, 'newly_available')
   const stillValidWidgets = sumWidgetStatus(reports, 'still_valid')
   const hasWidgetRisk = brokenWidgets > 0 || degradedWidgets > 0
+  const hasCompactWidgetRisk = brokenWidgets > 0 || newWidgetFields > 0
+  const hasCompactPipelineRisk = failedChecks.length > 0 || pipelineImpacts.length > 0
   const visibleWidgetImpacts = widgetImpacts.filter((impact) => impact.status !== 'still_valid').slice(0, 6)
   const visiblePipelineImpacts = pipelineImpacts.slice(0, 4)
 
   if (!isChecking && reports.length === 0 && failedChecks.length === 0) {
     return null
+  }
+
+  if (compact && !isChecking && !hasCompactWidgetRisk && !hasCompactPipelineRisk) {
+    return null
+  }
+
+  if (compact) {
+    return (
+      <section className="rounded-lg border bg-background p-3" data-testid="import-impact-panel">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-2">
+            {isChecking ? (
+              <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-primary" />
+            ) : hasCompactWidgetRisk || hasCompactPipelineRisk ? (
+              <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" />
+            ) : (
+              <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" />
+            )}
+            <div className="min-w-0">
+              <h3 className="text-sm font-medium">{t('impact.title')}</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {isChecking
+                  ? t('impact.checking')
+                  : t('impact.description', { count: reports.length })}
+              </p>
+            </div>
+          </div>
+
+          {!isChecking && (
+            <div className="flex flex-wrap gap-1.5">
+              {brokenWidgets > 0 && (
+                <Badge className={widgetStatusClass('broken')} variant="outline">
+                  {t('impact.widgets.broken', { count: brokenWidgets })}
+                </Badge>
+              )}
+              {newWidgetFields > 0 && (
+                <Badge className={widgetStatusClass('newly_available')} variant="outline">
+                  {t('impact.widgets.newlyAvailable', { count: newWidgetFields })}
+                </Badge>
+              )}
+            </div>
+          )}
+        </div>
+
+        {!isChecking && (failedChecks.length > 0 || pipelineImpacts.length > 0) && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {failedChecks.length > 0 && (
+              <Badge className={pipelineImpactClass('blocks_import')} variant="outline">
+                {t('impact.failedChecksTitle')}: {failedChecks.length}
+              </Badge>
+            )}
+            {pipelineImpacts.length > 0 && (
+              <Badge className={pipelineImpactClass('warning')} variant="outline">
+                {t('impact.pipelineTitle')}: {pipelineImpacts.length}
+              </Badge>
+            )}
+          </div>
+        )}
+      </section>
+    )
   }
 
   return (

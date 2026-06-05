@@ -36,6 +36,7 @@ import { FileUploadZone, type FileUploadZoneHandle } from '@/features/import/com
 import { ExistingFilesSection } from '@/features/import/components/upload/ExistingFilesSection'
 import { PreImportGuidance } from '@/features/import/components/upload/PreImportGuidance'
 import { ImportCockpit } from '@/features/import/components/cockpit/ImportCockpit'
+import { ImportImpactPanel } from '@/features/import/components/cockpit/ImportImpactPanel'
 import { buildImportInventory } from '@/features/import/components/cockpit/importInventory'
 import { AutoConfigDisplay } from '@/features/import/components/review/AutoConfigDisplay'
 import { YamlPreview } from '@/features/import/components/review/YamlPreview'
@@ -637,59 +638,67 @@ export function ImportWizard() {
                 progress={phase === 'importing' ? importJob.state.progress : undefined}
                 introGuidance={<PreImportGuidance variant="compact" />}
                 detailPanel={
-                  <Collapsible
-                    open={showAdvancedReview}
-                    onOpenChange={setShowAdvancedReview}
-                    className="rounded-lg border bg-muted/10"
-                  >
-                    <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-left">
-                      <div>
-                        <div className="text-sm font-medium">{t('cockpit.review.advancedTitle')}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {t('cockpit.review.advancedDescription')}
+                  <div className="space-y-3">
+                    <ImportImpactPanel
+                      reports={compatibilityCheck.matched}
+                      failedChecks={compatibilityCheck.failed}
+                      isChecking={compatibilityCheck.isChecking}
+                      compact
+                    />
+                    <Collapsible
+                      open={showAdvancedReview}
+                      onOpenChange={setShowAdvancedReview}
+                      className="rounded-lg border bg-muted/10"
+                    >
+                      <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-left">
+                        <div>
+                          <div className="text-sm font-medium">{t('cockpit.review.advancedTitle')}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {t('cockpit.review.advancedDescription')}
+                          </div>
                         </div>
-                      </div>
-                      <ChevronDown
-                        className={`h-4 w-4 text-muted-foreground transition-transform ${showAdvancedReview ? 'rotate-180' : ''}`}
-                      />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="border-t p-3">
-                      <Tabs value={reviewTab} onValueChange={(value) => setReviewTab(value as 'config' | 'yaml')} className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
-                          <TabsTrigger value="config">{t('wizard.configurationTab')}</TabsTrigger>
-                          <TabsTrigger value="yaml">{t('wizard.yamlTab')}</TabsTrigger>
-                        </TabsList>
+                        <ChevronDown
+                          className={`h-4 w-4 text-muted-foreground transition-transform ${showAdvancedReview ? 'rotate-180' : ''}`}
+                        />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="border-t p-3">
+                        <Tabs value={reviewTab} onValueChange={(value) => setReviewTab(value as 'config' | 'yaml')} className="w-full">
+                          <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="config">{t('wizard.configurationTab')}</TabsTrigger>
+                            <TabsTrigger value="yaml">{t('wizard.yamlTab')}</TabsTrigger>
+                          </TabsList>
 
-                        <PanelTransition transitionKey={reviewTab} className="mt-4">
-                          {reviewTab === 'config' ? (
-                            <AutoConfigDisplay
-                              result={configResult}
-                              editable={phase !== 'importing'}
-                              onReclassify={handleReclassify}
-                              detectedColumns={configResult.detected_columns || {}}
-                              importState={
-                                phase === 'importing'
-                                  ? {
-                                      active: true,
-                                      phase: importJob.state.phase,
-                                      message: importJob.state.message,
-                                      progress: importJob.state.progress,
-                                      processedEntities: importJob.state.processedEntities,
-                                      totalEntities: importJob.state.totalEntities,
-                                      currentEntity: importJob.state.currentEntity,
-                                      currentEntityType: importJob.state.currentEntityType,
-                                      events: importJob.state.events,
-                                    }
-                                  : undefined
-                              }
-                            />
-                          ) : (
-                            <YamlPreview result={configResult} maxHeight="300px" />
-                          )}
-                        </PanelTransition>
-                      </Tabs>
-                    </CollapsibleContent>
-                  </Collapsible>
+                          <PanelTransition transitionKey={reviewTab} className="mt-4">
+                            {reviewTab === 'config' ? (
+                              <AutoConfigDisplay
+                                result={configResult}
+                                editable={phase !== 'importing'}
+                                onReclassify={handleReclassify}
+                                detectedColumns={configResult.detected_columns || {}}
+                                importState={
+                                  phase === 'importing'
+                                    ? {
+                                        active: true,
+                                        phase: importJob.state.phase,
+                                        message: importJob.state.message,
+                                        progress: importJob.state.progress,
+                                        processedEntities: importJob.state.processedEntities,
+                                        totalEntities: importJob.state.totalEntities,
+                                        currentEntity: importJob.state.currentEntity,
+                                        currentEntityType: importJob.state.currentEntityType,
+                                        events: importJob.state.events,
+                                      }
+                                    : undefined
+                                }
+                              />
+                            ) : (
+                              <YamlPreview result={configResult} maxHeight="300px" />
+                            )}
+                          </PanelTransition>
+                        </Tabs>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </div>
                 }
                 footer={
                   phase !== 'importing' ? (

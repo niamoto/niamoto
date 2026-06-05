@@ -14,6 +14,11 @@ const autoConfigureStart = vi.hoisted(() => vi.fn())
 const autoConfigureReset = vi.hoisted(() => vi.fn())
 const compatibilityCheck = vi.hoisted(() => vi.fn())
 const compatibilityReset = vi.hoisted(() => vi.fn())
+const compatibilityState = vi.hoisted(() => ({
+  isChecking: false,
+  matched: [] as Array<Record<string, unknown>>,
+  failed: [] as Array<{ file: string; error: string }>,
+}))
 const importReset = vi.hoisted(() => vi.fn())
 const importStart = vi.hoisted(() => vi.fn())
 
@@ -46,12 +51,6 @@ vi.mock('@/features/import/components/cockpit/ImportCockpit', () => ({
       {detailPanel}
       {footer}
     </div>
-  ),
-}))
-
-vi.mock('@/features/import/components/cockpit/ImportImpactPanel', () => ({
-  ImportImpactPanel: () => (
-    <section data-testid="import-impact-panel">Impact du réimport</section>
   ),
 }))
 
@@ -93,17 +92,9 @@ vi.mock('@/features/import/hooks/useCompatibilityCheck', () => ({
   useCompatibilityCheck: () => ({
     check: compatibilityCheck,
     reset: compatibilityReset,
-    isChecking: false,
-    matched: [
-      {
-        file_path: 'imports/occurrences.csv',
-        matched_entity: 'occurrences',
-        impacts: [],
-        widget_impacts: [],
-        widget_impact_summary: {},
-      },
-    ],
-    failed: [],
+    isChecking: compatibilityState.isChecking,
+    matched: compatibilityState.matched,
+    failed: compatibilityState.failed,
   }),
 }))
 
@@ -187,6 +178,29 @@ describe('ImportWizard', () => {
     compatibilityReset.mockReset()
     importReset.mockReset()
     importStart.mockReset()
+    compatibilityState.isChecking = false
+    compatibilityState.matched = [
+      {
+        entity_name: 'occurrences',
+        matched_columns: [],
+        impacts: [],
+        has_blockers: false,
+        has_warnings: true,
+        has_opportunities: false,
+        widget_impacts: [
+          {
+            widget_id: 'occurrences_by_plot',
+            collection: 'occurrences',
+            status: 'degraded',
+            detail: 'Incoming cardinality is high enough to require ranking.',
+            affected_columns: ['plot_name'],
+          },
+        ],
+        widget_impact_summary: { degraded: 1 },
+        widget_repair_context: {},
+      },
+    ]
+    compatibilityState.failed = []
 
     compatibilityCheck.mockResolvedValue(undefined)
     autoConfigureStart.mockResolvedValue({
@@ -211,7 +225,7 @@ describe('ImportWizard', () => {
     document.body.innerHTML = ''
   })
 
-  it('does not render the reimport impact panel in the review cockpit', async () => {
+  it('hides widget readability-only impacts in the review cockpit', async () => {
     const harness = createHarness()
 
     await harness.render(<ImportWizard />)

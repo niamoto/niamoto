@@ -125,6 +125,53 @@ describe('ImportImpactPanel', () => {
     await harness.unmount()
   })
 
+  it('renders a compact actionable summary without detailed impact lists', async () => {
+    const harness = createHarness()
+
+    await harness.render(<ImportImpactPanel reports={[report]} compact />)
+
+    expect(harness.container.textContent).toContain('impact.title')
+    expect(harness.container.textContent).toContain('impact.widgets.newlyAvailable:1')
+    expect(harness.container.textContent).not.toContain('impact.widgets.degraded:1')
+    expect(harness.container.textContent).not.toContain('plots_by_habitat')
+    expect(harness.container.textContent).not.toContain('Column type changed.')
+
+    await harness.unmount()
+  })
+
+  it('hides compact widget readability-only summaries', async () => {
+    const harness = createHarness()
+
+    await harness.render(
+      <ImportImpactPanel
+        reports={[
+          {
+            ...report,
+            impacts: [],
+            widget_impacts: [
+              {
+                widget_id: 'plots_by_habitat',
+                collection: 'plots',
+                status: 'degraded',
+                detail: 'Incoming cardinality is high enough to require ranking.',
+                affected_columns: ['habitat'],
+              },
+            ],
+            widget_impact_summary: {
+              degraded: 1,
+              still_valid: 3,
+            },
+          },
+        ]}
+        compact
+      />,
+    )
+
+    expect(harness.container.querySelector('[data-testid="import-impact-panel"]')).toBeNull()
+
+    await harness.unmount()
+  })
+
   it('localizes known widget impact details returned by compatibility checks', async () => {
     const harness = createHarness()
 

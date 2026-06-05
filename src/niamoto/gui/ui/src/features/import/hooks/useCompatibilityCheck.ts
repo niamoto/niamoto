@@ -6,7 +6,9 @@
  */
 
 import { useState, useCallback } from 'react'
-import { impactCheck, type ImpactCheckResult } from '../api/compatibility'
+import { impactCheck, type ImpactCheckResult, type WidgetImpact } from '../api/compatibility'
+
+const ACTIONABLE_WIDGET_STATUSES = new Set(['broken', 'newly_available'])
 
 export interface CompatibilityCheckFailure {
   file: string
@@ -60,13 +62,13 @@ export function useCompatibilityCheck() {
         }
       }
 
-      const hasImpacts = matched.some(
+      const actionableMatched = matched.map(filterActionableWidgetImpacts)
+      const hasImpacts = actionableMatched.some(
         (r) =>
           r.impacts.length > 0 ||
           (r.widget_impacts?.length ?? 0) > 0 ||
           r.error ||
-          r.skipped_reason ||
-          r.info_message
+          r.skipped_reason
       )
       const error =
         failed.length > 0
@@ -75,13 +77,13 @@ export function useCompatibilityCheck() {
 
       setState({
         isChecking: false,
-        matched: hasImpacts ? matched : [],
+        matched: hasImpacts ? actionableMatched : [],
         unmatched,
         failed,
         error,
       })
 
-      return { matched: hasImpacts ? matched : [], unmatched, failed }
+      return { matched: hasImpacts ? actionableMatched : [], unmatched, failed }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Compatibility checks failed'
       const failed = files.map((f) => ({ file: f.name, error: message }))
@@ -105,6 +107,28 @@ export function useCompatibilityCheck() {
     check,
     reset,
   }
+}
+
+function filterActionableWidgetImpacts(report: ImpactCheckResult): ImpactCheckResult {
+  const widgetImpacts = (report.widget_impacts ?? []).filter((impact) =>
+    ACTIONABLE_WIDGET_STATUSES.has(impact.status)
+  )
+
+  return {
+    ...report,
+    widget_impacts: widgetImpacts,
+    widget_impact_summary: summarizeWidgetImpacts(widgetImpacts),
+  }
+}
+
+function summarizeWidgetImpacts(widgetImpacts: WidgetImpact[]) {
+  return widgetImpacts.reduce<ImpactCheckResult['widget_impact_summary']>(
+    (summary, impact) => ({
+      ...summary,
+      [impact.status]: (summary[impact.status] ?? 0) + 1,
+    }),
+    {},
+  )
 }
 
 async function mapWithConcurrency<T, R>(
