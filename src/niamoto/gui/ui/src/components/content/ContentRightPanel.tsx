@@ -8,15 +8,12 @@
 import { LayoutOverview } from './LayoutOverview'
 import { WidgetDetailPanel } from './WidgetDetailPanel'
 import type { ConfiguredWidget } from '@/components/widgets'
-import type { CollectionsPreviewPreference } from './previewPolicy'
 
 interface ContentRightPanelProps {
   selectedWidget: ConfiguredWidget | null
   allWidgets: ConfiguredWidget[]
   groupBy: string
   availableFields?: string[]
-  previewPreference: CollectionsPreviewPreference
-  onPreviewPreferenceChange: (preference: CollectionsPreviewPreference) => void
   detailPreviewAutoRefresh: boolean
   onSelectWidget: (widget: ConfiguredWidget | null) => void
   onBack: () => void
@@ -30,8 +27,6 @@ export function ContentRightPanel({
   allWidgets,
   groupBy,
   availableFields = [],
-  previewPreference,
-  onPreviewPreferenceChange,
   detailPreviewAutoRefresh,
   onSelectWidget,
   onBack,
@@ -45,8 +40,6 @@ export function ContentRightPanel({
       <LayoutOverview
         widgets={allWidgets}
         groupBy={groupBy}
-        previewPreference={previewPreference}
-        onPreviewPreferenceChange={onPreviewPreferenceChange}
         onSelectWidget={onSelectWidget}
         onLayoutSaved={onLayoutSaved}
       />

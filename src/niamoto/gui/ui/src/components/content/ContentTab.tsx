@@ -29,12 +29,7 @@ import { WidgetListPanel } from './WidgetListPanel'
 import { ContentRightPanel } from './ContentRightPanel'
 import { AddWidgetModal } from '@/components/widgets/AddWidgetModal'
 import type { ReferenceInfo } from '@/hooks/useReferences'
-import {
-  readStoredCollectionsPreviewPreference,
-  shouldAutoRefreshCollectionsDetailPreview,
-  writeStoredCollectionsPreviewPreference,
-  type CollectionsPreviewPreference,
-} from './previewPolicy'
+import { shouldAutoRefreshCollectionsDetailPreview } from './previewPolicy'
 import { useDevListRenderMetric } from '@/shared/performance/devRenderMetrics'
 
 // Helper to resolve LocalizedString for search
@@ -81,9 +76,6 @@ export function ContentTab({ reference }: ContentTabProps) {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
-  const [previewPreference, setPreviewPreference] = useState<CollectionsPreviewPreference>(
-    () => readStoredCollectionsPreviewPreference(),
-  )
 
   const {
     loading: configuredWidgetsLoading,
@@ -125,10 +117,7 @@ export function ContentTab({ reference }: ContentTabProps) {
     )
   }, [configuredWidgets, searchQuery])
 
-  const detailPreviewAutoRefresh = useMemo(
-    () => shouldAutoRefreshCollectionsDetailPreview(previewPreference),
-    [previewPreference],
-  )
+  const detailPreviewAutoRefresh = shouldAutoRefreshCollectionsDetailPreview()
 
   useDevListRenderMetric('collections.content.configuredWidgets', configuredWidgets.length, {
     itemThreshold: 20,
@@ -279,14 +268,6 @@ export function ContentTab({ reference }: ContentTabProps) {
     }
   }, [isCollapsed])
 
-  const handlePreviewPreferenceChange = useCallback(
-    (preference: CollectionsPreviewPreference) => {
-      setPreviewPreference(preference)
-      writeStoredCollectionsPreviewPreference(preference)
-    },
-    [],
-  )
-
   return (
     <div className="h-full flex flex-col">
       <ResizablePanelGroup direction="horizontal" className="flex-1">
@@ -389,8 +370,6 @@ export function ContentTab({ reference }: ContentTabProps) {
                   allWidgets={configuredWidgets}
                   groupBy={reference.name}
                   availableFields={availableFields}
-                  previewPreference={previewPreference}
-                  onPreviewPreferenceChange={handlePreviewPreferenceChange}
                   detailPreviewAutoRefresh={detailPreviewAutoRefresh}
                   onSelectWidget={handleSelectWidget}
                   onBack={handleBackToLayout}

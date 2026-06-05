@@ -396,9 +396,6 @@
     "showWidgetList": "Afficher la liste des widgets",
     "clickToEdit": "Cliquez pour modifier",
     "unsavedChanges": "Modifications non sauvegardées",
-    "previews": "Aperçus",
-    "hidePreviews": "Masquer les previews",
-    "showPreviews": "Afficher les previews",
     "refresh": "Actualiser",
     "save": "Sauvegarder",
     "saving": "Sauvegarde...",
@@ -411,21 +408,13 @@
       "reduceTo1": "Réduire à 1 colonne"
     },
     "dragDrop": "Glissez-déposez pour réordonner",
-    "selectEntity": "Sélectionner...",
     "entity": "Entité...",
     "hierarchical": "Hiérarchique",
     "list": "Liste",
     "reference": "Référence",
     "seeDetails": "Voir les détails",
     "moving": "Déplacement...",
-    "previewDisabled": "Preview désactivée",
-    "previewOnDemand": "Survolez pour prévisualiser",
-    "previewMode": {
-      "thumbnail": "Miniatures",
-      "focused": "Ciblé",
-      "off": "Désactivé"
-    },
-    "previewEntitiesUnavailable": "Impossible de charger les entités de preview. Les aperçus restent disponibles sans sélection ciblée."
+    "previewEntitiesUnavailable": "Impossible de charger les entités de prévisualisation. Les aperçus restent disponibles sans sélection d'entité."
   },
   "listPanel": {
     "loading": "Chargement...",

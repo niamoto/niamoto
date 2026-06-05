@@ -40,7 +40,6 @@ import {
   RefreshCw,
   AlertCircle,
   Settings2,
-  Eye,
   Leaf,
   GripVertical,
   Navigation,
@@ -66,11 +65,7 @@ import {
   resolveLocalizedString as resolveLocalizedStringValue,
   type LocalizedString,
 } from '@/components/ui/localized-string'
-import {
-  resolveCollectionsPreviewMode,
-  type CollectionsPreviewPreference,
-  type ResolvedCollectionsPreviewMode,
-} from './previewPolicy'
+import { resolveCollectionsPreviewMode } from './previewPolicy'
 import {
   measureCollectionsContentSwitch,
   recordCollectionsPerf,
@@ -168,13 +163,11 @@ async function fetchRepresentatives(groupBy: string): Promise<RepresentativesRes
 interface NavigationSidebarProps {
   groupBy: string
   navigationWidget: NavigationWidgetInfo
-  previewMode: 'off' | 'thumbnail'
 }
 
 function NavigationSidebar({
   groupBy,
   navigationWidget,
-  previewMode,
 }: NavigationSidebarProps) {
   const { t, i18n } = useTranslation(['widgets', 'common'])
   const queryClient = useQueryClient()
@@ -218,18 +211,7 @@ function NavigationSidebar({
 
       {/* Preview */}
       <div className="relative flex-1 min-h-0 bg-background">
-        {previewMode === 'off' ? (
-          <div className="flex h-full items-center justify-center bg-muted/20 text-center text-muted-foreground">
-            <div className="space-y-1 px-3">
-              <Badge variant="outline" className="text-xs">
-                {t('layout.previewMode.off')}
-              </Badge>
-              <p className="text-xs">{t('layout.previewDisabled')}</p>
-            </div>
-          </div>
-        ) : (
-          <PreviewPane descriptor={descriptor} className="w-full h-full" />
-        )}
+        <PreviewPane descriptor={descriptor} className="w-full h-full" />
       </div>
 
       {/* Footer */}
@@ -265,26 +247,20 @@ interface SortableWidgetCardProps {
   id: string
   groupBy: string
   widget: WidgetLayout
-  previewMode: ResolvedCollectionsPreviewMode
-  isPreviewFocused: boolean
   entityId: string | null
   isDragging: boolean
   onColspanToggle: () => void
   onSelect: () => void
-  onPreviewFocus: () => void
 }
 
 function SortableWidgetCard({
   id,
   groupBy,
   widget,
-  previewMode,
-  isPreviewFocused,
   entityId,
   isDragging,
   onColspanToggle,
   onSelect,
-  onPreviewFocus,
 }: SortableWidgetCardProps) {
   const { t, i18n } = useTranslation(['widgets', 'common'])
 
@@ -314,15 +290,7 @@ function SortableWidgetCard({
   const title = resolveLocalizedStringValue(widget.title, i18n.language)
   const description = resolveLocalizedStringValue(widget.description, i18n.language)
 
-  const shouldRenderPreview =
-    !isDragging
-    && (previewMode === 'thumbnail' || (previewMode === 'focused' && isPreviewFocused))
-
-  const previewMessage = isDragging
-    ? t('layout.moving')
-    : previewMode === 'focused' && !isPreviewFocused
-      ? t('layout.previewOnDemand')
-      : t('layout.previewDisabled')
+  const shouldRenderPreview = !isDragging
 
   return (
     <div
@@ -376,8 +344,6 @@ function SortableWidgetCard({
       <div
         className="relative bg-background cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
         onClick={onSelect}
-        onMouseEnter={onPreviewFocus}
-        onFocus={onPreviewFocus}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault()
@@ -408,7 +374,7 @@ function SortableWidgetCard({
               {getPluginLabel(widget.plugin)}
             </Badge>
             <span className="mt-2 text-xs">
-              {previewMessage}
+              {t('layout.moving')}
             </span>
           </div>
         )}
@@ -428,8 +394,6 @@ function SortableWidgetCard({
 interface LayoutOverviewProps {
   widgets: ConfiguredWidget[]
   groupBy: string
-  previewPreference: CollectionsPreviewPreference
-  onPreviewPreferenceChange: (preference: CollectionsPreviewPreference) => void
   onSelectWidget: (widget: ConfiguredWidget) => void
   onLayoutSaved?: () => void
 }
@@ -437,8 +401,6 @@ interface LayoutOverviewProps {
 export function LayoutOverview({
   widgets: configuredWidgets,
   groupBy,
-  previewPreference,
-  onPreviewPreferenceChange,
   onSelectWidget,
   onLayoutSaved,
 }: LayoutOverviewProps) {
@@ -475,7 +437,6 @@ export function LayoutOverview({
   })
   const [isDragging, setIsDragging] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [focusedPreviewCardId, setFocusedPreviewCardId] = useState<string | null>(null)
 
   const layoutSignature = layout?.widgets ? JSON.stringify(layout.widgets) : null
 
@@ -494,12 +455,10 @@ export function LayoutOverview({
   const resolvedPreviewMode = useMemo(
     () =>
       resolveCollectionsPreviewMode({
-        preference: previewPreference,
         isDragging,
       }),
-    [isDragging, previewPreference],
+    [isDragging],
   )
-  const navigationPreviewMode = resolvedPreviewMode === 'thumbnail' ? 'thumbnail' : 'off'
 
   // Fetch representative entities only when previews need a selected entity.
   const {
@@ -509,7 +468,7 @@ export function LayoutOverview({
   } = useQuery({
     queryKey: ['representatives', groupBy],
     queryFn: () => fetchRepresentatives(groupBy),
-    enabled: resolvedPreviewMode !== 'off',
+    enabled: resolvedPreviewMode === 'thumbnail',
   })
 
   const selectedEntityId = useMemo(() => {
@@ -658,25 +617,15 @@ export function LayoutOverview({
     }
   }, [configuredWidgets, i18n.language, onSelectWidget])
 
-  const handlePreviewFocus = useCallback((cardId: string) => {
-    setFocusedPreviewCardId((current) => current === cardId ? current : cardId)
-  }, [])
-
   const navigationWidget = localWidgets.find((w) => w.is_navigation)
   const contentWidgets = localWidgets.filter((w) => !w.is_navigation)
   const widgetIds = contentWidgets.map((w) => `widget-${w.index}`)
   const activeWidget = activeId
     ? contentWidgets.find((w) => `widget-${w.index}` === activeId)
     : null
-  const effectiveFocusedPreviewCardId =
-    focusedPreviewCardId ?? (resolvedPreviewMode === 'focused' && contentWidgets[0]
-      ? `widget-${contentWidgets[0].index}`
-      : null)
   const activePreviewCount = resolvedPreviewMode === 'thumbnail'
     ? contentWidgets.length
-    : resolvedPreviewMode === 'focused' && effectiveFocusedPreviewCardId
-      ? 1
-      : 0
+    : 0
 
   useDevListRenderMetric('collections.layout.contentWidgets', contentWidgets.length, {
     itemThreshold: 20,
@@ -777,25 +726,8 @@ export function LayoutOverview({
 
         <div className="flex-1" />
 
-        {/* Center: preview policy + entity selector */}
-        <Select
-          value={previewPreference}
-          onValueChange={(value) =>
-            onPreviewPreferenceChange(value as CollectionsPreviewPreference)
-          }
-        >
-          <SelectTrigger className="w-[190px] h-8">
-            <Eye className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-            <SelectValue placeholder={t('layout.previews')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="thumbnail">{t('layout.previewMode.thumbnail')}</SelectItem>
-            <SelectItem value="focused">{t('layout.previewMode.focused')}</SelectItem>
-            <SelectItem value="off">{t('layout.previewMode.off')}</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {resolvedPreviewMode !== 'off' && representatives && representatives.entities.length > 0 && (
+        {/* Center: entity selector */}
+        {representatives && representatives.entities.length > 0 && (
           <Select
             value={selectedEntityId || ''}
             onValueChange={handleSelectedEntityChange}
@@ -875,7 +807,6 @@ export function LayoutOverview({
             <NavigationSidebar
               groupBy={groupBy}
               navigationWidget={layout.navigation_widget}
-              previewMode={navigationPreviewMode}
             />
           </div>
         )}
@@ -898,13 +829,10 @@ export function LayoutOverview({
                       id={`widget-${widget.index}`}
                       groupBy={groupBy}
                       widget={widget}
-                      previewMode={resolvedPreviewMode}
-                      isPreviewFocused={effectiveFocusedPreviewCardId === `widget-${widget.index}`}
                       entityId={selectedEntityId}
                       isDragging={isDragging}
                       onColspanToggle={() => handleColspanToggle(widget.index)}
                       onSelect={() => handleSelectWidget(widget)}
-                      onPreviewFocus={() => handlePreviewFocus(`widget-${widget.index}`)}
                     />
                   ))}
                 </div>
