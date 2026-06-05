@@ -9,10 +9,21 @@ import type { ImportInventoryItem } from './importInventory'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
+const translations: Record<string, string> = {
+  'autoConfig.reviewReasons.referenceEnrichedDatasetSignals':
+    'Référence enrichie avec mesures ou géométrie ; le ML voit aussi des signaux de jeu de données ({{confidence}}).',
+}
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { count?: number }) =>
-      options?.count === undefined ? key : `${key}:${options.count}`,
+    t: (key: string, options?: Record<string, unknown>) => {
+      const template = translations[key] ?? key
+      const translated = Object.entries(options ?? {}).reduce((value, [name, replacement]) => {
+        if (name === 'count') return value
+        return value.replaceAll(`{{${name}}}`, String(replacement))
+      }, template)
+      return options?.count === undefined ? translated : `${translated}:${options.count}`
+    },
   }),
 }))
 
@@ -129,6 +140,41 @@ describe('ImportInventoryList', () => {
     })
 
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'layer:rainfall' }))
+
+    await harness.unmount()
+  })
+
+  it('localizes known auto-config review reasons in row summaries', async () => {
+    const harness = createHarness()
+    const reviewReason =
+      'Reference enriched with measurements or geometry; ML also saw dataset-like signals (100%).'
+
+    await harness.render(
+      <ImportInventoryList
+        items={[
+          {
+            id: 'reference:plots',
+            name: 'plots.csv',
+            sourceFileName: 'plots.csv',
+            sourcePath: 'imports/plots.csv',
+            family: 'csv',
+            role: 'sites',
+            status: 'needs_attention',
+            quality: 'review',
+            primaryMessage: reviewReason,
+            summary: 'CSV',
+            details: [],
+            badges: [reviewReason],
+            tips: [],
+          },
+        ]}
+      />
+    )
+
+    expect(harness.container.textContent).toContain(
+      'Référence enrichie avec mesures ou géométrie ; le ML voit aussi des signaux de jeu de données (100%).'
+    )
+    expect(harness.container.textContent).not.toContain('Reference enriched')
 
     await harness.unmount()
   })

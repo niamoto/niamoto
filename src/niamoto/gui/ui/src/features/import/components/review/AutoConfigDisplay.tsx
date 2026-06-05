@@ -43,6 +43,7 @@ import type {
 import { AutoConfigEditorSheet } from '@/features/import/components/auto-config/AutoConfigEditorSheet'
 import { AutoConfigEntryCard } from '@/features/import/components/auto-config/AutoConfigEntryCard'
 import { AutoConfigLoadingState } from '@/features/import/components/auto-config/AutoConfigLoadingState'
+import { formatAutoConfigReviewText } from '@/features/import/utils/autoConfigReviewText'
 
 interface AutoConfigDisplayProps {
   result: AutoConfigureResponse | null
@@ -411,7 +412,7 @@ export function AutoConfigDisplay({
         {summary?.review_reasons && summary.review_reasons.length > 0 && (
           <ul className={`mt-1 space-y-0.5 ${getReasonToneClass(summary?.review_level)}`}>
             {summary.review_reasons.map((reason) => (
-              <li key={reason}>• {reason}</li>
+              <li key={reason}>• {formatAutoConfigReviewText(reason, t)}</li>
             ))}
           </ul>
         )}
@@ -707,6 +708,28 @@ export function AutoConfigDisplay({
     }
   }
 
+  const formatWarning = (warning: string) => {
+    const missingDatasetRelation = warning.match(
+      /^Derived hierarchy "(.+)" has no inferred dataset relation\. Preview and transform links will require manual configuration\.$/
+    )
+    if (missingDatasetRelation) {
+      return t('autoConfig.warnings.derivedHierarchyNoDatasetRelation', {
+        name: missingDatasetRelation[1],
+      })
+    }
+
+    const missingTaxonIdentifier = warning.match(
+      /^Derived hierarchy "(.+)" has no taxon identifier compatible with the detected taxonomy columns\. Preview and transform links will require manual configuration\.$/
+    )
+    if (missingTaxonIdentifier) {
+      return t('autoConfig.warnings.derivedHierarchyNoTaxonIdentifier', {
+        name: missingTaxonIdentifier[1],
+      })
+    }
+
+    return formatAutoConfigReviewText(warning, t)
+  }
+
   const getCompactSummary = (entry: ListEntry) => {
     switch (entry.type) {
       case 'dataset': {
@@ -960,7 +983,7 @@ export function AutoConfigDisplay({
               <ul className="list-inside list-disc space-y-1">
                 {result.warnings.map((warning, i) => (
                   <li key={i} className="text-sm">
-                    {warning}
+                    {formatWarning(warning)}
                   </li>
                 ))}
               </ul>

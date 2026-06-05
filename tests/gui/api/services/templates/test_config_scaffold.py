@@ -145,6 +145,98 @@ def test_scaffold_configs_adds_missing_transform_and_export_groups(
     assert second_message == "Rien à ajouter"
 
 
+def test_scaffold_configs_keeps_promoted_hierarchy_source_technical(
+    monkeypatch, tmp_path
+):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "entities": {
+                    "datasets": {
+                        "occurrences": {"connector": {"type": "file"}},
+                        "plots_source": {"connector": {"type": "file"}},
+                    },
+                    "references": {
+                        "plots": {
+                            "kind": "hierarchical",
+                            "connector": {
+                                "type": "derived",
+                                "source": "plots_source",
+                                "extraction": {"id_column": "id_liste_plots"},
+                            },
+                            "relation": {
+                                "dataset": "occurrences",
+                                "foreign_key": "id_table_liste_plots_n",
+                                "reference_key": "plots_id",
+                            },
+                        },
+                    },
+                },
+                "auxiliary_sources": [
+                    {
+                        "name": "plot_stats",
+                        "data": "imports/raw_plot_stats.csv",
+                        "grouping": "plots",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "ref_field": "plots_id",
+                            "match_field": "plot_id",
+                        },
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "niamoto.gui.api.services.templates.config_scaffold.find_stats_sources_for_reference",
+        lambda work_dir, ref_name: [],
+    )
+
+    changed, _ = scaffold_configs(tmp_path)
+
+    transform_config = yaml.safe_load((config_dir / "transform.yml").read_text())
+    export_config = yaml.safe_load((config_dir / "export.yml").read_text())
+
+    assert changed is True
+    assert [group["group_by"] for group in transform_config] == ["plots"]
+    assert transform_config[0]["sources"] == [
+        {
+            "name": "occurrences",
+            "data": "occurrences",
+            "grouping": "plots",
+            "relation": {
+                "plugin": "nested_set",
+                "key": "id_table_liste_plots_n",
+                "ref_key": "plots_id",
+                "fields": {
+                    "parent": "parent_id",
+                    "left": "lft",
+                    "right": "rght",
+                },
+            },
+        },
+        {
+            "name": "plot_stats",
+            "data": "imports/raw_plot_stats.csv",
+            "grouping": "plots",
+            "relation": {
+                "plugin": "stats_loader",
+                "key": "id",
+                "ref_field": "plots_id",
+                "match_field": "plot_id",
+            },
+        },
+    ]
+    assert [group["group_by"] for group in export_config["exports"][0]["groups"]] == [
+        "plots"
+    ]
+
+
 def test_scaffold_configs_reuses_export_groups_under_params(monkeypatch, tmp_path):
     config_dir = tmp_path / "config"
     config_dir.mkdir(parents=True)

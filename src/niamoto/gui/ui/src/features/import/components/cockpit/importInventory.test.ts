@@ -202,6 +202,65 @@ describe('buildImportInventory', () => {
     })
   })
 
+  it('keeps notice-level review reasons as non-blocking notes', () => {
+    const result: AutoConfigureResponse = {
+      success: true,
+      entities: {
+        datasets: {},
+        references: {
+          plots: {
+            kind: 'generic',
+            connector: {
+              path: 'imports/plots.csv',
+              format: 'csv',
+            },
+          },
+        },
+        metadata: {},
+      },
+      auxiliary_sources: [],
+      decision_summary: {
+        plots: {
+          final_entity_type: 'reference',
+          heuristic_entity_type: 'reference',
+          heuristic_confidence: 0.9,
+          review_required: false,
+          review_level: 'notice',
+          review_reasons: [
+            'Reference enriched with measurements or geometry; ML also saw dataset-like signals (100%).',
+          ],
+        },
+      },
+      confidence: 0.9,
+      warnings: [],
+    }
+
+    const inventory = buildImportInventory({ autoConfigResult: result })
+
+    expect(inventory[0]).toMatchObject({
+      id: 'reference:plots',
+      status: 'analysed',
+      quality: 'info',
+    })
+    expect(inventory[0].details).toContainEqual(
+      expect.objectContaining({
+        label: 'notice',
+        tone: 'info',
+      })
+    )
+    expect(inventory[0].details).not.toContainEqual(
+      expect.objectContaining({
+        label: 'review',
+      })
+    )
+    expect(inventory[0].tips).toEqual([])
+    expect(summarizeInventory(inventory)).toMatchObject({
+      needs_attention: 0,
+      attention: 0,
+      analysed: 1,
+    })
+  })
+
   it('keeps uploaded files as the primary inventory after auto-configuration', () => {
     const result: AutoConfigureResponse = {
       success: true,

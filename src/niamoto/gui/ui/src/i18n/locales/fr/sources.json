@@ -227,7 +227,7 @@
       "dataset": "Tables de données",
       "reference": "Tables de référence",
       "auxiliary": "Tables associées",
-      "supporting_table": "Tables support",
+      "supporting_table": "Autres tables",
       "unknown": "À classifier"
     },
     "status": {
@@ -275,9 +275,10 @@
       "source": "Source",
       "id field": "Identifiant",
       "rows": "Lignes",
-      "decision": "Décision",
-      "review": "À vérifier",
-      "kind": "Type",
+            "decision": "Décision",
+            "review": "À vérifier",
+            "notice": "À noter",
+            "kind": "Type",
       "hierarchy": "Hiérarchie",
       "attached to": "Rattaché à",
       "relation": "Relation",
@@ -426,7 +427,7 @@
     "formats": {
       "csv": {
         "title": "Tables CSV",
-        "description": "Tables délimitées pour les jeux de données, références, métadonnées et valeurs de support."
+        "description": "Tables délimitées pour les jeux de données, références, métadonnées et valeurs complémentaires."
       },
       "vector": {
         "title": "Couches vectorielles",
@@ -987,20 +988,20 @@
   "dashboard": {
     "title": "Données importées",
     "overviewNav": "Vue d’ensemble",
-    "description": "Explorez les collections d’agrégation et les sources support désormais disponibles dans votre espace de travail.",
+    "description": "Explorez les collections d’agrégation et les fichiers importés désormais disponibles dans votre espace de travail.",
     "noData": "Aucune donnée importée",
     "noDataHint": "Commencez par importer vos fichiers de données pour inspecter leur structure et commencer à les explorer.",
     "importData": "Importer des données",
     "import": "Importer",
     "importedWorkspace": "Workspace importé",
     "workspaceTitle": "Explorez ce que cet import a mis en place",
-    "workspaceDescription": "Les collections d’agrégation sont les points d’entrée principaux pour les pages, la navigation et l’enrichissement dans Niamoto. Commencez par elles, puis inspectez les sources support lorsque vous avez besoin de plus de détail.",
+    "workspaceDescription": "Les collections d’agrégation sont les points d’entrée principaux pour les pages, la navigation et l’enrichissement dans Niamoto. Commencez par elles, puis inspectez les fichiers importés lorsque vous avez besoin de plus de détail.",
     "emptyState": {
       "badge": "Workspace de données",
       "title": "Importez vos données",
       "description": "Commencez par ajouter vos fichiers CSV, taxonomiques et spatiaux. Niamoto les analysera et vous aidera à configurer le projet.",
       "dropzoneTitle": "Déposez vos fichiers pour commencer",
-      "dropzoneDescription": "CSV, GeoPackage, GeoJSON, TIFF et fichiers de support associés.",
+      "dropzoneDescription": "CSV, GeoPackage, GeoJSON, TIFF et fichiers associés.",
       "openWorkspace": "Ouvrir le workspace d’import",
       "points": {
         "detect": "Nous détectons automatiquement datasets, références et layers.",
@@ -1029,7 +1030,7 @@
         "description": "Passez dans Collections pour choisir les widgets, sources et pages d’index de chaque collection.",
         "summary": "{{count}} collections disponibles"
       },
-      "supportingSourcesDescription": "Les datasets bruts et les couches importées restent disponibles pour l’inspection, la mise à jour et les changements de configuration."
+      "supportingSourcesDescription": "Les jeux de données bruts et les couches importées restent disponibles pour l’inspection, la mise à jour et les changements de configuration."
     },
     "needsAttention": "À surveiller",
     "aggregationCollectionsTitle": "Collections d’agrégation",
@@ -1041,8 +1042,8 @@
       "enrichmentSummary": "{{count}} avec enrichissement disponible",
       "readySummary": "{{count}} prêts pour les pages"
     },
-    "supportingSourcesTitle": "Sources support",
-    "supportingSourcesDescription": "Les datasets et couches importées restent disponibles pour inspection directe, mise à jour et ajustements de configuration.",
+    "supportingSourcesTitle": "Fichiers importés",
+    "supportingSourcesDescription": "Les jeux de données et couches importées restent disponibles pour inspection directe, mise à jour et ajustements de configuration.",
     "datasetFallbackDescription": "Données sources brutes disponibles pour une exploration directe.",
     "layerFallbackDescription": "Source spatiale importée disponible pour l’exploration et les usages cartographiques.",
     "toolsBandTitle": "Outils d’analyse",
@@ -1809,9 +1810,9 @@
     },
     "sections": {
       "autoDetection": "Détection automatique",
-      "aggregationCandidates": "Agrégations candidates ({{count}})",
-      "supportingSources": "Sources de support ({{count}})",
-      "datasets": "Datasets ({{count}})",
+      "aggregationCandidates": "Collections proposées ({{count}})",
+      "supportingSources": "Fichiers importés ({{count}})",
+      "datasets": "Jeux de données ({{count}})",
       "references": "Références ({{count}})",
       "auxiliarySources": "Sources auxiliaires ({{count}})",
       "metadataLayers": "Couches metadata ({{count}})",
@@ -1821,7 +1822,7 @@
       "detectedElements": "{{count}} élément(s) détecté(s)",
       "itemsToReview": "{{count}} à vérifier",
       "reviewAlert": "{{count}} entité(s) ont des signaux heuristiques/ML à vérifier avant import.",
-      "datasets": "Datasets",
+      "datasets": "Jeux de données",
       "references": "Références",
       "layers": "Couches",
       "entitiesToReview": "Entités à revoir"
@@ -1837,13 +1838,13 @@
     "actions": {
       "edit": "Éditer",
       "moveToReferences": "Classer comme référence",
-      "moveToDatasets": "Classer comme dataset",
+      "moveToDatasets": "Classer comme jeu de données",
       "moveToAuxiliary": "Classer comme source auxiliaire",
       "viewDetails": "Détails",
       "hideDetails": "Masquer"
     },
     "itemTypes": {
-      "dataset": "Dataset",
+      "dataset": "Jeu de données",
       "reference": "Référence",
       "auxiliary": "Auxiliaire",
       "layer": "Couche"
@@ -1852,7 +1853,7 @@
       "fieldsCount": "{{count}} champs",
       "referencedByCount": "{{count}} liés",
       "supportsAggregationsCount": "{{count}} agrégations",
-      "linkedDatasetsCount": "{{count}} datasets",
+      "linkedDatasetsCount": "{{count}} jeux de données",
       "linkedAuxiliaryCount": "{{count}} sources auxiliaires",
       "derivedFrom": "dérivé de {{source}}",
       "sourceCount": "{{count}} sources"
@@ -1871,11 +1872,25 @@
     },
     "actionableTips": {
       "title": "Ce qu’il faut vérifier",
-      "lowConfidence": "Ouvrez les détails et confirmez si ce fichier doit être un dataset, une référence ou une source de support.",
+      "lowConfidence": "Ouvrez les détails et confirmez si ce fichier doit être un jeu de données, une référence ou un fichier complémentaire.",
       "classificationConflict": "Les signaux divergent ; vérifiez le rôle détecté avant d’importer.",
       "missingIdentifier": "Choisissez ou ajoutez une colonne d’identifiant stable pour pouvoir lier cette table ensuite.",
       "hierarchyIdentifier": "Si cette hiérarchie doit être liée à des observations ou des stats, ajoutez un taxon_id, plot_id ou id stable.",
-      "noRelationship": "Si ce dataset doit être lié à une référence, vérifiez que les deux fichiers partagent les mêmes valeurs d’identifiants."
+      "noRelationship": "Si ce jeu de données doit être lié à une référence, vérifiez que les deux fichiers partagent les mêmes valeurs d’identifiants."
+    },
+    "warnings": {
+      "derivedHierarchyNoDatasetRelation": "La hiérarchie dérivée « {{name}} » n’a pas de relation détectée avec un jeu de données. La prévisualisation et les transformations devront être reliées manuellement.",
+      "derivedHierarchyNoTaxonIdentifier": "La hiérarchie dérivée « {{name}} » n’a pas d’identifiant taxonomique compatible avec les colonnes détectées. La prévisualisation et les transformations devront être reliées manuellement."
+    },
+    "reviewReasons": {
+      "referenceEnrichedDatasetSignals": "Référence enrichie avec mesures ou géométrie ; le ML voit aussi des signaux de jeu de données ({{confidence}}).",
+      "mlSuggestsDifferentRole": "Le ML suggère {{mlEntityType}} ({{confidence}}), alors que la décision finale est {{finalEntityType}}.",
+      "lowHeuristicConfidence": "La confiance heuristique est faible pour ce fichier.",
+      "observationSignalsInEnrichedReference": "Des signaux d’observation ont été détectés, mais le fichier se comporte encore comme une référence enrichie.",
+      "observationSignalsInReference": "Des signaux d’observation ont été détectés dans un fichier classé comme référence.",
+      "hierarchyHeavyDataset": "Le fichier ressemble fortement à une hiérarchie pour un jeu de données ; l’extraction de taxonomie doit être vérifiée.",
+      "referencedByEntityKeptDataset": "Référencé par une autre entité et conservé comme jeu de données.",
+      "mlObservationSignals": "Le ML a détecté des signaux orientés observation, comme des mesures, une date ou une géométrie."
     },
     "dataset": {
       "autoDetectedDescription": "Ce fichier sera importé comme table de données principale.",
@@ -1914,27 +1929,27 @@
       "enrichmentEnabled": "Enrichissement activé",
       "enrichmentNotConfigured": "Configurez l'enrichissement API dans l'onglet Configuration avant d'utiliser cet espace.",
       "openConfiguration": "Ouvrir la configuration",
-      "referencedByDatasets": "Référencé par : {{count}} dataset(s)",
+      "referencedByDatasets": "Référencé par : {{count}} jeu(x) de données",
       "aggregationReady": "Peut servir d'agrégation cible pour les pages générées",
-      "linkedDatasets": "Datasets liés : {{datasets}}",
+      "linkedDatasets": "Jeux de données liés : {{datasets}}",
       "linkedAuxiliary": "Sources auxiliaires : {{names}}"
     },
     "layer": {
       "autoDetectedDescription": "Ce fichier sera ajouté comme couche cartographique {{type}}."
     },
     "empty": {
-      "noDatasetsDetected": "Aucun dataset détecté",
+      "noDatasetsDetected": "Aucun jeu de données détecté",
       "noReferencesDetected": "Aucune référence détectée"
     },
     "sheetTitles": {
-      "dataset": "Dataset : {{name}}",
+      "dataset": "Jeu de données : {{name}}",
       "reference": "Référence : {{name}}",
       "auxiliary": "Source auxiliaire : {{name}}",
       "layer": "Couche : {{name}}"
     },
     "sheetDescriptions": {
-      "dataset": "Configuration du connecteur, schema et relations",
-      "reference": "Configuration de la source, hierarchie et enrichissement",
+      "dataset": "Configuration du connecteur, schéma et relations",
+      "reference": "Configuration de la source, hiérarchie et enrichissement",
       "auxiliary": "Configuration du fichier, de la cible et de la relation stats_loader",
       "layer": "Configuration de la couche metadata"
     }

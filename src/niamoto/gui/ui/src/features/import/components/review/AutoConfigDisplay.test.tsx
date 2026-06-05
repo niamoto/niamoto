@@ -26,6 +26,14 @@ const translations: Record<string, string> = {
   'autoConfig.actions.moveToDatasets': 'Classify as dataset',
   'autoConfig.actions.moveToReferences': 'Classify as reference',
   'autoConfig.actions.moveToAuxiliary': 'Classify as auxiliary source',
+  'autoConfig.warnings.derivedHierarchyNoDatasetRelation':
+    'Derived hierarchy {{name}} needs a manual dataset link.',
+  'autoConfig.reviewReasons.referenceEnrichedDatasetSignals':
+    'Reference enriched translated {{confidence}}.',
+  'autoConfig.reviewReasons.observationSignalsInEnrichedReference':
+    'Observation reference translated.',
+  'autoConfig.reviewReasons.mlObservationSignals':
+    'ML observation translated.',
 }
 
 function translate(key: string, options?: Record<string, string | number>) {
@@ -257,6 +265,75 @@ describe('AutoConfigDisplay', () => {
     expect(harness.container.textContent).toContain(
       'This file will be added as a raster map layer.'
     )
+
+    await harness.unmount()
+  })
+
+  it('localizes backend warnings for derived hierarchies without dataset relations', async () => {
+    const harness = createHarness()
+
+    await harness.render(
+      <AutoConfigDisplay
+        result={{
+          ...mixedAutoConfig,
+          warnings: [
+            'Derived hierarchy "plots_hierarchy" has no inferred dataset relation. Preview and transform links will require manual configuration.',
+          ],
+        }}
+        detectedColumns={mixedAutoConfig.detected_columns}
+      />
+    )
+
+    expect(harness.container.textContent).toContain(
+      'Derived hierarchy plots_hierarchy needs a manual dataset link.'
+    )
+    expect(harness.container.textContent).not.toContain('no inferred dataset relation')
+
+    await harness.unmount()
+  })
+
+  it('localizes backend review reasons in entity decision insights', async () => {
+    const harness = createHarness()
+
+    await harness.render(
+      <AutoConfigDisplay
+        result={{
+          ...mixedAutoConfig,
+          decision_summary: {
+            plots: {
+              final_entity_type: 'reference',
+              heuristic_entity_type: 'reference',
+              heuristic_confidence: 0.9,
+              ml_entity_type: 'dataset',
+              ml_confidence: 1,
+              alignment: 'conflict',
+              review_required: false,
+              review_level: 'notice',
+              review_reasons: [
+                'Reference enriched with measurements or geometry; ML also saw dataset-like signals (100%).',
+                'Observation-like signals were detected, but the file still behaves like an enriched reference.',
+                'ML found observation-oriented signals such as measurements, time, or geometry.',
+              ],
+            },
+          },
+        }}
+        detectedColumns={mixedAutoConfig.detected_columns}
+      />
+    )
+
+    const toggleButtons = Array.from(harness.container.querySelectorAll('button'))
+
+    await act(async () => {
+      toggleButtons.forEach((button) => button.click())
+      await Promise.resolve()
+    })
+
+    expect(harness.container.textContent).toContain('Reference enriched translated 100%.')
+    expect(harness.container.textContent).toContain('Observation reference translated.')
+    expect(harness.container.textContent).toContain('ML observation translated.')
+    expect(harness.container.textContent).not.toContain('Reference enriched with measurements')
+    expect(harness.container.textContent).not.toContain('Observation-like signals were detected')
+    expect(harness.container.textContent).not.toContain('ML found observation-oriented signals')
 
     await harness.unmount()
   })

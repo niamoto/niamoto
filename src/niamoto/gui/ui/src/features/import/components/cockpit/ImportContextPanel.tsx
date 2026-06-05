@@ -5,6 +5,7 @@ import { AlertCircle, CheckCircle2, FileQuestion, HelpCircle, Info, Loader2 } fr
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
+import { formatAutoConfigReviewText } from '@/features/import/utils/autoConfigReviewText'
 import { importInventoryStatuses, type ImportInventoryItem, type ImportInventoryStatus } from './importInventory'
 
 interface ImportContextPanelProps {
@@ -43,7 +44,7 @@ function displayMessage(
   if (message === 'not_configured') {
     return t('cockpit.messages.not_configured')
   }
-  return message
+  return message ? formatAutoConfigReviewText(message, t) : message
 }
 
 function displayDetailValue(
@@ -56,7 +57,7 @@ function displayDetailValue(
     })
   }
 
-  return detail.value
+  return formatAutoConfigReviewText(detail.value, t)
 }
 
 export function ImportContextPanel({
@@ -181,16 +182,26 @@ export function ImportContextPanel({
                   {t('cockpit.context.checks')}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {item.badges.map((badge) => (
-                    <Badge key={badge} variant="secondary" className="text-[10px]">
-                      {t(`upload.preflight.badges.${badge}`, { defaultValue: badge })}
-                    </Badge>
-                  ))}
-                  {item.tips.map((tip) => (
-                    <Badge key={tip} className="border-amber-200 bg-amber-50 text-[10px] text-amber-800" variant="outline">
-                      {t(`upload.preflight.tips.${tip}`, { defaultValue: tip })}
-                    </Badge>
-                  ))}
+                  {item.badges.map((badge) => {
+                    const formatted = formatAutoConfigReviewText(badge, t)
+                    return (
+                      <Badge key={badge} variant="secondary" className="text-[10px]">
+                        {formatted === badge
+                          ? t(`upload.preflight.badges.${badge}`, { defaultValue: badge })
+                          : formatted}
+                      </Badge>
+                    )
+                  })}
+                  {item.tips.map((tip) => {
+                    const formatted = formatAutoConfigReviewText(tip, t)
+                    return (
+                      <Badge key={tip} className="border-amber-200 bg-amber-50 text-[10px] text-amber-800" variant="outline">
+                        {formatted === tip
+                          ? t(`upload.preflight.tips.${tip}`, { defaultValue: tip })
+                          : formatted}
+                      </Badge>
+                    )
+                  })}
                 </div>
               </div>
             </>

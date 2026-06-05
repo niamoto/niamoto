@@ -256,4 +256,22 @@ describe('ImportCockpit', () => {
 
     await harness.unmount()
   })
+
+  it('separates the detail panel from the inventory list', async () => {
+    const harness = createHarness()
+
+    await harness.render(
+      <ImportCockpit
+        phase="reviewing"
+        items={inventory}
+        selectedItemId="dataset:occurrences"
+        detailPanel={<div data-testid="advanced-review-panel">Ajustements avancés</div>}
+      />
+    )
+
+    const detailPanel = harness.container.querySelector('[data-testid="advanced-review-panel"]')
+    expect(detailPanel?.parentElement?.classList.contains('mt-3')).toBe(true)
+
+    await harness.unmount()
+  })
 })

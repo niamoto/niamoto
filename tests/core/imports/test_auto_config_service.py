@@ -9,6 +9,46 @@ from niamoto.core.imports.auto_config_service import AutoConfigService
 from niamoto.core.utils.column_detector import ColumnDetector
 
 
+def _write_delayed_plot_relation_files(tmp_path: Path) -> None:
+    imports_dir = tmp_path / "imports"
+    imports_dir.mkdir()
+
+    plot_rows = [
+        (
+            f"{index},Plot {index:03d},Country {index // 50},"
+            f"Locality {index // 10},POINT (0 {index}),survey,2024,"
+            f"provider,{index},0.{index % 10},extra"
+        )
+        for index in range(1, 102)
+    ]
+    (imports_dir / "plots.csv").write_text(
+        "\n".join(
+            [
+                (
+                    "id_liste_plots,plot_name,country,locality_name,geo_pt,"
+                    "method,date_y,data_provider,nbe_stem,prop_det,notes"
+                ),
+                *plot_rows,
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (imports_dir / "occurrences.csv").write_text(
+        "\n".join(
+            [
+                "id,plot_name,id_table_liste_plots_n,stem_diameter,observed_at",
+                *[
+                    f"{1000 + index},Plot 101,101,{8 + (index % 20) / 2},2024-01-01"
+                    for index in range(1, 1200)
+                ],
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def test_build_collection_candidates_exposes_reviewable_reference_metadata(
     tmp_path: Path,
 ):
@@ -528,6 +568,135 @@ def test_build_derived_hierarchy_reference_uses_detected_relation(tmp_path: Path
         "foreign_key": "id_table_liste_plots_n",
         "reference_key": "plots_hierarchy_id",
     }
+
+
+def test_auto_configure_detects_derived_hierarchy_relation_beyond_analysis_sample(
+    tmp_path: Path,
+):
+    _write_delayed_plot_relation_files(tmp_path)
+
+    result = AutoConfigService(tmp_path).auto_configure(
+        ["imports/occurrences.csv", "imports/plots.csv"]
+    )
+
+    references = result["entities"]["references"]
+    datasets = result["entities"]["datasets"]
+
+    assert "plots" in references
+    assert "plots_hierarchy" not in references
+    assert "plots_source" in datasets
+    assert references["plots"]["connector"]["source"] == "plots_source"
+    assert references["plots"]["relation"] == {
+        "dataset": "occurrences",
+        "foreign_key": "id_table_liste_plots_n",
+        "reference_key": "plots_id",
+    }
+    collection_names = {
+        candidate["name"] for candidate in result["collection_candidates"]
+    }
+    assert "plots" in collection_names
+    assert "plots_hierarchy" not in collection_names
+    assert "plots_source" not in collection_names
+    assert not any("plots" in warning for warning in result["warnings"])
+
+
+def test_auxiliary_stats_follow_promoted_hierarchical_reference(tmp_path: Path):
+    _write_delayed_plot_relation_files(tmp_path)
+    (tmp_path / "imports" / "raw_plot_stats.csv").write_text(
+        "id,class_object,class_name,class_value,plot_id\n1,plot,elevation,120,101\n",
+        encoding="utf-8",
+    )
+
+    result = AutoConfigService(tmp_path).auto_configure(
+        [
+            "imports/occurrences.csv",
+            "imports/plots.csv",
+            "imports/raw_plot_stats.csv",
+        ]
+    )
+
+    assert result["auxiliary_sources"] == [
+        {
+            "name": "plot_stats",
+            "data": "imports/raw_plot_stats.csv",
+            "grouping": "plots",
+            "relation": {
+                "plugin": "stats_loader",
+                "key": "id",
+                "ref_field": "plots_id",
+                "match_field": "plot_id",
+            },
+            "source_entity": "raw_plot_stats",
+        }
+    ]
+
+
+def test_stale_auxiliary_grouping_is_not_reused_after_reference_promotion(
+    tmp_path: Path,
+):
+    _write_delayed_plot_relation_files(tmp_path)
+    (tmp_path / "imports" / "raw_plot_stats.csv").write_text(
+        "id,class_object,class_name,class_value,plot_id\n1,plot,elevation,120,101\n",
+        encoding="utf-8",
+    )
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "import.yml").write_text(
+        yaml.safe_dump(
+            {
+                "version": "1.0",
+                "entities": {
+                    "datasets": {},
+                    "references": {
+                        "plots_hierarchy": {"kind": "hierarchical"},
+                    },
+                },
+                "auxiliary_sources": [
+                    {
+                        "name": "plot_stats",
+                        "data": "imports/raw_plot_stats.csv",
+                        "grouping": "plots_hierarchy",
+                        "relation": {
+                            "plugin": "stats_loader",
+                            "key": "id",
+                            "ref_field": "plots_hierarchy_id",
+                            "match_field": "plot_id",
+                        },
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = AutoConfigService(tmp_path).auto_configure(
+        [
+            "imports/occurrences.csv",
+            "imports/plots.csv",
+            "imports/raw_plot_stats.csv",
+        ]
+    )
+
+    assert result["auxiliary_sources"][0]["grouping"] == "plots"
+    assert result["auxiliary_sources"][0]["relation"]["ref_field"] == "plots_id"
+
+
+def test_detect_relationships_uses_relation_sample_beyond_analysis_sample(
+    tmp_path: Path,
+):
+    _write_delayed_plot_relation_files(tmp_path)
+
+    result = AutoConfigService(tmp_path).detect_relationships(
+        "imports/occurrences.csv",
+        ["imports/plots.csv"],
+    )
+
+    assert any(
+        relationship["source_field"] == "id_table_liste_plots_n"
+        and relationship["target_field"] == "id_liste_plots"
+        for relationship in result["relationships"]
+    )
 
 
 def test_build_derived_hierarchy_reference_prefers_taxonomic_semantics(tmp_path: Path):
