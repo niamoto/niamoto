@@ -11,7 +11,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-05-29T11:50:46.213028Z"
+exclude-newer = "2026-05-30T12:42:52.571368Z"
 
 [[package]]
 name = "affine"
@@ -1009,7 +1009,7 @@ wheels = [
 
 [[package]]
 name = "niamoto"
-version = "0.20.4"
+version = "0.20.5"
 source = { editable = "." }
 dependencies = [
     { name = "anyio" },

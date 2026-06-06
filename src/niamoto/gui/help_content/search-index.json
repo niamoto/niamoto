@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T11:50:46.479902+00:00",
+  "generated_at": "2026-06-06T12:42:52.842098+00:00",
   "entries": [
     {
       "slug": "01-getting-started",
@@ -1967,6 +1967,7 @@
       "is_section_index": true,
       "headings": [
         "Start here",
+        "Maintenance notes",
         "Current architecture",
         "Historical decision notes",
         "Core principles",
@@ -1976,6 +1977,7 @@
       "keywords": [
         "Architecture",
         "Start here",
+        "Maintenance notes",
         "Current architecture",
         "Historical decision notes",
         "Core principles",
@@ -2201,6 +2203,32 @@
         "Frontend",
         "Main GUI domains",
         "Code entry points"
+      ]
+    },
+    {
+      "slug": "07-architecture/legacy-feedback-worker",
+      "path": "/help/07-architecture/legacy-feedback-worker",
+      "section_slug": "07-architecture",
+      "section_title": "Architecture",
+      "title": "Legacy Feedback Worker",
+      "description": "This document records the network feedback system that existed before Niamoto switched to local diagnostic report generation. The legacy system is kept here only as restoration context. The active application no longer d",
+      "page_type": "markdown",
+      "is_section_index": false,
+      "headings": [
+        "Current Active Behavior",
+        "Legacy Architecture",
+        "Legacy Security Model",
+        "Restoration Checklist",
+        "Preferred Future Alternative"
+      ],
+      "keywords": [
+        "Architecture",
+        "Legacy Feedback Worker",
+        "Current Active Behavior",
+        "Legacy Architecture",
+        "Legacy Security Model",
+        "Restoration Checklist",
+        "Preferred Future Alternative"
       ]
     },
     {

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T11:50:46.479902+00:00",
+  "generated_at": "2026-06-06T12:42:52.842098+00:00",
   "sections": [
     {
       "slug": "01-getting-started",
@@ -3414,7 +3414,7 @@
       "title": "Architecture",
       "description": "This section describes the current Niamoto architecture.",
       "path": "/help/07-architecture",
-      "article_count": 12,
+      "article_count": 13,
       "pages": [
         {
           "slug": "07-architecture",
@@ -3428,6 +3428,11 @@
               "title": "Start here",
               "level": 2,
               "id": "start-here"
+            },
+            {
+              "title": "Maintenance notes",
+              "level": 2,
+              "id": "maintenance-notes"
             },
             {
               "title": "Current architecture",
@@ -3748,6 +3753,41 @@
               "title": "CI Notes",
               "level": 2,
               "id": "ci-notes"
+            }
+          ]
+        },
+        {
+          "slug": "07-architecture/legacy-feedback-worker",
+          "path": "/help/07-architecture/legacy-feedback-worker",
+          "title": "Legacy Feedback Worker",
+          "description": "This document records the network feedback system that existed before Niamoto switched to local diagnostic report generation. The legacy system is kept here only as restoration context. The active application no longer d",
+          "page_type": "markdown",
+          "is_section_index": false,
+          "headings": [
+            {
+              "title": "Current Active Behavior",
+              "level": 2,
+              "id": "current-active-behavior"
+            },
+            {
+              "title": "Legacy Architecture",
+              "level": 2,
+              "id": "legacy-architecture"
+            },
+            {
+              "title": "Legacy Security Model",
+              "level": 2,
+              "id": "legacy-security-model"
+            },
+            {
+              "title": "Restoration Checklist",
+              "level": 2,
+              "id": "restoration-checklist"
+            },
+            {
+              "title": "Preferred Future Alternative",
+              "level": 2,
+              "id": "preferred-future-alternative"
             }
           ]
         },

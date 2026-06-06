@@ -1,0 +1,39 @@
+{
+  "slug": "07-architecture/legacy-feedback-worker",
+  "path": "/help/07-architecture/legacy-feedback-worker",
+  "title": "Legacy Feedback Worker",
+  "description": "This document records the network feedback system that existed before Niamoto switched to local diagnostic report generation. The legacy system is kept here only as restoration context. The active application no longer d",
+  "page_type": "markdown",
+  "section_slug": "07-architecture",
+  "is_section_index": false,
+  "headings": [
+    {
+      "title": "Current Active Behavior",
+      "level": 2,
+      "id": "current-active-behavior"
+    },
+    {
+      "title": "Legacy Architecture",
+      "level": 2,
+      "id": "legacy-architecture"
+    },
+    {
+      "title": "Legacy Security Model",
+      "level": 2,
+      "id": "legacy-security-model"
+    },
+    {
+      "title": "Restoration Checklist",
+      "level": 2,
+      "id": "restoration-checklist"
+    },
+    {
+      "title": "Preferred Future Alternative",
+      "level": 2,
+      "id": "preferred-future-alternative"
+    }
+  ],
+  "html": "<h1 id=\"legacy-feedback-worker\">Legacy Feedback Worker</h1>\n<p>This document records the network feedback system that existed before Niamoto\nswitched to local diagnostic report generation. The legacy system is kept here\nonly as restoration context. The active application no longer depends on a\nCloudflare Worker, R2 bucket, GitHub token, or feedback API key.</p>\n<h2 id=\"current-active-behavior\">Current Active Behavior</h2>\n<p>The app now generates a local Markdown diagnostic report from the feedback\nmodal. The report is designed to be readable by a user and copyable into a\nGitHub issue.\nThe report includes:</p>\n<ul>\n<li>feedback type, title, and optional description</li>\n<li>redacted app context</li>\n<li>recent console errors, failed API requests, navigation history, crashes, and\n  local state snapshot when available</li>\n<li>optional screenshot embedded as a data URL</li>\n</ul>\n<p>No network request is made to submit feedback, and the FastAPI app does not\nregister <code>/api/feedback/submit</code>.</p>\n<h2 id=\"legacy-architecture\">Legacy Architecture</h2>\n<p>The previous flow had three parts:</p>\n<ol>\n<li>React collected the feedback payload and screenshot.</li>\n<li>FastAPI exposed <code>POST /api/feedback/submit</code> and relayed the multipart body\n   to a configured public endpoint.</li>\n<li>The Cloudflare Worker uploaded an optional screenshot to R2 and created a\n   GitHub issue. Its source used to live under\n   <code>workers/niamoto-feedback-proxy/</code>.</li>\n</ol>\n<p>The worker source was removed from the active repository cleanup after commit\n<code>200e7e95</code>. Restore it from Git history only if the network feedback flow is\nexplicitly brought back.</p>\n<p>The worker expected:</p>\n<ul>\n<li><code>POST /feedback</code></li>\n<li>multipart field <code>payload</code>, containing JSON</li>\n<li>optional multipart field <code>screenshot</code>, normally <code>image/jpeg</code></li>\n<li>header <code>X-Feedback-Key</code></li>\n</ul>\n<p>The worker bindings and secrets were:</p>\n<ul>\n<li><code>FEEDBACK_BUCKET</code>: R2 bucket for screenshots</li>\n<li><code>R2_PUBLIC_URL</code>: public base URL for uploaded screenshots</li>\n<li><code>GITHUB_REPO</code>: target repository, for example <code>owner/repo</code></li>\n<li><code>GITHUB_TOKEN</code>: GitHub token allowed to create issues</li>\n<li><code>FEEDBACK_API_KEY</code>: shared secret compared with <code>X-Feedback-Key</code></li>\n</ul>\n<p>The app-side build/runtime variables were:</p>\n<ul>\n<li><code>NIAMOTO_FEEDBACK_WORKER_URL</code></li>\n<li><code>NIAMOTO_FEEDBACK_API_KEY</code></li>\n<li>legacy aliases: <code>FEEDBACK_WORKER_URL</code>, <code>FEEDBACK_API_KEY</code>,\n  <code>VITE_FEEDBACK_WORKER_URL</code>, <code>VITE_FEEDBACK_API_KEY</code></li>\n</ul>\n<h2 id=\"legacy-security-model\">Legacy Security Model</h2>\n<p>The old FastAPI proxy existed so the frontend never exposed GitHub or R2\ncredentials. It also:</p>\n<ul>\n<li>rejected missing feedback configuration</li>\n<li>rejected private or invalid feedback endpoint URLs</li>\n<li>revalidated DNS immediately before forwarding</li>\n<li>pinned the resolved public addresses during the outbound request</li>\n<li>limited screenshots before forwarding them</li>\n</ul>\n<p>The worker then validated the shared <code>X-Feedback-Key</code> before touching R2 or\nGitHub.</p>\n<h2 id=\"restoration-checklist\">Restoration Checklist</h2>\n<p>Only restore this system if a maintained public relay exists. Do not point\nreleased builds at personal infrastructure.</p>\n<p>To restore the legacy network flow:</p>\n<ol>\n<li>Restore the worker source from Git history, for example:</li>\n</ol>\n<p><code>bash\n   git restore --source 200e7e95 -- workers/niamoto-feedback-proxy</code></p>\n<ol start=\"2\">\n<li>Reintroduce the FastAPI feedback router at\n   <code>src/niamoto/gui/api/routers/feedback.py</code> from Git history before the local\n   report migration.</li>\n<li>Register it in <code>src/niamoto/gui/api/app.py</code> with:</li>\n</ol>\n<p><code>python\n   app.include_router(feedback.router, prefix=\"/api/feedback\", tags=[\"feedback\"])</code></p>\n<ol start=\"4\">\n<li>Change <code>src/niamoto/gui/ui/src/features/feedback/lib/feedback-api.ts</code> back\n   to posting <code>FormData</code> to <code>/api/feedback/submit</code>.</li>\n<li>Restore the Tauri build/runtime forwarding if packaged desktop builds should\n   embed or pass feedback worker settings.</li>\n<li>Configure a maintained worker-compatible service and secrets:</li>\n</ol>\n<p><code>text\n   NIAMOTO_FEEDBACK_WORKER_URL=https://example-feedback-relay.example\n   NIAMOTO_FEEDBACK_API_KEY=...</code></p>\n<ol start=\"7\">\n<li>Keep the frontend from sending worker URLs or API keys in form fields. The\n   backend should read trusted configuration from its environment only.</li>\n<li>Restore or recreate tests covering:</li>\n</ol>\n<ul>\n<li>frontend posts only to <code>/api/feedback/submit</code></li>\n<li>frontend does not send worker config or secrets</li>\n<li>backend rejects missing config</li>\n<li>backend rejects private feedback endpoints</li>\n<li>backend forwards screenshot and payload to <code>/feedback</code></li>\n<li>worker rejects bad <code>X-Feedback-Key</code></li>\n<li>worker creates GitHub issues and handles R2 failures without losing the\n     feedback body</li>\n</ul>\n<h2 id=\"preferred-future-alternative\">Preferred Future Alternative</h2>\n<p>If someone wants shared feedback collection later, prefer a neutral,\nproject-owned endpoint with clear maintainers and documented credentials. The\nlocal report flow should remain available as a no-infrastructure fallback.</p>",
+  "asset_path": null,
+  "source_path": "07-architecture/legacy-feedback-worker.md"
+}
