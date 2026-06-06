@@ -20,9 +20,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Loader2, WifiOff } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useFeedback } from '../context/useFeedback'
-import { useBrowserOnline } from '../hooks/useBrowserOnline'
 import { FeedbackTypeSelector } from './FeedbackTypeSelector'
 import { ScreenshotPreview } from './ScreenshotPreview'
 import { ContextDetails } from './ContextDetails'
@@ -31,7 +30,6 @@ import type { FeedbackType } from '../types'
 export function FeedbackModal() {
   const { t } = useTranslation('feedback')
   const feedback = useFeedback()
-  const browserOnline = useBrowserOnline()
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -87,7 +85,7 @@ export function FeedbackModal() {
     await feedback.send(title.trim(), description.trim(), includeScreenshot)
   }
 
-  const canSend = browserOnline && !feedback.isSending && feedback.cooldownRemaining <= 0 && title.trim().length > 0
+  const canSend = !feedback.isSending && title.trim().length > 0
 
   return (
     <>
@@ -158,14 +156,6 @@ export function FeedbackModal() {
 
             {/* Context details (collapsible) */}
             <ContextDetails context={feedback.contextData} />
-
-            {/* Offline warning */}
-            {!browserOnline && (
-              <div className="flex items-center gap-2 rounded-theme-sm bg-muted px-3 py-2 text-xs text-muted-foreground">
-                <WifiOff className="h-3.5 w-3.5 shrink-0" />
-                {t('offline_tooltip')}
-              </div>
-            )}
 
             {/* Submit */}
             <Button

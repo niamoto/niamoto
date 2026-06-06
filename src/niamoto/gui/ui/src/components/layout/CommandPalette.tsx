@@ -33,7 +33,7 @@ import {
 } from 'lucide-react'
 import { useNavigationStore, navItems } from '@/stores/navigationStore'
 import { useThemeStore } from '@/stores/themeStore'
-import { useFeedback, useBrowserOnline } from '@/features/feedback'
+import { useFeedback } from '@/features/feedback'
 import { useHelpSearchIndex } from '@/features/help/hooks/useDocumentationContent'
 import { rankHelpSearchEntries } from '@/features/help/routing'
 import {
@@ -62,7 +62,6 @@ export function CommandPalette() {
   const setThemeMode = useThemeStore((s) => s.setMode)
   const { commandPaletteOpen, setCommandPaletteOpen } = useNavigationStore()
   const feedback = useFeedback()
-  const browserOnline = useBrowserOnline()
   const { runShellAction } = useShellActionRunner()
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
@@ -314,11 +313,11 @@ export function CommandPalette() {
             value="feedback:open"
             keywords={['feedback', 'bug', 'report', 'suggestion', 'question', 'signaler', 'problème']}
             onSelect={handleSelect}
-            disabled={!browserOnline || feedback.cooldownRemaining > 0}
+            disabled={feedback.isPreparingScreenshot}
           >
             <MessageSquarePlus className="!size-[18px] text-foreground/70" />
             <div className="flex flex-1 flex-col">
-              <span className="font-medium">{t('feedback:command_palette_label', 'Send feedback')}</span>
+              <span className="font-medium">{t('feedback:command_palette_label', 'Generate feedback report')}</span>
               <span className="text-xs text-muted-foreground">{t('feedback:type_bug', 'Bug')}, {t('feedback:type_suggestion', 'Suggestion')}, {t('feedback:type_question', 'Question')}</span>
             </div>
           </CommandItem>

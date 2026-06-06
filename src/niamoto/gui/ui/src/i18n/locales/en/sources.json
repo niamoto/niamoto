@@ -60,7 +60,7 @@
     "importedSummary": "{{datasets}} dataset(s) and {{references}} reference(s) imported",
     "importErrorDetails": "Error details",
     "copyErrorDetails": "Copy details",
-    "sendErrorFeedback": "Send feedback",
+    "sendErrorFeedback": "Generate report",
     "importExecutionSummary": "Import state when the error occurred",
     "importedCount": "{{count}} imported",
     "failedCount": "{{count}} failed",

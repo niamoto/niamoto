@@ -1,6 +1,6 @@
 /**
  * Tracks the last N page navigations for debug context.
- * Initialized once, records are collected when feedback is sent.
+ * Initialized once, records are collected when a feedback report is generated.
  */
 
 interface NavigationEntry {

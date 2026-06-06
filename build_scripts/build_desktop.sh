@@ -95,30 +95,6 @@ cd src/niamoto/gui/ui
 echo "Installing pnpm dependencies..."
 pnpm install --frozen-lockfile
 
-read_frontend_env() {
-    local key="$1"
-    local env_file=".env.production"
-
-    if [ ! -f "$env_file" ]; then
-        return 0
-    fi
-
-    grep -E "^[[:space:]]*(export[[:space:]]+)?${key}=" "$env_file" \
-        | tail -n 1 \
-        | sed -E "s/^[[:space:]]*(export[[:space:]]+)?${key}=//; s/^[[:space:]]+//; s/[[:space:]]+$//; s/^['\"]//; s/['\"]$//"
-}
-
-# Normalize feedback worker env vars for frontend and Tauri builds.
-FEEDBACK_WORKER_URL_VALUE="${NIAMOTO_FEEDBACK_WORKER_URL:-${FEEDBACK_WORKER_URL:-${VITE_FEEDBACK_WORKER_URL:-$(read_frontend_env VITE_FEEDBACK_WORKER_URL)}}}"
-FEEDBACK_API_KEY_VALUE="${NIAMOTO_FEEDBACK_API_KEY:-${FEEDBACK_API_KEY:-${VITE_FEEDBACK_API_KEY:-$(read_frontend_env VITE_FEEDBACK_API_KEY)}}}"
-export NIAMOTO_FEEDBACK_WORKER_URL="${NIAMOTO_FEEDBACK_WORKER_URL:-${FEEDBACK_WORKER_URL_VALUE}}"
-export NIAMOTO_FEEDBACK_API_KEY="${NIAMOTO_FEEDBACK_API_KEY:-${FEEDBACK_API_KEY_VALUE}}"
-export VITE_FEEDBACK_WORKER_URL="${VITE_FEEDBACK_WORKER_URL:-${FEEDBACK_WORKER_URL_VALUE}}"
-export VITE_FEEDBACK_API_KEY="${VITE_FEEDBACK_API_KEY:-${FEEDBACK_API_KEY_VALUE}}"
-if [ -z "$NIAMOTO_FEEDBACK_WORKER_URL" ] || [ -z "$NIAMOTO_FEEDBACK_API_KEY" ]; then
-    echo -e "${YELLOW}⚠ Feedback worker env vars missing; desktop feedback will be disabled in this build.${NC}"
-fi
-
 # Build
 pnpm run build
 

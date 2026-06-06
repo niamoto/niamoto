@@ -11,7 +11,7 @@ import { useNavigationStore, navItems } from '@/stores/navigationStore'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { usePlatform } from '@/shared/hooks/usePlatform'
 import { useRuntimeMode } from '@/shared/hooks/useRuntimeMode'
-import { useFeedback, useBrowserOnline } from '@/features/feedback'
+import { useFeedback } from '@/features/feedback'
 import { ProjectSwitcher } from '@/components/common'
 import { useReferences } from '@/hooks/useReferences'
 import { usePipelineStatus } from '@/hooks/usePipelineStatus'
@@ -44,8 +44,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
   const { isMac } = usePlatform()
   const { isDesktop, features } = useRuntimeMode()
   const feedback = useFeedback()
-  const browserOnline = useBrowserOnline()
-  const feedbackDisabled = !browserOnline || feedback.cooldownRemaining > 0 || feedback.isPreparingScreenshot
+  const feedbackDisabled = feedback.isPreparingScreenshot
 
   const collectionsRouteActive =
     location.pathname === '/groups' || location.pathname.startsWith('/groups/')
@@ -419,11 +418,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  {!browserOnline
-                    ? t('feedback:offline_tooltip')
-                    : feedback.cooldownRemaining > 0
-                      ? t('feedback:cooldown', { seconds: feedback.cooldownRemaining })
-                      : t('feedback:button_label')}
+                  {t('feedback:button_label')}
                 </TooltipContent>
               </Tooltip>
             </>
@@ -463,11 +458,7 @@ export function NavigationSidebar({ className, showHeader = true }: NavigationSi
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  {!browserOnline
-                    ? t('feedback:offline_tooltip')
-                    : feedback.cooldownRemaining > 0
-                      ? t('feedback:cooldown', { seconds: feedback.cooldownRemaining })
-                      : t('feedback:button_label')}
+                  {t('feedback:button_label')}
                 </TooltipContent>
               </Tooltip>
             </>

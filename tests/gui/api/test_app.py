@@ -143,7 +143,6 @@ class TestCreateApp:
             "/api/plugins",
             "/api/transform",
             "/api/export",
-            "/api/feedback",
             "/api/data",
             "/api/entities",
             "/api/deploy",
@@ -155,6 +154,14 @@ class TestCreateApp:
         for prefix in api_prefixes:
             matching_routes = [path for path in route_paths if path.startswith(prefix)]
             assert len(matching_routes) > 0, f"No routes found for prefix {prefix}"
+
+    def test_feedback_proxy_route_is_not_registered(self):
+        """The GUI no longer exposes the legacy remote feedback proxy."""
+        app = create_app()
+
+        route_paths = [route.path for route in app.routes]
+
+        assert "/api/feedback/submit" not in route_paths
 
     def test_preview_export_route_is_available(self):
         """Test dynamic exported preview route is included."""
