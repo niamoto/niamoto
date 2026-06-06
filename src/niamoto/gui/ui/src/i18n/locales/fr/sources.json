@@ -60,7 +60,7 @@
     "importedSummary": "{{datasets}} dataset(s) et {{references}} référence(s) importé(s)",
     "importErrorDetails": "Détails de l'erreur",
     "copyErrorDetails": "Copier les détails",
-    "sendErrorFeedback": "Envoyer un feedback",
+    "sendErrorFeedback": "Générer un rapport",
     "importExecutionSummary": "État de l'import au moment de l'erreur",
     "importedCount": "{{count}} importée(s)",
     "failedCount": "{{count}} en erreur",

@@ -1,88 +1,181 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.fn()
+const saveTextFileWithNativeDialogMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/shared/desktop/saveTextFile', () => ({
+  saveTextFileWithNativeDialog: saveTextFileWithNativeDialogMock,
+}))
+
+const payload = {
+  type: 'bug' as const,
+  title: 'Broken feedback',
+  description: 'The report button should stay local.',
+  context: {
+    app_version: '0.0.0',
+    os: 'linux',
+    current_page: '/settings',
+    runtime_mode: 'desktop',
+    theme: 'forest (light)',
+    language: 'fr',
+    window_size: '1280x900',
+    timestamp: '2026-06-06T10:00:00.000Z',
+  },
+}
 
 describe('feedback-api', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
     vi.resetModules()
     vi.unstubAllEnvs()
     fetchMock.mockReset()
+    saveTextFileWithNativeDialogMock.mockReset()
+    saveTextFileWithNativeDialogMock.mockResolvedValue({ status: 'unavailable' })
     vi.stubGlobal('fetch', fetchMock)
   })
 
-  it('posts to the feedback proxy even when client feedback config is missing', async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, screenshot_uploaded: false }),
-    })
+  it('generates a GitHub-ready Markdown report without calling a remote feedback proxy', async () => {
+    const { createObjectURL } = mockDownload()
 
     const mod = await import('../feedback-api')
 
-    const result = await mod.sendFeedback({
-      payload: {
-        type: 'bug',
-        title: 'Broken feedback',
-        context: {
-          app_version: '0.0.0',
-          os: 'linux',
-          current_page: '/settings',
-          runtime_mode: 'desktop',
-          theme: 'forest (light)',
-          language: 'fr',
-          window_size: '1280×900',
-          timestamp: new Date().toISOString(),
-        },
-      },
-    })
+    const result = await mod.sendFeedback({ payload })
 
-    expect(result.success).toBe(true)
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/feedback/submit',
-      expect.objectContaining({
-        method: 'POST',
-      })
-    )
-    const formData = fetchMock.mock.calls[0]?.[1]?.body as FormData
-    expect(formData.has('worker_url')).toBe(false)
-    expect(formData.has('api_key')).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      success: true,
+      report_downloaded: false,
+      report_format: 'markdown',
+      screenshot_included: false,
+    })
+    expect(result.report_filename).toMatch(/^niamoto-feedback-.*broken-feedback\.md$/)
+    expect(result.github_issue_url).toMatch(/^https:\/\/github\.com\/niamoto\/niamoto\/issues\/new\?/)
+    expect(createObjectURL).not.toHaveBeenCalled()
+
+    const markdown = result.report_content
+    expect(markdown).toContain('# Broken feedback')
+    expect(markdown).toContain('## Description')
+    expect(markdown).toContain('The report button should stay local.')
+    expect(markdown).toContain('| Page | `/settings` |')
+    expect(markdown).toContain('## Technical details')
+    expect(markdown).toContain('```json')
+
+    const issueUrl = new URL(result.github_issue_url!)
+    expect(issueUrl.searchParams.get('title')).toBe('[Bug] Broken feedback')
+    expect(issueUrl.searchParams.get('labels')).toBe('feedback,feedback:bug')
+    expect(issueUrl.searchParams.get('body')).toContain('The report button should stay local.')
+    expect(issueUrl.searchParams.get('body')).toContain('| Page | `/settings` |')
   })
 
-  it('does not send client feedback config when Vite env values are present', async () => {
-    vi.stubEnv('VITE_FEEDBACK_WORKER_URL', 'https://feedback.example.com')
-    vi.stubEnv('VITE_FEEDBACK_API_KEY', 'secret')
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, screenshot_uploaded: false }),
-    })
+  it('keeps screenshots in the downloaded Markdown but out of the GitHub issue URL', async () => {
+    const screenshot = new Blob(['image-bytes'], { type: 'image/jpeg' })
 
     const mod = await import('../feedback-api')
 
-    const result = await mod.sendFeedback({
-      payload: {
-        type: 'bug',
-        title: 'Broken feedback',
-        context: {
-          app_version: '0.0.0',
-          os: 'linux',
-          current_page: '/settings',
-          runtime_mode: 'desktop',
-          theme: 'forest (light)',
-          language: 'fr',
-          window_size: '1280×900',
-          timestamp: new Date().toISOString(),
-        },
-      },
-    })
+    const result = await mod.sendFeedback({ payload, screenshot })
 
-    expect(result.success).toBe(true)
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/feedback/submit',
-      expect.objectContaining({
-        method: 'POST',
-      })
-    )
-    const formData = fetchMock.mock.calls[0]?.[1]?.body as FormData
-    expect(formData.has('worker_url')).toBe(false)
-    expect(formData.has('api_key')).toBe(false)
+    expect(result.screenshot_included).toBe(true)
+    const markdown = result.report_content
+    expect(markdown).toContain('## Screenshot')
+    expect(markdown).toContain('data:image/jpeg;base64,')
+    expect(markdown).toContain('Attach the screenshot manually when creating a GitHub issue.')
+
+    const issueUrl = new URL(result.github_issue_url!)
+    const issueBody = issueUrl.searchParams.get('body') ?? ''
+    expect(issueBody).toContain('A screenshot was included in the downloaded report.')
+    expect(issueBody).not.toContain('data:image/jpeg;base64,')
+  })
+
+  it('downloads the generated Markdown through the browser only when explicitly requested', async () => {
+    const { getDownloadedBlob, createObjectURL } = mockDownload()
+    const mod = await import('../feedback-api')
+
+    const result = await mod.sendFeedback({ payload })
+    expect(createObjectURL).not.toHaveBeenCalled()
+
+    const downloadResult = await mod.downloadFeedbackReport(result)
+
+    expect(downloadResult).toEqual({
+      status: 'downloaded',
+      filename: result.report_filename,
+    })
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob))
+    const markdown = await getDownloadedBlob().text()
+    expect(markdown).toContain('# Broken feedback')
+  })
+
+  it('saves the generated Markdown through the native desktop dialog when available', async () => {
+    const { createObjectURL } = mockDownload()
+    saveTextFileWithNativeDialogMock.mockResolvedValue({
+      status: 'saved',
+      path: '/Users/julien/Desktop/niamoto-feedback-broken.md',
+    })
+    const mod = await import('../feedback-api')
+
+    const result = await mod.sendFeedback({ payload })
+    const downloadResult = await mod.downloadFeedbackReport(result)
+
+    expect(saveTextFileWithNativeDialogMock).toHaveBeenCalledWith({
+      filename: result.report_filename,
+      contents: result.report_content,
+    })
+    expect(downloadResult).toEqual({
+      status: 'saved',
+      filename: result.report_filename,
+      path: '/Users/julien/Desktop/niamoto-feedback-broken.md',
+    })
+    expect(createObjectURL).not.toHaveBeenCalled()
+  })
+
+  it('does not fall back to a browser download when the native save dialog is cancelled', async () => {
+    const { createObjectURL } = mockDownload()
+    saveTextFileWithNativeDialogMock.mockResolvedValue({ status: 'cancelled' })
+    const mod = await import('../feedback-api')
+
+    const result = await mod.sendFeedback({ payload })
+    const downloadResult = await mod.downloadFeedbackReport(result)
+
+    expect(downloadResult).toEqual({
+      status: 'cancelled',
+      filename: result.report_filename,
+    })
+    expect(createObjectURL).not.toHaveBeenCalled()
   })
 })
+
+function mockDownload(): {
+  getDownloadedBlob: () => Blob
+  createObjectURL: ReturnType<typeof vi.fn>
+} {
+  const anchor = document.createElement('a')
+  vi.spyOn(anchor, 'click').mockImplementation(() => undefined)
+  vi.spyOn(document, 'createElement').mockReturnValue(anchor)
+
+  let downloadedBlob: Blob | null = null
+  const createObjectURL = vi.fn((blob: Blob) => {
+    downloadedBlob = blob
+    return 'blob:feedback-report'
+  })
+
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    value: createObjectURL,
+  })
+  Object.defineProperty(URL, 'revokeObjectURL', {
+    configurable: true,
+    value: vi.fn(),
+  })
+
+  return {
+    getDownloadedBlob: () => {
+      if (!downloadedBlob) {
+        throw new Error('No report was downloaded')
+      }
+      return downloadedBlob
+    },
+    createObjectURL,
+  }
+}

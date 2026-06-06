@@ -39,20 +39,15 @@ export interface FeedbackPayload {
   context: FeedbackContext
 }
 
-export interface FeedbackResponse {
-  success: boolean
-  issue_url?: string
-  screenshot_uploaded: boolean
+export interface FeedbackReport {
+  report_format: 'markdown'
+  report_filename: string
+  report_content: string
+  screenshot_included: boolean
+  github_issue_url?: string
 }
 
-export class FeedbackError extends Error {
-  readonly status: number
-  readonly body: Record<string, unknown>
-
-  constructor(status: number, body: Record<string, unknown>) {
-    super(`Feedback error ${status}: ${JSON.stringify(body)}`)
-    this.name = 'FeedbackError'
-    this.status = status
-    this.body = body
-  }
+export interface FeedbackResponse extends FeedbackReport {
+  success: boolean
+  report_downloaded: boolean
 }

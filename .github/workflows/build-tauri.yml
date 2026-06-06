@@ -334,8 +334,6 @@ jobs:
           tagName: ${{ github.event.release.tag_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NIAMOTO_FEEDBACK_WORKER_URL: ${{ secrets.NIAMOTO_FEEDBACK_WORKER_URL || secrets.FEEDBACK_WORKER_URL }}
-          NIAMOTO_FEEDBACK_API_KEY: ${{ secrets.NIAMOTO_FEEDBACK_API_KEY || secrets.FEEDBACK_API_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -350,8 +348,6 @@ jobs:
           projectPath: src-tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NIAMOTO_FEEDBACK_WORKER_URL: ${{ secrets.NIAMOTO_FEEDBACK_WORKER_URL || secrets.FEEDBACK_WORKER_URL }}
-          NIAMOTO_FEEDBACK_API_KEY: ${{ secrets.NIAMOTO_FEEDBACK_API_KEY || secrets.FEEDBACK_API_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -364,8 +360,6 @@ jobs:
           projectPath: src-tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NIAMOTO_FEEDBACK_WORKER_URL: ${{ secrets.NIAMOTO_FEEDBACK_WORKER_URL || secrets.FEEDBACK_WORKER_URL }}
-          NIAMOTO_FEEDBACK_API_KEY: ${{ secrets.NIAMOTO_FEEDBACK_API_KEY || secrets.FEEDBACK_API_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -398,8 +392,6 @@ jobs:
           projectPath: src-tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NIAMOTO_FEEDBACK_WORKER_URL: ${{ secrets.NIAMOTO_FEEDBACK_WORKER_URL || secrets.FEEDBACK_WORKER_URL }}
-          NIAMOTO_FEEDBACK_API_KEY: ${{ secrets.NIAMOTO_FEEDBACK_API_KEY || secrets.FEEDBACK_API_KEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 

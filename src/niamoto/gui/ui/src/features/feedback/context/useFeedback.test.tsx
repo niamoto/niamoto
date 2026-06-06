@@ -21,11 +21,16 @@ function makeFeedbackState(): FeedbackState {
     contextData: null,
     draftTitle: 'Draft',
     draftDescription: 'Description',
+    generatedReport: null,
+    reportDownloadState: { status: 'idle' },
     openWithType: vi.fn(async () => {}),
     close: vi.fn(),
     setType: vi.fn(),
     captureScreenshot: vi.fn(async () => {}),
     send: vi.fn(async () => {}),
+    clearGeneratedReport: vi.fn(),
+    downloadGeneratedReport: vi.fn(async () => {}),
+    openGeneratedReportIssue: vi.fn(),
   }
 }
 

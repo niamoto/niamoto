@@ -43,7 +43,7 @@ Check:
 - import starts and reaches progress updates
 - transform starts and reaches progress updates
 - site export starts and reaches progress updates
-- feedback submission either succeeds or fails with a useful local diagnostic
+- feedback report generation downloads a useful local diagnostic
 - updater can check, download, and install an update
 
 ## Platform-specific checks

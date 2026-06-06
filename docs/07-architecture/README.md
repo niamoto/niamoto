@@ -16,6 +16,10 @@ the primary way to understand the codebase.
 - [testing-audit.md](testing-audit.md): current automated test inventory and high-value coverage gaps
 - [testing-strategy.md](testing-strategy.md): active testing guidance and coverage workflow
 
+## Maintenance notes
+
+- [legacy-feedback-worker.md](legacy-feedback-worker.md): restoration notes for the retired network feedback worker
+
 ## Current architecture
 
 - [system-overview.md](system-overview.md)
@@ -73,6 +77,7 @@ gui-runtime
 gui-preview-system
 testing-audit
 testing-strategy
+legacy-feedback-worker
 adr/0001-adopt-duckdb
 adr/0002-retire-legacy-importers
 adr/0003-derived-references-with-duckdb

@@ -67,7 +67,6 @@ vi.mock('@/features/feedback', () => ({
     isPreparingScreenshot: false,
     openWithType: vi.fn(),
   }),
-  useBrowserOnline: () => true,
 }))
 
 vi.mock('@/components/ui/tooltip', () => ({

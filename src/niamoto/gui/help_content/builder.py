@@ -18,7 +18,6 @@ import yaml
 PAGE_SUFFIXES = {".md", ".rst", ".html"}
 HELP_OPT_OUT_KEY = "in_app_docs"
 INTERNAL_TOP_LEVEL_DIRS = {
-    "_archive",
     "_build",
     "_ext",
     "_static",

@@ -34,7 +34,6 @@ from .routers import (
     data_explorer,
     entities,
     deploy,
-    feedback,
     smart_config,
     site,
     stats,
@@ -201,7 +200,6 @@ def create_app() -> FastAPI:
     app.include_router(plugins.router, prefix="/api/plugins", tags=["plugins"])
     app.include_router(transform.router, prefix="/api/transform", tags=["transform"])
     app.include_router(export.router, prefix="/api/export", tags=["export"])
-    app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])
     app.include_router(data_explorer.router, prefix="/api/data", tags=["data-explorer"])
     app.include_router(entities.router, prefix="/api/entities", tags=["entities"])
     app.include_router(deploy.router, prefix="/api/deploy", tags=["deploy"])

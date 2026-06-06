@@ -130,10 +130,6 @@ The public docs tree is:
 - `docs/08-roadmaps/`
 - `docs/09-troubleshooting/`
 
-The following directory stays in the repository but does not ship as public docs:
-
-- `docs/_archive/`
-
 Internal planning notes, brainstorms, and ideation drafts live outside the
 public repository.
 

@@ -8,64 +8,49 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { openExternalUrl } from '@/shared/desktop/openExternalUrl'
 import { useScreenshot } from '../hooks/useScreenshot'
 import { useContextData } from '../hooks/useContextData'
-import { sendFeedback } from '../lib/feedback-api'
+import { downloadFeedbackReport, sendFeedback } from '../lib/feedback-api'
 import {
   subscribeToBugReportRequests,
   type BugReportDraft,
 } from '../lib/bug-report-bridge'
 import {
-  FeedbackError,
   type FeedbackType,
   type FeedbackContext as FeedbackContextData,
+  type FeedbackResponse,
 } from '../types'
-import { FeedbackContext, type FeedbackState } from './feedbackContext'
+import {
+  FeedbackContext,
+  type FeedbackReportDownloadState,
+  type FeedbackState,
+} from './feedbackContext'
 
-const COOLDOWN_SECONDS = 30
+const IDLE_DOWNLOAD_STATE: FeedbackReportDownloadState = { status: 'idle' }
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation('feedback')
   const [isOpen, setIsOpen] = useState(false)
   const [type, setType] = useState<FeedbackType>('bug')
   const [isSending, setIsSending] = useState(false)
-  const [cooldownEnd, setCooldownEnd] = useState<number | null>(null)
-  const [cooldownRemaining, setCooldownRemaining] = useState(0)
   const [contextData, setContextData] = useState<FeedbackContextData | null>(null)
   const [draftTitle, setDraftTitle] = useState('')
   const [draftDescription, setDraftDescription] = useState('')
+  const [generatedReport, setGeneratedReport] = useState<FeedbackResponse | null>(null)
+  const [reportDownloadState, setReportDownloadState] =
+    useState<FeedbackReportDownloadState>(IDLE_DOWNLOAD_STATE)
 
   const { screenshot, isCapturing, error: screenshotError, capture, clear } = useScreenshot()
   const { collect } = useContextData()
 
-  // Cooldown timer
-  useEffect(() => {
-    if (!cooldownEnd) {
-      setCooldownRemaining(0)
-      return
-    }
-    const tick = () => {
-      const remaining = Math.max(0, Math.ceil((cooldownEnd - Date.now()) / 1000))
-      setCooldownRemaining(remaining)
-      if (remaining <= 0) setCooldownEnd(null)
-    }
-    tick()
-    const interval = setInterval(tick, 1000)
-    return () => clearInterval(interval)
-  }, [cooldownEnd])
-
-  // Ref for cooldown check in callbacks
-  const cooldownEndRef = useRef(cooldownEnd)
-  cooldownEndRef.current = cooldownEnd
-
   const openDraft = useCallback(
     async (nextType: FeedbackType = 'bug', draft?: BugReportDraft) => {
-      // Block if cooldown is active
-      if (cooldownEndRef.current && Date.now() < cooldownEndRef.current) return
-
       setType(nextType)
       setDraftTitle(draft?.title ?? '')
       setDraftDescription(draft?.description ?? '')
+      setGeneratedReport(null)
+      setReportDownloadState(IDLE_DOWNLOAD_STATE)
 
       // Capture screenshot before opening (bug type only)
       if (nextType === 'bug') {
@@ -92,6 +77,19 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     setIsOpen(false)
     setDraftTitle('')
     setDraftDescription('')
+    setGeneratedReport(null)
+    setReportDownloadState(IDLE_DOWNLOAD_STATE)
+  }, [])
+
+  const updateType = useCallback((nextType: FeedbackType) => {
+    setGeneratedReport(null)
+    setReportDownloadState(IDLE_DOWNLOAD_STATE)
+    setType(nextType)
+  }, [])
+
+  const clearGeneratedReport = useCallback(() => {
+    setGeneratedReport(null)
+    setReportDownloadState(IDLE_DOWNLOAD_STATE)
   }, [])
 
   useEffect(() => {
@@ -108,12 +106,12 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     async (title: string, description: string, includeScreenshot: boolean) => {
       const ctx = contextDataRef.current
       if (!ctx) return
-      // Block if cooldown is active
-      if (cooldownEndRef.current && Date.now() < cooldownEndRef.current) return
 
       setIsSending(true)
+      setGeneratedReport(null)
+      setReportDownloadState(IDLE_DOWNLOAD_STATE)
       try {
-        await sendFeedback({
+        const result = await sendFeedback({
           payload: {
             type,
             title: title.slice(0, 200),
@@ -123,29 +121,15 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
           screenshot: includeScreenshot ? screenshot : null,
         })
 
-        toast.success(t('success'), {
-          description: t('issue_created'),
-        })
-
-        setIsOpen(false)
-        setCooldownEnd(Date.now() + COOLDOWN_SECONDS * 1000)
+        setGeneratedReport(result)
+        setReportDownloadState(IDLE_DOWNLOAD_STATE)
       } catch (error) {
         console.error('[feedback] Send failed:', error)
         const description = error instanceof Error ? error.message : undefined
 
-        if (error instanceof FeedbackError) {
-          if (error.status === 429) {
-            toast.error(t('rate_limited'))
-          } else {
-            toast.error(t('send_error'), {
-              description,
-            })
-          }
-        } else {
-          toast.error(t('send_error'), {
-            description,
-          })
-        }
+        toast.error(t('send_error'), {
+          description,
+        })
         // Modal stays open — no data loss
       } finally {
         setIsSending(false)
@@ -154,27 +138,60 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     [type, screenshot, t]
   )
 
+  const downloadGeneratedReport = useCallback(async () => {
+    if (!generatedReport || reportDownloadState.status === 'saving') return
+
+    setReportDownloadState({ status: 'saving' })
+    try {
+      const result = await downloadFeedbackReport(generatedReport)
+      setReportDownloadState(result)
+    } catch (error) {
+      console.error('[feedback] Report download failed:', error)
+      const description = error instanceof Error ? error.message : undefined
+      setReportDownloadState({
+        status: 'error',
+        filename: generatedReport.report_filename,
+        message: description,
+      })
+      toast.error(t('download_error'), {
+        description,
+      })
+    }
+  }, [generatedReport, reportDownloadState.status, t])
+
+  const openGeneratedReportIssue = useCallback(() => {
+    if (!generatedReport?.github_issue_url) return
+    void openExternalUrl(generatedReport.github_issue_url)
+  }, [generatedReport])
+
   const value: FeedbackState = useMemo(() => ({
     isOpen,
     type,
     isSending,
-    cooldownRemaining,
+    cooldownRemaining: 0,
     screenshot,
     screenshotError,
     isPreparingScreenshot: isCapturing,
     contextData,
     draftTitle,
     draftDescription,
+    generatedReport,
+    reportDownloadState,
     openWithType,
     close,
-    setType,
+    setType: updateType,
     captureScreenshot: capture,
     send,
+    clearGeneratedReport,
+    downloadGeneratedReport,
+    openGeneratedReportIssue,
   }), [
-    isOpen, type, isSending, cooldownRemaining,
+    isOpen, type, isSending,
     screenshot, screenshotError, isCapturing,
-    contextData, draftTitle, draftDescription,
-    openWithType, close, setType, capture, send,
+    contextData, draftTitle, draftDescription, generatedReport,
+    reportDownloadState,
+    openWithType, close, updateType, capture, send,
+    clearGeneratedReport, downloadGeneratedReport, openGeneratedReportIssue,
   ])
 
   return (
