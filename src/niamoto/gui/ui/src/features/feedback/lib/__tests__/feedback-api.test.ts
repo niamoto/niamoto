@@ -4,6 +4,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.fn()
+const saveTextFileWithNativeDialogMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/shared/desktop/saveTextFile', () => ({
+  saveTextFileWithNativeDialog: saveTextFileWithNativeDialogMock,
+}))
 
 const payload = {
   type: 'bug' as const,
@@ -27,11 +32,13 @@ describe('feedback-api', () => {
     vi.resetModules()
     vi.unstubAllEnvs()
     fetchMock.mockReset()
+    saveTextFileWithNativeDialogMock.mockReset()
+    saveTextFileWithNativeDialogMock.mockResolvedValue({ status: 'unavailable' })
     vi.stubGlobal('fetch', fetchMock)
   })
 
-  it('downloads a GitHub-ready Markdown report without calling a remote feedback proxy', async () => {
-    const { getDownloadedBlob, createObjectURL } = mockDownload()
+  it('generates a GitHub-ready Markdown report without calling a remote feedback proxy', async () => {
+    const { createObjectURL } = mockDownload()
 
     const mod = await import('../feedback-api')
 
@@ -40,15 +47,15 @@ describe('feedback-api', () => {
     expect(fetchMock).not.toHaveBeenCalled()
     expect(result).toMatchObject({
       success: true,
-      report_downloaded: true,
+      report_downloaded: false,
       report_format: 'markdown',
       screenshot_included: false,
     })
     expect(result.report_filename).toMatch(/^niamoto-feedback-.*broken-feedback\.md$/)
     expect(result.github_issue_url).toMatch(/^https:\/\/github\.com\/niamoto\/niamoto\/issues\/new\?/)
-    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob))
+    expect(createObjectURL).not.toHaveBeenCalled()
 
-    const markdown = await getDownloadedBlob().text()
+    const markdown = result.report_content
     expect(markdown).toContain('# Broken feedback')
     expect(markdown).toContain('## Description')
     expect(markdown).toContain('The report button should stay local.')
@@ -65,14 +72,13 @@ describe('feedback-api', () => {
 
   it('keeps screenshots in the downloaded Markdown but out of the GitHub issue URL', async () => {
     const screenshot = new Blob(['image-bytes'], { type: 'image/jpeg' })
-    const { getDownloadedBlob } = mockDownload()
 
     const mod = await import('../feedback-api')
 
     const result = await mod.sendFeedback({ payload, screenshot })
 
     expect(result.screenshot_included).toBe(true)
-    const markdown = await getDownloadedBlob().text()
+    const markdown = result.report_content
     expect(markdown).toContain('## Screenshot')
     expect(markdown).toContain('data:image/jpeg;base64,')
     expect(markdown).toContain('Attach the screenshot manually when creating a GitHub issue.')
@@ -81,6 +87,62 @@ describe('feedback-api', () => {
     const issueBody = issueUrl.searchParams.get('body') ?? ''
     expect(issueBody).toContain('A screenshot was included in the downloaded report.')
     expect(issueBody).not.toContain('data:image/jpeg;base64,')
+  })
+
+  it('downloads the generated Markdown through the browser only when explicitly requested', async () => {
+    const { getDownloadedBlob, createObjectURL } = mockDownload()
+    const mod = await import('../feedback-api')
+
+    const result = await mod.sendFeedback({ payload })
+    expect(createObjectURL).not.toHaveBeenCalled()
+
+    const downloadResult = await mod.downloadFeedbackReport(result)
+
+    expect(downloadResult).toEqual({
+      status: 'downloaded',
+      filename: result.report_filename,
+    })
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob))
+    const markdown = await getDownloadedBlob().text()
+    expect(markdown).toContain('# Broken feedback')
+  })
+
+  it('saves the generated Markdown through the native desktop dialog when available', async () => {
+    const { createObjectURL } = mockDownload()
+    saveTextFileWithNativeDialogMock.mockResolvedValue({
+      status: 'saved',
+      path: '/Users/julien/Desktop/niamoto-feedback-broken.md',
+    })
+    const mod = await import('../feedback-api')
+
+    const result = await mod.sendFeedback({ payload })
+    const downloadResult = await mod.downloadFeedbackReport(result)
+
+    expect(saveTextFileWithNativeDialogMock).toHaveBeenCalledWith({
+      filename: result.report_filename,
+      contents: result.report_content,
+    })
+    expect(downloadResult).toEqual({
+      status: 'saved',
+      filename: result.report_filename,
+      path: '/Users/julien/Desktop/niamoto-feedback-broken.md',
+    })
+    expect(createObjectURL).not.toHaveBeenCalled()
+  })
+
+  it('does not fall back to a browser download when the native save dialog is cancelled', async () => {
+    const { createObjectURL } = mockDownload()
+    saveTextFileWithNativeDialogMock.mockResolvedValue({ status: 'cancelled' })
+    const mod = await import('../feedback-api')
+
+    const result = await mod.sendFeedback({ payload })
+    const downloadResult = await mod.downloadFeedbackReport(result)
+
+    expect(downloadResult).toEqual({
+      status: 'cancelled',
+      filename: result.report_filename,
+    })
+    expect(createObjectURL).not.toHaveBeenCalled()
   })
 })
 

@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Loader2 } from 'lucide-react'
+import { CheckCircle2, Download, ExternalLink, Loader2 } from 'lucide-react'
 import { useFeedback } from '../context/useFeedback'
 import { FeedbackTypeSelector } from './FeedbackTypeSelector'
 import { ScreenshotPreview } from './ScreenshotPreview'
@@ -59,6 +59,7 @@ export function FeedbackModal() {
   }, [feedback.isOpen])
 
   const handleTypeChange = async (newType: FeedbackType) => {
+    feedback.clearGeneratedReport()
     feedback.setType(newType)
     setIncludeScreenshot(newType === 'bug')
 
@@ -68,6 +69,11 @@ export function FeedbackModal() {
   }
 
   const handleClose = () => {
+    if (feedback.generatedReport) {
+      feedback.close()
+      return
+    }
+
     if (title.trim() || description.trim()) {
       setShowConfirmClose(true)
     } else {
@@ -86,6 +92,33 @@ export function FeedbackModal() {
   }
 
   const canSend = !feedback.isSending && title.trim().length > 0
+  const reportDownloadState = feedback.reportDownloadState
+  const isSavingReport = reportDownloadState.status === 'saving'
+  const downloadButtonLabel = isSavingReport
+    ? t('download_saving')
+    : reportDownloadState.status === 'saved' || reportDownloadState.status === 'downloaded'
+      ? t('download_again')
+      : t('download_report')
+  const downloadStatusMessage = (() => {
+    switch (reportDownloadState.status) {
+      case 'saving':
+        return t('download_saving_description')
+      case 'saved':
+        return reportDownloadState.path
+          ? t('download_saved_path', { path: reportDownloadState.path })
+          : t('download_saved')
+      case 'downloaded':
+        return t('download_started', { filename: reportDownloadState.filename })
+      case 'cancelled':
+        return t('download_cancelled')
+      case 'error':
+        return reportDownloadState.message
+          ? t('download_error_with_detail', { message: reportDownloadState.message })
+          : t('download_error_inline')
+      default:
+        return null
+    }
+  })()
 
   return (
     <>
@@ -111,6 +144,7 @@ export function FeedbackModal() {
                 id="feedback-title"
                 value={title}
                 onChange={(e) => {
+                  feedback.clearGeneratedReport()
                   setTitle(e.target.value.slice(0, 200))
                   if (titleError) setTitleError(false)
                 }}
@@ -135,7 +169,10 @@ export function FeedbackModal() {
               <Textarea
                 id="feedback-description"
                 value={description}
-                onChange={(e) => setDescription(e.target.value.slice(0, 5000))}
+                onChange={(e) => {
+                  feedback.clearGeneratedReport()
+                  setDescription(e.target.value.slice(0, 5000))
+                }}
                 placeholder={t('description_placeholder')}
                 maxLength={5000}
                 rows={4}
@@ -151,11 +188,78 @@ export function FeedbackModal() {
               error={feedback.screenshotError}
               isCapturing={feedback.isPreparingScreenshot}
               included={includeScreenshot}
-              onIncludedChange={setIncludeScreenshot}
+              onIncludedChange={(included) => {
+                feedback.clearGeneratedReport()
+                setIncludeScreenshot(included)
+              }}
             />
 
             {/* Context details (collapsible) */}
             <ContextDetails context={feedback.contextData} />
+
+            {feedback.generatedReport && (
+              <div
+                aria-live="polite"
+                className="rounded-lg border border-primary/25 bg-primary/5 p-4"
+              >
+                <div className="flex gap-3">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">{t('report_ready_title')}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {t('report_ready_description')}
+                      </p>
+                      <p className="break-all text-xs text-muted-foreground">
+                        {t('report_ready_filename', {
+                          filename: feedback.generatedReport.report_filename,
+                        })}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => void feedback.downloadGeneratedReport()}
+                        disabled={isSavingReport}
+                        aria-describedby={downloadStatusMessage ? 'feedback-report-download-status' : undefined}
+                      >
+                        {isSavingReport ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                        )}
+                        {downloadButtonLabel}
+                      </Button>
+                      {feedback.generatedReport.github_issue_url && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={feedback.openGeneratedReportIssue}
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
+                          {t('open_github_issue')}
+                        </Button>
+                      )}
+                    </div>
+                    {downloadStatusMessage && (
+                      <p
+                        id="feedback-report-download-status"
+                        role={reportDownloadState.status === 'error' ? 'alert' : undefined}
+                        className={
+                          reportDownloadState.status === 'error'
+                            ? 'break-words text-xs text-destructive'
+                            : 'break-all text-xs text-muted-foreground'
+                        }
+                      >
+                        {downloadStatusMessage}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Submit */}
             <Button
@@ -169,7 +273,7 @@ export function FeedbackModal() {
                   {t('sending')}
                 </>
               ) : (
-                t('send')
+                t(feedback.generatedReport ? 'regenerate_report' : 'send')
               )}
             </Button>
           </div>

@@ -371,7 +371,7 @@ pub async fn save_text_file(
     app: tauri::AppHandle,
     filename: String,
     contents: String,
-) -> Result<bool, String> {
+) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
 
     let safe_filename = PathBuf::from(&filename)
@@ -389,7 +389,7 @@ pub async fn save_text_file(
         .blocking_save_file();
 
     let Some(file_path) = selected_path else {
-        return Ok(false);
+        return Ok(None);
     };
 
     let path = file_path
@@ -397,7 +397,7 @@ pub async fn save_text_file(
         .map_err(|e| format!("Failed to convert save path: {}", e))?;
 
     fs::write(&path, contents).map_err(|e| format!("Failed to save file: {}", e))?;
-    Ok(true)
+    Ok(Some(path.to_string_lossy().to_string()))
 }
 
 fn validate_external_url(url: &str) -> Result<Url, String> {

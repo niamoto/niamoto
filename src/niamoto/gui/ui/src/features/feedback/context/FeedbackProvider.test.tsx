@@ -10,6 +10,7 @@ import type { FeedbackContext as FeedbackContextData } from '../types'
 
 const mocks = vi.hoisted(() => ({
   sendFeedback: vi.fn(),
+  downloadFeedbackReport: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   openExternalUrl: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../lib/feedback-api', () => ({
   sendFeedback: mocks.sendFeedback,
+  downloadFeedbackReport: mocks.downloadFeedbackReport,
 }))
 
 vi.mock('../hooks/useScreenshot', () => ({
@@ -77,16 +79,22 @@ describe('FeedbackProvider', () => {
     vi.clearAllMocks()
   })
 
-  it('adds a GitHub issue action to the success toast when a prefilled URL is available', async () => {
+  it('keeps the modal open and exposes the generated report actions', async () => {
     const githubIssueUrl = 'https://github.com/niamoto/niamoto/issues/new?title=Broken'
     mocks.collect.mockResolvedValue(contextData)
     mocks.sendFeedback.mockResolvedValue({
       success: true,
-      report_downloaded: true,
+      report_downloaded: false,
       report_format: 'markdown',
       report_filename: 'niamoto-feedback-broken.md',
+      report_content: '# Broken feedback',
       screenshot_included: false,
       github_issue_url: githubIssueUrl,
+    })
+    mocks.downloadFeedbackReport.mockResolvedValue({
+      status: 'saved',
+      filename: 'niamoto-feedback-broken.md',
+      path: '/Users/julien/Desktop/niamoto-feedback-broken.md',
     })
 
     container = document.createElement('div')
@@ -119,17 +127,29 @@ describe('FeedbackProvider', () => {
       await feedbackRef.current?.send('Broken feedback', 'The report is ready.', false)
     })
 
-    expect(mocks.toastSuccess).toHaveBeenCalledWith('success', {
-      description: 'issue_created',
-      action: {
-        label: 'open_github_issue',
-        onClick: expect.any(Function),
-      },
+    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+    expect(feedbackRef.current?.isOpen).toBe(true)
+    expect(feedbackRef.current?.generatedReport).toMatchObject({
+      report_filename: 'niamoto-feedback-broken.md',
+      report_content: '# Broken feedback',
+      github_issue_url: githubIssueUrl,
     })
 
-    const toastOptions = mocks.toastSuccess.mock.calls[0]?.[1]
-    toastOptions.action.onClick()
+    await act(async () => {
+      await feedbackRef.current?.downloadGeneratedReport()
+    })
+    expect(mocks.downloadFeedbackReport).toHaveBeenCalledWith(expect.objectContaining({
+      report_filename: 'niamoto-feedback-broken.md',
+    }))
+    expect(feedbackRef.current?.reportDownloadState).toEqual({
+      status: 'saved',
+      filename: 'niamoto-feedback-broken.md',
+      path: '/Users/julien/Desktop/niamoto-feedback-broken.md',
+    })
 
+    await act(async () => {
+      feedbackRef.current?.openGeneratedReportIssue()
+    })
     expect(mocks.openExternalUrl).toHaveBeenCalledWith(githubIssueUrl)
 
     await act(async () => {

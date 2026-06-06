@@ -1,4 +1,5 @@
 import type { FeedbackPayload, FeedbackResponse } from '../types'
+import { saveTextFileWithNativeDialog } from '@/shared/desktop/saveTextFile'
 
 const GITHUB_NEW_ISSUE_URL = 'https://github.com/niamoto/niamoto/issues/new'
 const MAX_GITHUB_ISSUE_URL_LENGTH = 7500
@@ -14,6 +15,11 @@ interface FeedbackSubmission {
   screenshot?: Blob | null
 }
 
+export type FeedbackDownloadResult =
+  | { status: 'saved'; filename: string; path?: string }
+  | { status: 'downloaded'; filename: string }
+  | { status: 'cancelled'; filename: string }
+
 interface ScreenshotData {
   filename: 'feedback.jpg'
   mime_type: string
@@ -28,15 +34,50 @@ export async function sendFeedback({ payload, screenshot }: FeedbackSubmission):
   const githubIssueUrl = buildGitHubIssueUrl(payload, githubBody)
   const reportFilename = buildReportFilename(payload.title)
 
-  downloadMarkdownReport(markdown, reportFilename)
-
   return {
     success: true,
-    report_downloaded: true,
+    report_downloaded: false,
     report_format: 'markdown',
     report_filename: reportFilename,
+    report_content: markdown,
     screenshot_included: Boolean(screenshotData),
     github_issue_url: githubIssueUrl,
+  }
+}
+
+export function downloadFeedbackReport(
+  report: Pick<FeedbackResponse, 'report_content' | 'report_filename'>,
+): Promise<FeedbackDownloadResult> {
+  return saveFeedbackReport(report)
+}
+
+async function saveFeedbackReport(
+  report: Pick<FeedbackResponse, 'report_content' | 'report_filename'>,
+): Promise<FeedbackDownloadResult> {
+  const nativeResult = await saveTextFileWithNativeDialog({
+    filename: report.report_filename,
+    contents: report.report_content,
+  })
+
+  if (nativeResult.status === 'saved') {
+    return {
+      status: 'saved',
+      filename: report.report_filename,
+      path: nativeResult.path,
+    }
+  }
+
+  if (nativeResult.status === 'cancelled') {
+    return {
+      status: 'cancelled',
+      filename: report.report_filename,
+    }
+  }
+
+  downloadMarkdownReport(report.report_content, report.report_filename)
+  return {
+    status: 'downloaded',
+    filename: report.report_filename,
   }
 }
 

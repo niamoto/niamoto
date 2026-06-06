@@ -39,11 +39,15 @@ export interface FeedbackPayload {
   context: FeedbackContext
 }
 
-export interface FeedbackResponse {
-  success: boolean
-  report_downloaded: boolean
+export interface FeedbackReport {
   report_format: 'markdown'
   report_filename: string
+  report_content: string
   screenshot_included: boolean
   github_issue_url?: string
+}
+
+export interface FeedbackResponse extends FeedbackReport {
+  success: boolean
+  report_downloaded: boolean
 }
