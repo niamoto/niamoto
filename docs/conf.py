@@ -56,7 +56,6 @@ exclude_patterns = [
     "_build",
     "Thumbs.db",
     ".DS_Store",
-    "_archive/**",
     "plans/**",
     "brainstorms/**",
     "ideation/**",
@@ -68,7 +67,6 @@ exclude_patterns = [
 
 # -- Redirects for renamed pages ---------------------------------------------
 # Public redirects only target pages that exist in the live site.
-# Never redirect to _archive/** (archive is not a navigation destination).
 redirects = {
     # 02-user-guide renamed pages
     "02-user-guide/transform": "collections.html",

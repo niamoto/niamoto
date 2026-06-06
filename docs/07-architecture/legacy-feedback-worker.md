@@ -28,14 +28,13 @@ The previous flow had three parts:
 1. React collected the feedback payload and screenshot.
 2. FastAPI exposed `POST /api/feedback/submit` and relayed the multipart body
    to a configured public endpoint.
-3. The Cloudflare Worker at `workers/niamoto-feedback-proxy` uploaded an
-   optional screenshot to R2 and created a GitHub issue.
+3. The Cloudflare Worker uploaded an optional screenshot to R2 and created a
+   GitHub issue. Its source used to live under
+   `workers/niamoto-feedback-proxy/`.
 
-The worker code is still present under:
-
-```text
-workers/niamoto-feedback-proxy/
-```
+The worker source was removed from the active repository cleanup after commit
+`200e7e95`. Restore it from Git history only if the network feedback flow is
+explicitly brought back.
 
 The worker expected:
 
@@ -80,29 +79,35 @@ released builds at personal infrastructure.
 
 To restore the legacy network flow:
 
-1. Reintroduce the FastAPI feedback router at
+1. Restore the worker source from Git history, for example:
+
+   ```bash
+   git restore --source 200e7e95 -- workers/niamoto-feedback-proxy
+   ```
+
+2. Reintroduce the FastAPI feedback router at
    `src/niamoto/gui/api/routers/feedback.py` from Git history before the local
    report migration.
-2. Register it in `src/niamoto/gui/api/app.py` with:
+3. Register it in `src/niamoto/gui/api/app.py` with:
 
    ```python
    app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])
    ```
 
-3. Change `src/niamoto/gui/ui/src/features/feedback/lib/feedback-api.ts` back
+4. Change `src/niamoto/gui/ui/src/features/feedback/lib/feedback-api.ts` back
    to posting `FormData` to `/api/feedback/submit`.
-4. Restore the build-time normalization in `build_scripts/build_desktop.sh` if
-   packaged desktop builds should embed or pass feedback worker settings.
-5. Configure a maintained worker-compatible service and secrets:
+5. Restore the Tauri build/runtime forwarding if packaged desktop builds should
+   embed or pass feedback worker settings.
+6. Configure a maintained worker-compatible service and secrets:
 
    ```text
    NIAMOTO_FEEDBACK_WORKER_URL=https://example-feedback-relay.example
    NIAMOTO_FEEDBACK_API_KEY=...
    ```
 
-6. Keep the frontend from sending worker URLs or API keys in form fields. The
+7. Keep the frontend from sending worker URLs or API keys in form fields. The
    backend should read trusted configuration from its environment only.
-7. Restore or recreate tests covering:
+8. Restore or recreate tests covering:
 
    - frontend posts only to `/api/feedback/submit`
    - frontend does not send worker config or secrets

@@ -210,9 +210,9 @@ Pattern matching is fast:
 ## Examples
 
 See:
-- `/Users/julienbarbe/Dev/Niamoto/Niamoto/src/niamoto/core/plugins/transformers/distribution/binned_distribution.py` - Transformer example
-- `/Users/julienbarbe/Dev/Niamoto/Niamoto/src/niamoto/core/plugins/widgets/bar_plot.py` - Widget example
-- `/Users/julienbarbe/Dev/Niamoto/Niamoto/tests/core/plugins/matching/test_pattern_matching.py` - Comprehensive test suite
+- `src/niamoto/core/plugins/transformers/distribution/binned_distribution.py` - Transformer example
+- `src/niamoto/core/plugins/widgets/bar_plot.py` - Widget example
+- `tests/core/plugins/matching/test_pattern_matching.py` - Comprehensive test suite
 
 ## Questions?
 

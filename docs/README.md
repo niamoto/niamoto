@@ -54,9 +54,6 @@ the same portal inside the repository.
 - [08-roadmaps/](08-roadmaps/README.md) — now a lightweight landing page
 - [09-troubleshooting/](09-troubleshooting/README.md)
 
-### Internal (not rendered in the live site)
-- `docs/_archive/` — historical pages kept for reference
-
 ## Style and contributions
 
 - `docs/STYLE_GUIDE.md` — voice, banned vocabulary, preferred verbs.

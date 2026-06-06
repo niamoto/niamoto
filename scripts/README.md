@@ -8,8 +8,7 @@ Development and maintenance scripts for Niamoto.
 scripts/
 ├── build/      # Build, release, asset generation
 ├── dev/        # Daily development workflow
-├── data/       # Data manipulation and querying
-└── _archive/   # Archived scripts (kept for reference)
+└── data/       # Data manipulation and querying
 ```
 
 ## build/
